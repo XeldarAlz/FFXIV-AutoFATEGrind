@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for the suggestion. If the idea isn't fully baked yet, kick it around in [Discussions](https://github.com/XeldarAlz/FFXIV-AutoFateGrind/discussions) first; fuzzy ideas tend to converge faster there than as tracked issues.
+        Thanks for the suggestion. If the idea isn't fully baked yet, kick it around in [Discussions](https://github.com/XeldarAlz/FFXIV-AutoFATEGrind/discussions) first; fuzzy ideas tend to converge faster there than as tracked issues.
 
   - type: textarea
     id: problem

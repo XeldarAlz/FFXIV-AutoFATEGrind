@@ -5,9 +5,9 @@
     "InternalName": "AutoFateGrind",
     "AssemblyVersion": "0.1.0.0",
     "TestingAssemblyVersion": "0.1.0.0",
-    "Description": "Tick the zones, the plugin teleports, finds active FATEs, and runs them in a loop.",
-    "Punchline": "Shared FATE farming, automated.",
-    "RepoUrl": "https://github.com/XeldarAlz/FFXIV-AutoFateGrind",
+    "Description": "Farms Shared FATEs for you: tick the zones, the plugin teleports, finds active FATEs, and runs them in a loop.",
+    "Punchline": "Shared FATEs, farmed for you.",
+    "RepoUrl": "https://github.com/XeldarAlz/FFXIV-AutoFATEGrind",
     "ApplicableVersion": "any",
     "Tags": [
       "FATE",
@@ -20,10 +20,10 @@
       "utility"
     ],
     "DalamudApiLevel": 15,
-    "IconUrl": "https://raw.githubusercontent.com/XeldarAlz/FFXIV-AutoFateGrind/master/AutoFateGrind/Images/Icon.png",
-    "DownloadLinkInstall": "https://github.com/XeldarAlz/FFXIV-AutoFateGrind/releases/latest/download/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/XeldarAlz/FFXIV-AutoFateGrind/releases/latest/download/latest.zip",
-    "DownloadLinkTesting": "https://github.com/XeldarAlz/FFXIV-AutoFateGrind/releases/latest/download/latest.zip",
+    "IconUrl": "https://raw.githubusercontent.com/XeldarAlz/FFXIV-AutoFATEGrind/master/AutoFateGrind/Images/Icon.png",
+    "DownloadLinkInstall": "https://github.com/XeldarAlz/FFXIV-AutoFATEGrind/releases/latest/download/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/XeldarAlz/FFXIV-AutoFATEGrind/releases/latest/download/latest.zip",
+    "DownloadLinkTesting": "https://github.com/XeldarAlz/FFXIV-AutoFATEGrind/releases/latest/download/latest.zip",
     "IsTestingExclusive": false,
     "AcceptsFeedback": true,
     "DownloadCount": 0

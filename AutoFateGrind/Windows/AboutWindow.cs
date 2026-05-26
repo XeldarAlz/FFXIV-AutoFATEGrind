@@ -12,10 +12,10 @@ namespace AutoFateGrind.Windows;
 
 public sealed class AboutWindow : Window, IDisposable
 {
-    private const string RepoUrl = "https://github.com/XeldarAlz/FFXIV-AutoFateGrind";
-    private const string IssuesUrl = "https://github.com/XeldarAlz/FFXIV-AutoFateGrind/issues";
-    private const string DiscussionsUrl = "https://github.com/XeldarAlz/FFXIV-AutoFateGrind/discussions";
-    private const string SecurityUrl = "https://github.com/XeldarAlz/FFXIV-AutoFateGrind/security/advisories/new";
+    private const string RepoUrl = "https://github.com/XeldarAlz/FFXIV-AutoFATEGrind";
+    private const string IssuesUrl = "https://github.com/XeldarAlz/FFXIV-AutoFATEGrind/issues";
+    private const string DiscussionsUrl = "https://github.com/XeldarAlz/FFXIV-AutoFATEGrind/discussions";
+    private const string SecurityUrl = "https://github.com/XeldarAlz/FFXIV-AutoFATEGrind/security/advisories/new";
     private const string Author = "XeldarAlz";
 
     private static readonly Vector4 GreetingColor = new(0.96f, 0.84f, 0.62f, 1.00f);

@@ -9,9 +9,9 @@ body:
       value: |
         Thanks for taking the time to file a bug. Please fill out as much as you can; it makes a huge difference.
 
-        If you're not sure whether it's a bug or expected behavior, prefer [Help & troubleshooting discussions](https://github.com/XeldarAlz/FFXIV-AutoFateGrind/discussions/new?category=help-troubleshooting); triage is faster there.
+        If you're not sure whether it's a bug or expected behavior, prefer [Help & troubleshooting discussions](https://github.com/XeldarAlz/FFXIV-AutoFATEGrind/discussions/new?category=help-troubleshooting); triage is faster there.
 
-        For security issues, please use [private vulnerability reporting](https://github.com/XeldarAlz/FFXIV-AutoFateGrind/security/advisories/new) instead.
+        For security issues, please use [private vulnerability reporting](https://github.com/XeldarAlz/FFXIV-AutoFATEGrind/security/advisories/new) instead.
 
   - type: textarea
     id: what-happened

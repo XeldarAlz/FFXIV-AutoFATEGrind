@@ -5,14 +5,14 @@
 <h1 align="center">Auto Fate Grind</h1>
 
 <p align="center">
-  <a href="https://github.com/XeldarAlz/FFXIV-AutoFateGrind/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/XeldarAlz/FFXIV-AutoFateGrind?style=flat-square&color=blue"></a>
-  <a href="https://github.com/XeldarAlz/FFXIV-AutoFateGrind/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/XeldarAlz/FFXIV-AutoFateGrind/total?style=flat-square&color=blue"></a>
-  <a href="https://github.com/XeldarAlz/FFXIV-AutoFateGrind/actions/workflows/release.yml"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/XeldarAlz/FFXIV-AutoFateGrind/release.yml?style=flat-square"></a>
+  <a href="https://github.com/XeldarAlz/FFXIV-AutoFATEGrind/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/XeldarAlz/FFXIV-AutoFATEGrind?style=flat-square&color=blue"></a>
+  <a href="https://github.com/XeldarAlz/FFXIV-AutoFATEGrind/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/XeldarAlz/FFXIV-AutoFATEGrind/total?style=flat-square&color=blue"></a>
+  <a href="https://github.com/XeldarAlz/FFXIV-AutoFATEGrind/actions/workflows/release.yml"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/XeldarAlz/FFXIV-AutoFATEGrind/release.yml?style=flat-square"></a>
   <a href="LICENSE.md"><img alt="License" src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue?style=flat-square"></a>
 </p>
 
 <p align="center">
-  <em>FATE farming, automated. Built on Dalamud.</em>
+  <em>Shared FATEs, farmed for you. Built on Dalamud.</em>
 </p>
 
 ---
