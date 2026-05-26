@@ -10,6 +10,7 @@ using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using ECommons;
+using System.Threading.Tasks;
 
 namespace AutoFateGrind;
 
@@ -34,6 +35,8 @@ public sealed class Plugin : IDalamudPlugin
     private readonly DependenciesWindow dependenciesWindow;
     internal LiveFateWindow LiveFateWindow { get; }
 
+    private readonly EventHandler<UnobservedTaskExceptionEventArgs> unobservedTaskHandler;
+
     public Plugin()
     {
         Instance = this;
@@ -41,6 +44,9 @@ public sealed class Plugin : IDalamudPlugin
         ECommonsMain.Init(PluginInterface, this);
         CLibMain.Init(PluginInterface, this, CLibModule.Automation);
         AchievementProgress.Initialize();
+
+        unobservedTaskHandler = OnUnobservedTaskException;
+        TaskScheduler.UnobservedTaskException += unobservedTaskHandler;
 
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         Cfg = Configuration;
@@ -72,8 +78,24 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.OpenMainUi += ToggleMainUi;
     }
 
+    // vnavmesh/BossMod run their obstacle-map and pathfind IPC on fire-and-forget Tasks we never get a
+    // handle to (we only see a TaskStatus), so we can't ObserveLeak them. When one faults — e.g. a bitmap
+    // build issued while the zone navmesh is still creating — its exception reaches the finalizer as
+    // unobserved and gets rethrown as log noise. Mark only those (matched by the vnavmesh stack) observed.
+    private void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+    {
+        if (e.Observed) return;
+        if (e.Exception.ToString().Contains("Navmesh.IPCProvider"))
+        {
+            e.SetObserved();
+            Log.Debug($"[AFG] Observed vnavmesh IPC task fault: {e.Exception.GetBaseException().Message}");
+        }
+    }
+
     public void Dispose()
     {
+        TaskScheduler.UnobservedTaskException -= unobservedTaskHandler;
+
         PluginInterface.UiBuilder.Draw -= WindowSystem.Draw;
         PluginInterface.UiBuilder.OpenConfigUi -= ToggleConfigUi;
         PluginInterface.UiBuilder.OpenMainUi -= ToggleMainUi;

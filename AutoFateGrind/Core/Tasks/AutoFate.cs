@@ -57,6 +57,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
     private const int   TerritoryWaitMs = 45_000;
     private const int   AethernetWatchdogMs = 60_000;
     private const int   ActivateMoveWatchdogMs = 60_000;
+    private const int   NavmeshReadyWaitMs = 60_000;
     private const int   HeartbeatMs = 30_000;
 
     private uint? lastStuckFateId;
@@ -852,11 +853,35 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
 
     private enum MoveStopReason { None, StuckRetry, StuckTeleport, StuckInCombat, HigherPriority, NpcSpawned, FateInvalid }
 
+    // After a teleport the destination zone's navmesh is still building; any obstacle-map or pathfind IPC
+    // issued now races vnavmesh and faults with "navmesh creation is in progress". Hold here until ready.
+    private async Task WaitForNavmeshReady()
+    {
+        if (NavmeshIPC.Instance.IsReady()) return;
+
+        var deadline = Environment.TickCount64 + NavmeshReadyWaitMs;
+        while (!NavmeshIPC.Instance.IsReady())
+        {
+            if (CancelToken.IsCancellationRequested) return;
+            if (Environment.TickCount64 >= deadline)
+            {
+                Diag($"WAIT TIMEOUT: navmesh not ready within {NavmeshReadyWaitMs / 1000}s; proceeding anyway");
+                return;
+            }
+            var progress = NavmeshIPC.Instance.BuildProgress();
+            Status = progress is >= 0f and <= 1f
+                ? $"Please wait — navmesh is loading ({progress * 100f:F0}%)"
+                : "Please wait — navmesh is loading…";
+            await NextFrame(60);
+        }
+    }
+
     private async Task GenerateObstacleMap(PublicEvent fate)
     {
         if (obstacleMapBlacklist.Contains(fate.Id)) return;
         if (Plugin.Cfg.RuntimeBadObstacleMaps.Contains(fate.Id)) return;
         if (!BossModIPC.Instance.IsAvailable) return;
+        if (!NavmeshIPC.Instance.IsReady()) return;
 
         var safe = NavmeshIPC.Instance.NearestPointReachable(fate.Position, 5f, 5f);
         var anchor = safe ?? fate.Position;
@@ -894,6 +919,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
 
     private async Task<MoveStopReason> MoveToFate(PublicEvent fate)
     {
+        await WaitForNavmeshReady();
         await GenerateObstacleMap(fate);
 
         var rnd = RandomPointInsideRadius(fate.Position, fate.Radius * 0.5f);

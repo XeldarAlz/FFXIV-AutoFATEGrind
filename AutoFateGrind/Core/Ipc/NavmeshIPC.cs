@@ -13,6 +13,8 @@ internal sealed class NavmeshIPC
     private readonly ICallGateSubscriber<bool> pathIsRunning;
     private readonly ICallGateSubscriber<bool> simpleMovePathfindInProgress;
     private readonly ICallGateSubscriber<bool> navPathfindInProgress;
+    private readonly ICallGateSubscriber<bool> navIsReady;
+    private readonly ICallGateSubscriber<float> navBuildProgress;
     private readonly ICallGateSubscriber<Vector3, float, float, Vector3?> nearestPointReachable;
     private readonly ICallGateSubscriber<object> pathStop;
 
@@ -21,11 +23,30 @@ internal sealed class NavmeshIPC
         pathIsRunning               = Svc.PluginInterface.GetIpcSubscriber<bool>("vnavmesh.Path.IsRunning");
         simpleMovePathfindInProgress = Svc.PluginInterface.GetIpcSubscriber<bool>("vnavmesh.SimpleMove.PathfindInProgress");
         navPathfindInProgress       = Svc.PluginInterface.GetIpcSubscriber<bool>("vnavmesh.Nav.PathfindInProgress");
+        navIsReady                  = Svc.PluginInterface.GetIpcSubscriber<bool>("vnavmesh.Nav.IsReady");
+        navBuildProgress            = Svc.PluginInterface.GetIpcSubscriber<float>("vnavmesh.Nav.BuildProgress");
         nearestPointReachable       = Svc.PluginInterface.GetIpcSubscriber<Vector3, float, float, Vector3?>("vnavmesh.Query.Mesh.NearestPointReachable");
         pathStop                    = Svc.PluginInterface.GetIpcSubscriber<object>("vnavmesh.Path.Stop");
     }
 
     public bool IsAvailable => pathIsRunning.HasFunction;
+
+    // True once the navmesh for the current zone is fully built and queryable. While false, obstacle-map
+    // and pathfind IPC calls race against vnavmesh's background build and throw "navmesh creation is in progress".
+    public bool IsReady()
+    {
+        if (!navIsReady.HasFunction) return true; // older vnavmesh without the gate: assume ready, don't block.
+        try { return navIsReady.InvokeFunc(); }
+        catch (Exception ex) { Svc.Log.Warning(ex, "[NavmeshIPC] IsReady failed"); return true; }
+    }
+
+    // 0..1 while a build is in progress; -1 when idle/complete. Used only for a user-facing progress hint.
+    public float BuildProgress()
+    {
+        if (!navBuildProgress.HasFunction) return -1f;
+        try { return navBuildProgress.InvokeFunc(); }
+        catch (Exception ex) { Svc.Log.Warning(ex, "[NavmeshIPC] BuildProgress failed"); return -1f; }
+    }
 
     public bool IsRunning()
     {
