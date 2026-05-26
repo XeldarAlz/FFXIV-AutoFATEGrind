@@ -14,6 +14,7 @@ public sealed class Configuration : IPluginConfiguration
 
     public GrindMode Mode { get; set; } = GrindMode.MaxGemstones;
     public int TargetFateCount { get; set; } = 30;
+    public int TargetGemstoneCount { get; set; } = 1500;
 
     public bool ShowAllZonesOverride { get; set; } = false;
     public bool ShowCompletedZones { get; set; } = false;

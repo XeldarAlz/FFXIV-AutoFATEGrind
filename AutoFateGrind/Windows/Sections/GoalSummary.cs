@@ -31,6 +31,20 @@ internal static class GoalSummary
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
                 ImGui.TextUnformatted("FATEs");
         }
+        else if (cfg.Mode == GrindMode.MaxGemstones)
+        {
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth(90);
+            var target = cfg.TargetGemstoneCount;
+            if (ImGui.InputInt("##gemcnt", ref target, 50, 250))
+            {
+                cfg.TargetGemstoneCount = Math.Clamp(target, 1, 1500);
+                cfg.SaveDebounced();
+            }
+            ImGui.SameLine();
+            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
+                ImGui.TextUnformatted($"gems  ·  have {GemstoneCount()}");
+        }
 
         DrawScopeToggle(cfg);
 
@@ -50,7 +64,7 @@ internal static class GoalSummary
 
     private static unsafe string SummaryFor(Configuration cfg) => cfg.Mode switch
     {
-        GrindMode.MaxGemstones => $"Stops at {cfg.TradeThreshold} gems (have {GemstoneCount()}).",
+        GrindMode.MaxGemstones => "Stops at",
         GrindMode.MaxFates     => "Stops when every selected zone hits 60 Shared FATEs.",
         GrindMode.RunCount     => "Stops after",
         GrindMode.Endless      => "Rotates selected zones until you press Stop.",
@@ -59,7 +73,7 @@ internal static class GoalSummary
 
     private static void DrawScopeToggle(Configuration cfg)
     {
-        if (cfg.Mode is not (GrindMode.MaxGemstones or GrindMode.MaxFates)) return;
+        if (cfg.Mode != GrindMode.MaxFates) return;
 
         ImGui.SameLine();
         var label = cfg.ShowAllZonesOverride ? "Hide ARR/HW/SB" : "Show ARR/HW/SB";

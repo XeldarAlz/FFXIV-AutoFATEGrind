@@ -730,7 +730,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         GrindMode.Endless      => false,
         // Per-zone case is handled by the rotation check at the top of the loop.
         GrindMode.MaxFates     => zones.All(z => z.AchievementDone),
-        GrindMode.MaxGemstones => GemstoneCatalog.CurrentWalletCount() >= Plugin.Cfg.TradeThreshold,
+        GrindMode.MaxGemstones => GemstoneCatalog.CurrentWalletCount() >= Plugin.Cfg.TargetGemstoneCount,
         GrindMode.RunCount     => session.CompletedCount >= Plugin.Cfg.TargetFateCount,
         _ => false,
     };
