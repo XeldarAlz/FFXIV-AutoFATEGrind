@@ -9,14 +9,6 @@ using System.Threading.Tasks;
 
 namespace AutoFateGrind.Core.Tasks;
 
-// Spends Bicolor Gemstones at the trader local to the zone we just farmed. Falls back
-// to the expansion's hub trader if the origin zone has none (e.g. non-Shared-FATE zones
-// running in Endless/RunCount mode).
-//
-// Per-zone traders have a SelectIconString menu in front of their shop (rank tiers). The
-// target item lives in exactly one of those tiers, so we click each menu entry in turn
-// and check whether the resulting ShopExchangeCurrency addon contains our target item;
-// if not, close it and try the next entry.
 public sealed class AutoTrade(uint targetItemId, uint originTerritoryId, ExpansionKind originExpansion) : AutoCommon
 {
     private readonly uint targetItemId = targetItemId;
@@ -28,8 +20,8 @@ public sealed class AutoTrade(uint targetItemId, uint originTerritoryId, Expansi
         var item = GemstoneCatalog.FindById(targetItemId);
         ErrorIf(item is null, "No target item set. Open /afg config → Trader and pick one.");
 
-        var trader = GemstoneTrader.PickFor(originTerritoryId, originExpansion);
-        ErrorIf(trader is null, $"No Bicolor trader is registered for territory {originTerritoryId} or expansion {originExpansion}.");
+        var trader = GemstoneTrader.PickForItem(targetItemId, originTerritoryId, originExpansion);
+        ErrorIf(trader is null, $"No registered Bicolor trader sells {item!.ItemName}.");
 
         Svc.Chat.Print($"[AFG] Auto-trade: {item!.ItemName} ({item.CostPerOne} gems each) at {trader!.Name}");
 

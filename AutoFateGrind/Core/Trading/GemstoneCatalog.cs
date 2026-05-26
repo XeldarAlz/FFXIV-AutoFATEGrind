@@ -6,7 +6,8 @@ namespace AutoFateGrind.Core.Trading;
 public sealed record GemstoneTradeItem(
     uint ItemId,
     string ItemName,
-    uint CostPerOne);
+    uint CostPerOne,
+    uint[] ShopRowIds);
 
 public static class GemstoneCatalog
 {
@@ -21,15 +22,15 @@ public static class GemstoneCatalog
     public static GemstoneTradeItem? FindById(uint itemId)
         => Array.Find(All, i => i.ItemId == itemId);
 
-    // Side-effecting: writes back the cheapest catalog entry when the saved id is missing
-    // or stale, so a stored 0 (fresh install) can't silently no-op the trade-on-cap gate.
+    // Picks the cheapest routable item as a default so fresh installs don't no-op trade-on-cap.
     public static uint EnsurePersistedTarget()
     {
         var cfg = Plugin.Cfg;
         if (cfg.TargetTradeItemId != 0 && FindById(cfg.TargetTradeItemId) is not null)
             return cfg.TargetTradeItemId;
-        if (All.Length == 0) return 0;
-        cfg.TargetTradeItemId = All[0].ItemId;
+        var fallback = Array.Find(All, i => GemstoneTrader.PickForItem(i.ItemId, null, null) is not null);
+        if (fallback is null) return 0;
+        cfg.TargetTradeItemId = fallback.ItemId;
         cfg.Save();
         return cfg.TargetTradeItemId;
     }
@@ -52,17 +53,13 @@ public static class GemstoneCatalog
         };
     }
 
-    // Walks the SpecialShop sheet and collects every distinct item that can be bought
-    // with Bicolor Gemstones. The trader/slot for purchase is resolved at runtime by
-    // ShopInteraction (per-trader sub-menu and per-shop slot index).
     private static GemstoneTradeItem[] LoadFromLumina()
     {
         var shops = Svc.Data.GetExcelSheet<SpecialShop>();
         var items = Svc.Data.GetExcelSheet<Item>();
         if (shops is null || items is null) return [];
 
-        var seen = new HashSet<uint>();
-        var result = new List<GemstoneTradeItem>(capacity: 128);
+        var byItem = new Dictionary<uint, (uint cost, string name, List<uint> shopIds)>(capacity: 128);
 
         foreach (var shop in shops)
         {
@@ -85,21 +82,29 @@ public static class GemstoneCatalog
 
                 foreach (var r in receives)
                 {
-                    var item = r.Item;
-                    if (item.RowId == 0) continue;
-                    if (!seen.Add(item.RowId)) continue;
+                    var rowId = r.Item.RowId;
+                    if (rowId == 0) continue;
 
-                    var name = items.GetRowOrDefault(item.RowId)?.Name.ExtractText() ?? "";
-                    if (string.IsNullOrWhiteSpace(name)) continue;
-
-                    result.Add(new GemstoneTradeItem(
-                        ItemId: item.RowId,
-                        ItemName: name,
-                        CostPerOne: bicolorCost));
+                    if (!byItem.TryGetValue(rowId, out var data))
+                    {
+                        var name = items.GetRowOrDefault(rowId)?.Name.ExtractText() ?? "";
+                        if (string.IsNullOrWhiteSpace(name)) continue;
+                        data = (bicolorCost, name, new List<uint>());
+                        byItem[rowId] = data;
+                    }
+                    if (!data.shopIds.Contains(shop.RowId))
+                        data.shopIds.Add(shop.RowId);
                 }
             }
         }
 
-        return [.. result.OrderBy(i => i.CostPerOne).ThenBy(i => i.ItemName, StringComparer.OrdinalIgnoreCase)];
+        return [.. byItem
+            .Select(kv => new GemstoneTradeItem(
+                ItemId: kv.Key,
+                ItemName: kv.Value.name,
+                CostPerOne: kv.Value.cost,
+                ShopRowIds: [.. kv.Value.shopIds]))
+            .OrderBy(i => i.CostPerOne)
+            .ThenBy(i => i.ItemName, StringComparer.OrdinalIgnoreCase)];
     }
 }

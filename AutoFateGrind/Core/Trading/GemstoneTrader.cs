@@ -1,4 +1,7 @@
 using AutoFateGrind.Core.Zones;
+using ECommons.DalamudServices;
+using Lumina.Excel;
+using Lumina.Excel.Sheets;
 using System.Numerics;
 
 namespace AutoFateGrind.Core.Trading;
@@ -11,14 +14,11 @@ public sealed record TraderLocation(
     ExpansionKind Expansion,
     bool IsHub);
 
-// All 24 Bicolor Gemstone Traders, sourced from Lumina (ENpcResident.Title == "Gemstone Trader",
-// position resolved via Level sheet). One trader per Shared FATE zone plus two hubs per
-// expansion. `IsHub` distinguishes the city hub from the in-zone trader.
 public static class GemstoneTrader
 {
     public static readonly TraderLocation[] Traders =
     [
-        // Shadowbringers — 6 zone traders + 2 hubs
+        // Shadowbringers
         new("Siulmet",         1027385, 813,  new Vector3( 701.898f,  21.7958f,  -45.9079f), ExpansionKind.ShB, IsHub: false),
         new("Zumutt",          1027497, 814,  new Vector3(-482.859f, 417.190f,  -629.042f), ExpansionKind.ShB, IsHub: false),
         new("Halden",          1027892, 815,  new Vector3(-541.649f,  45.4565f, -217.395f), ExpansionKind.ShB, IsHub: false),
@@ -28,7 +28,7 @@ public static class GemstoneTrader
         new("Gramsol",         1027998, 819,  new Vector3(  -6.7598f, -7.700f,   118.517f), ExpansionKind.ShB, IsHub: true),
         new("Pedronille",      1027538, 820,  new Vector3( -32.8222f, 84.184f,    49.3019f), ExpansionKind.ShB, IsHub: true),
 
-        // Endwalker — 6 zone traders + 2 hubs
+        // Endwalker
         new("Faezbroes",       1037484, 956,  new Vector3( 423.562f, 166.283f,  -423.983f), ExpansionKind.EW,  IsHub: false),
         new("Mahveydah",       1037635, 957,  new Vector3( 218.646f,   4.7637f,  658.839f), ExpansionKind.EW,  IsHub: false),
         new("Zawawa",          1037724, 958,  new Vector3(-426.858f,  22.3626f,  430.132f), ExpansionKind.EW,  IsHub: false),
@@ -38,7 +38,7 @@ public static class GemstoneTrader
         new("Gadfrid",         1037055, 962,  new Vector3(  78.3673f,  5.1423f,  -36.7838f), ExpansionKind.EW,  IsHub: true),
         new("Sajareen",        1037304, 963,  new Vector3(  -4.7563f,  0.9002f,  -52.8448f), ExpansionKind.EW,  IsHub: true),
 
-        // Dawntrail — 6 zone traders + 2 hubs
+        // Dawntrail
         new("Tepli",           1048628, 1187, new Vector3( 301.503f, -172.282f, -484.550f), ExpansionKind.DT,  IsHub: false),
         new("Kunuhali",        1048778, 1188, new Vector3(-200.336f,   6.3003f, -522.772f), ExpansionKind.DT,  IsHub: false),
         new("Rral Wuruq",      1048933, 1189, new Vector3(-381.561f,  23.5356f, -436.932f), ExpansionKind.DT,  IsHub: false),
@@ -55,8 +55,89 @@ public static class GemstoneTrader
     public static TraderLocation? PickHub(ExpansionKind expansion) =>
         Array.Find(Traders, t => t.Expansion == expansion && t.IsHub);
 
-    // Prefer the trader in the player's current territory; fall back to the expansion's hub
-    // (e.g. when finishing a zone whose trader isn't usable, or for non-Shared-FATE zones).
-    public static TraderLocation? PickFor(uint currentTerritoryId, ExpansionKind expansion) =>
-        PickForTerritory(currentTerritoryId) ?? PickHub(expansion);
+    private static Dictionary<uint, TraderLocation[]>? shopToTraders;
+
+    public static void Invalidate() => shopToTraders = null;
+
+    private static Dictionary<uint, TraderLocation[]> ShopToTraders =>
+        shopToTraders ??= BuildShopToTraders();
+
+    // Bicolor traders surface tiered shops via TopicSelect / PreHandler, not direct SpecialShop refs.
+    private static Dictionary<uint, TraderLocation[]> BuildShopToTraders()
+    {
+        var enpcSheet = Svc.Data.GetExcelSheet<ENpcBase>();
+        if (enpcSheet is null) return [];
+
+        var byBase = Traders.ToDictionary(t => t.EnpcBaseId);
+        var accum = new Dictionary<uint, List<TraderLocation>>();
+
+        void Attach(uint shopId, TraderLocation trader)
+        {
+            if (shopId == 0) return;
+            if (!accum.TryGetValue(shopId, out var list))
+            {
+                list = new List<TraderLocation>();
+                accum[shopId] = list;
+            }
+            if (!list.Contains(trader)) list.Add(trader);
+        }
+
+        void Resolve(Lumina.Excel.RowRef r, TraderLocation trader)
+        {
+            if (r.Is<SpecialShop>())
+            {
+                Attach(r.RowId, trader);
+            }
+            else if (r.Is<PreHandler>() && r.GetValueOrDefault<PreHandler>() is { } pre)
+            {
+                if (pre.Target.Is<SpecialShop>()) Attach(pre.Target.RowId, trader);
+            }
+        }
+
+        foreach (var npc in enpcSheet)
+        {
+            if (!byBase.TryGetValue(npc.RowId, out var trader)) continue;
+            foreach (var data in npc.ENpcData)
+            {
+                Resolve(data, trader);
+
+                if (data.Is<TopicSelect>() && data.GetValueOrDefault<TopicSelect>() is { } topic)
+                    foreach (var shopRef in topic.Shop)
+                        Resolve(shopRef, trader);
+            }
+        }
+
+        return accum.ToDictionary(kv => kv.Key, kv => kv.Value.ToArray());
+    }
+
+    // Preference: in-zone → same-expansion hub → same-expansion → any hub → any seller.
+    public static TraderLocation? PickForItem(uint itemId, uint? preferTerritoryId, ExpansionKind? preferExpansion)
+    {
+        var item = GemstoneCatalog.FindById(itemId);
+        if (item is null) return null;
+
+        var sellers = new List<TraderLocation>();
+        foreach (var shopId in item.ShopRowIds)
+        {
+            if (!ShopToTraders.TryGetValue(shopId, out var owners)) continue;
+            foreach (var t in owners)
+                if (!sellers.Contains(t)) sellers.Add(t);
+        }
+        if (sellers.Count == 0) return null;
+
+        if (preferTerritoryId is { } tid)
+        {
+            var inZone = sellers.FirstOrDefault(t => t.TerritoryId == tid);
+            if (inZone is not null) return inZone;
+        }
+        if (preferExpansion is { } exp)
+        {
+            var hub = sellers.FirstOrDefault(t => t.Expansion == exp && t.IsHub);
+            if (hub is not null) return hub;
+            var inExp = sellers.FirstOrDefault(t => t.Expansion == exp);
+            if (inExp is not null) return inExp;
+        }
+        var anyHub = sellers.FirstOrDefault(t => t.IsHub);
+        return anyHub ?? sellers[0];
+    }
 }
