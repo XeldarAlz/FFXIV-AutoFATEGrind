@@ -1,6 +1,4 @@
 using AutoFateGrind.Core.External;
-using AutoFateGrind.Core.Tasks;
-using AutoFateGrind.Windows.Components;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility.Raii;
@@ -9,10 +7,8 @@ namespace AutoFateGrind.Windows.Sections;
 
 internal static class TopToolbar
 {
-    public static void Draw(Plugin plugin, AutoFateController controller)
+    public static void Draw(Plugin plugin)
     {
-        StatusBanner.Draw(controller.Running, controller.Status);
-
         var plugLabel = FontAwesomeIcon.Plug.ToIconString();
         var infoLabel = FontAwesomeIcon.InfoCircle.ToIconString();
         var gearLabel = FontAwesomeIcon.Cog.ToIconString();
@@ -38,7 +34,5 @@ internal static class TopToolbar
         if (plugClicked) plugin.ToggleDependenciesUi();
         if (infoClicked) plugin.ToggleAboutUi();
         if (gearClicked) plugin.ToggleConfigUi();
-
-        ImGui.Separator();
     }
 }

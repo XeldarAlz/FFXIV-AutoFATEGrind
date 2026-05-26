@@ -21,6 +21,8 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IDataManager DataManager { get; private set; } = null!;
     [PluginService] internal static IPluginLog Log { get; private set; } = null!;
 
+    internal static Plugin Instance { get; private set; } = null!;
+
     internal Configuration Configuration { get; }
     internal static Configuration Cfg { get; private set; } = null!;
     internal WindowSystem WindowSystem { get; } = new("AutoFateGrind");
@@ -30,9 +32,12 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ConfigWindow configWindow;
     private readonly AboutWindow aboutWindow;
     private readonly DependenciesWindow dependenciesWindow;
+    internal LiveFateWindow LiveFateWindow { get; }
 
     public Plugin()
     {
+        Instance = this;
+
         ECommonsMain.Init(PluginInterface, this);
         CLibMain.Init(PluginInterface, this, CLibModule.Automation);
         AchievementProgress.Initialize();
@@ -45,11 +50,13 @@ public sealed class Plugin : IDalamudPlugin
         configWindow = new ConfigWindow(this);
         aboutWindow = new AboutWindow();
         dependenciesWindow = new DependenciesWindow();
+        LiveFateWindow = new LiveFateWindow(this) { IsOpen = Configuration.ShowLivePopout };
 
         WindowSystem.AddWindow(mainWindow);
         WindowSystem.AddWindow(configWindow);
         WindowSystem.AddWindow(aboutWindow);
         WindowSystem.AddWindow(dependenciesWindow);
+        WindowSystem.AddWindow(LiveFateWindow);
 
         CommandManager.AddHandler(AfgConstants.PrimaryCommand, new CommandInfo(OnCommand)
         {
@@ -76,6 +83,7 @@ public sealed class Plugin : IDalamudPlugin
         configWindow.Dispose();
         aboutWindow.Dispose();
         dependenciesWindow.Dispose();
+        LiveFateWindow.Dispose();
 
         CommandManager.RemoveHandler(AfgConstants.PrimaryCommand);
         CommandManager.RemoveHandler(AfgConstants.AliasCommand);

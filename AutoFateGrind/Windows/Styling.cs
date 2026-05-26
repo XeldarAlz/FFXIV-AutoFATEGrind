@@ -8,21 +8,31 @@ namespace AutoFateGrind.Windows;
 
 internal static class Styling
 {
-    public static readonly Vector4 AccentTeal     = new(0.32f, 0.78f, 0.78f, 1.00f);
-    public static readonly Vector4 AccentTealSoft = new(0.50f, 0.90f, 0.90f, 1.00f);
-    public static readonly Vector4 AccentMint     = new(0.46f, 0.86f, 0.66f, 1.00f);
-    public static readonly Vector4 AccentAmber    = new(0.92f, 0.74f, 0.34f, 1.00f);
-    public static readonly Vector4 AccentRose     = new(0.93f, 0.42f, 0.50f, 1.00f);
+    // Violet / pink palette keyed off the stone-face icon. Differentiates this
+    // plugin visually from AutoDailyTribes (teal).
+    public static readonly Vector4 AccentViolet     = new(0.62f, 0.42f, 0.96f, 1.00f);
+    public static readonly Vector4 AccentVioletSoft = new(0.78f, 0.60f, 1.00f, 1.00f);
+    public static readonly Vector4 AccentPink       = new(0.95f, 0.45f, 0.78f, 1.00f);
+    public static readonly Vector4 AccentMint       = new(0.46f, 0.86f, 0.66f, 1.00f);
+    public static readonly Vector4 AccentAmber      = new(0.92f, 0.74f, 0.34f, 1.00f);
+    public static readonly Vector4 AccentRose       = new(0.93f, 0.42f, 0.50f, 1.00f);
 
-    public static readonly Vector4 ExpShB = new(0.78f, 0.62f, 0.96f, 0.08f);
-    public static readonly Vector4 ExpEW  = new(0.92f, 0.62f, 0.78f, 0.08f);
-    public static readonly Vector4 ExpDT  = new(0.96f, 0.74f, 0.52f, 0.08f);
+    // Legacy aliases. About window + a couple of components reference these names.
+    public static readonly Vector4 AccentTeal     = AccentViolet;
+    public static readonly Vector4 AccentTealSoft = AccentVioletSoft;
+
+    public static readonly Vector4 ExpARR = new(0.92f, 0.78f, 0.42f, 0.10f);
+    public static readonly Vector4 ExpHW  = new(0.58f, 0.72f, 0.92f, 0.10f);
+    public static readonly Vector4 ExpSB  = new(0.95f, 0.55f, 0.48f, 0.10f);
+    public static readonly Vector4 ExpShB = new(0.62f, 0.42f, 0.96f, 0.10f);
+    public static readonly Vector4 ExpEW  = new(0.78f, 0.42f, 0.86f, 0.10f);
+    public static readonly Vector4 ExpDT  = new(0.95f, 0.55f, 0.78f, 0.10f);
 
     public static readonly Vector4 CardBg        = new(0.075f, 0.090f, 0.105f, 0.85f);
     public static readonly Vector4 CardBgSoft    = new(0.090f, 0.105f, 0.120f, 0.55f);
     public static readonly Vector4 CardBgHover   = new(0.105f, 0.125f, 0.145f, 0.95f);
     public static readonly Vector4 BorderDim     = new(0.22f, 0.25f, 0.30f, 1.00f);
-    public static readonly Vector4 BorderActive  = new(0.32f, 0.78f, 0.78f, 1.00f);
+    public static readonly Vector4 BorderActive  = new(0.62f, 0.42f, 0.96f, 1.00f);
     public static readonly Vector4 BorderLocked  = new(0.18f, 0.18f, 0.22f, 1.00f);
 
     public static readonly Vector4 TextStrong    = new(0.96f, 0.96f, 0.97f, 1.00f);
@@ -69,6 +79,9 @@ internal static class Styling
 
     public static Vector4 ExpansionTint(ExpansionKind exp) => exp switch
     {
+        ExpansionKind.ARR => ExpARR,
+        ExpansionKind.HW  => ExpHW,
+        ExpansionKind.SB  => ExpSB,
         ExpansionKind.ShB => ExpShB,
         ExpansionKind.EW  => ExpEW,
         ExpansionKind.DT  => ExpDT,

@@ -1,4 +1,3 @@
-using AutoFateGrind.Core.Tasks;
 using AutoFateGrind.Windows.Sections;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Windowing;
@@ -15,10 +14,10 @@ public sealed class MainWindow : Window, IDisposable
         this.plugin = plugin;
         SizeConstraints = new WindowSizeConstraints
         {
-            MinimumSize = new Vector2(560, 420),
+            MinimumSize = new Vector2(640, 480),
             MaximumSize = new Vector2(float.MaxValue, float.MaxValue),
         };
-        Size = new Vector2(760, 560);
+        Size = new Vector2(780, 600);
         SizeCondition = ImGuiCond.FirstUseEver;
         Flags = ImGuiWindowFlags.NoCollapse;
     }
@@ -32,11 +31,34 @@ public sealed class MainWindow : Window, IDisposable
 
         using var style = Styling.PushWindowStyle();
 
-        TopToolbar.Draw(plugin, ctrl);
+        // Corner-icon row sits at the very top, pushed to the right.
+        ImGui.Dummy(new Vector2(0, 0));
+        TopToolbar.Draw(plugin);
+        ImGui.Spacing();
+
         DependencyBanner.Draw(plugin);
-        Header.Draw(ctrl, cfg);
-        ZoneList.Draw(ctrl, cfg);
-        LiveFateTracker.Draw(cfg);
+
+        if (ctrl.Running) RunningPanel.Draw(cfg, ctrl);
+        else              DrawIdle(cfg, ctrl);
+
         Footer.Draw();
+    }
+
+    private static void DrawIdle(Configuration cfg, Core.Tasks.AutoFateController ctrl)
+    {
+        GoalGrid.Draw(cfg);
+        ImGui.Spacing();
+        GoalSummary.Draw(cfg, ctrl);
+
+        ImGui.Spacing();
+        ImGui.Separator();
+        ImGui.Spacing();
+
+        SelectionOrder.Draw(cfg, ctrl);
+        ImGui.Spacing();
+        ImGui.Separator();
+        ImGui.Spacing();
+
+        ZonePicker.Draw(cfg, ctrl);
     }
 }

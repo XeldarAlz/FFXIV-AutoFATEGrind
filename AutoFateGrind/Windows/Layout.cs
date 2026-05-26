@@ -2,16 +2,27 @@ namespace AutoFateGrind.Windows;
 
 internal static class Layout
 {
-    public const float HeaderHeight = 56f;
-    public const float FooterHeight = 24f;
+    // Top corner icons (plug / info / cog).
+    public const float CornerIconStripWidth = 110f;
 
-    public const float ZoneCardHeight = 100f;
-    public const float ZoneCardMinWidth = 240f;
-    public const int   ZoneCardColumnsDefault = 2;
+    // Goal grid (idle state hero).
+    public const float GoalCardHeight = 78f;
+    public const float GoalCardIconSize = 26f;
+    public const float GoalCardGap = 8f;
 
-    public const float ZoneIconBoxSize = 26f;
+    // Big primary action button (Start / Stop).
+    public const float PrimaryButtonHeight = 44f;
+
+    // Running state.
+    public const float StatusCardHeight = 138f;
+    public const float QueueRowHeight = 52f;
+    public const float QueueBarHeight = 6f;
+
+    // Idle zone picker rows.
+    public const float ZoneRowHeight = 22f;
+
+    public const float FooterHeight = 22f;
+
+    // Retained for the legacy ActionButton component still referenced from a few places.
     public const float ActionButtonHeight = 28f;
-    public const float ActiveCountPillHeight = 18f;
-    public const float AchievementBarHeight = 14f;
-    public const float FateRowHeight = 22f;
 }
