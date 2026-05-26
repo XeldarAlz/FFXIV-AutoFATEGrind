@@ -38,6 +38,13 @@ public sealed class Configuration : IPluginConfiguration
     public int TradeThreshold { get; set; } = 1500;
     public AfterTradeAction AfterTrade { get; set; } = AfterTradeAction.Resume;
 
+    public GemstoneSpendMode SpendMode { get; set; } = GemstoneSpendMode.SpendAll;
+    public int SpendGemsAmount { get; set; } = 1000;
+    public int BuyQuantityAmount { get; set; } = 10;
+    // Gems to leave in the wallet untouched on every trade. Useful when saving up for a
+    // pricier item without disabling auto-trade entirely.
+    public int KeepGemstonesReserve { get; set; } = 0;
+
     public void Save() => Plugin.PluginInterface.SavePluginConfig(this);
 
     public void SaveDebounced()
@@ -70,4 +77,11 @@ public enum AfterTradeAction
 {
     Resume,
     Stop,
+}
+
+public enum GemstoneSpendMode
+{
+    SpendAll,
+    SpendGems,
+    BuyQuantity,
 }

@@ -37,7 +37,7 @@ internal sealed class AutoFateController
         var itemId = Plugin.Cfg.TargetTradeItemId;
         if (itemId == 0) { session.PendingTradeFromZone = null; return; }
 
-        Svc.Automation.Start(new AutoTrade(itemId, origin.Expansion), queue: true);
+        Svc.Automation.Start(new AutoTrade(itemId, origin.TerritoryId, origin.Expansion), queue: true);
 
         if (Plugin.Cfg.AfterTrade == AfterTradeAction.Resume)
             Svc.Automation.Start(new AutoFate(origin, session), queue: true);

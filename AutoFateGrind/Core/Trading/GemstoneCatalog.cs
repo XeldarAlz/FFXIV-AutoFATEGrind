@@ -6,10 +6,7 @@ namespace AutoFateGrind.Core.Trading;
 public sealed record GemstoneTradeItem(
     uint ItemId,
     string ItemName,
-    uint CostPerOne,
-    uint TraderEnpcBaseId,
-    uint TraderTerritoryId,
-    string TraderName);
+    uint CostPerOne);
 
 public static class GemstoneCatalog
 {
@@ -22,8 +19,11 @@ public static class GemstoneCatalog
     public static void Invalidate() => cached = null;
 
     public static GemstoneTradeItem? FindById(uint itemId)
-        => All.FirstOrDefault(i => i.ItemId == itemId);
+        => Array.Find(All, i => i.ItemId == itemId);
 
+    // Walks the SpecialShop sheet and collects every distinct item that can be bought
+    // with Bicolor Gemstones. The trader/slot for purchase is resolved at runtime by
+    // ShopInteraction (per-trader sub-menu and per-shop slot index).
     private static GemstoneTradeItem[] LoadFromLumina()
     {
         var shops = Svc.Data.GetExcelSheet<SpecialShop>();
@@ -64,10 +64,7 @@ public static class GemstoneCatalog
                     result.Add(new GemstoneTradeItem(
                         ItemId: item.RowId,
                         ItemName: name,
-                        CostPerOne: bicolorCost,
-                        TraderEnpcBaseId: 0,
-                        TraderTerritoryId: 0,
-                        TraderName: ""));
+                        CostPerOne: bicolorCost));
                 }
             }
         }

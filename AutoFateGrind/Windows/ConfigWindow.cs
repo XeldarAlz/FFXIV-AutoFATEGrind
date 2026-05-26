@@ -11,7 +11,7 @@ namespace AutoFateGrind.Windows;
 
 public sealed class ConfigWindow : Window, IDisposable
 {
-    private enum Tab { General, Filters, Combat, Trader }
+    private enum Tab { General, Filters, Combat, Gemstones }
 
     private readonly Plugin plugin;
     private Tab activeTab = Tab.General;
@@ -53,7 +53,7 @@ public sealed class ConfigWindow : Window, IDisposable
         if (SidebarTab.Draw("General",      FontAwesomeIcon.Cog,        Styling.AccentViolet,     activeTab == Tab.General)) activeTab = Tab.General;
         if (SidebarTab.Draw("FATE filters", FontAwesomeIcon.Filter,     Styling.AccentVioletSoft, activeTab == Tab.Filters)) activeTab = Tab.Filters;
         if (SidebarTab.Draw("Combat",       FontAwesomeIcon.Crosshairs, Styling.AccentRose,       activeTab == Tab.Combat))  activeTab = Tab.Combat;
-        if (SidebarTab.Draw("Trader",       FontAwesomeIcon.Gem,        Styling.AccentPink,       activeTab == Tab.Trader))  activeTab = Tab.Trader;
+        if (SidebarTab.Draw("Gemstones",    FontAwesomeIcon.Gem,        Styling.AccentPink,       activeTab == Tab.Gemstones)) activeTab = Tab.Gemstones;
     }
 
     private void DrawContent(Configuration cfg)
@@ -64,7 +64,7 @@ public sealed class ConfigWindow : Window, IDisposable
             case Tab.General: DrawHeader("General", "Window and behavior preferences."); DrawGeneralTab(cfg); break;
             case Tab.Filters: DrawHeader("FATE filters", "Keeps the plugin off dying or late FATEs."); DrawFiltersTab(cfg); break;
             case Tab.Combat:  DrawHeader("Combat", "Which auto-rotation preset to drive while engaged."); DrawCombatTab(cfg); break;
-            case Tab.Trader:  DrawHeader("Gemstone trader", "Auto-buy a chosen item when the wallet hits your threshold."); DrawTraderTab(cfg); break;
+            case Tab.Gemstones: DrawHeader("Gemstones", "Auto-spend Bicolor Gemstones once the wallet hits your threshold."); DrawGemstonesTab(cfg); break;
         }
     }
 
@@ -146,11 +146,18 @@ public sealed class ConfigWindow : Window, IDisposable
             });
     }
 
-    private static void DrawTraderTab(Configuration cfg)
+    private static void DrawGemstonesTab(Configuration cfg)
     {
         SettingsRow.Draw("Auto-trade when at threshold",
             "When your Bicolor Gemstone inventory reaches the threshold below, the plugin teleports to a trader and buys the item.",
             () => DrawToggle(cfg, () => cfg.TradeOnCap, v => cfg.TradeOnCap = v, "##tr_oncap", Styling.AccentPink));
+
+        if (!cfg.TradeOnCap)
+        {
+            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
+                ImGui.TextWrapped("Auto-trade is off. Enable the toggle above to configure the trade.");
+            return;
+        }
 
         SettingsRow.Draw("Trade threshold",
             "Gem count that triggers the trade. Game cap is 1500. Lower values trade more often so fewer FATEs are wasted near cap.",
@@ -179,6 +186,51 @@ public sealed class ConfigWindow : Window, IDisposable
             { cfg.TargetTradeItemId = catalog[idx].ItemId; cfg.SaveDebounced(); }
         });
 
+        SettingsRow.Draw("How much to spend",
+            "Choose the strategy used when the trade fires.", () =>
+            {
+                if (ImGui.RadioButton("Spend all gemstones (minus reserve)", cfg.SpendMode == GemstoneSpendMode.SpendAll))
+                { cfg.SpendMode = GemstoneSpendMode.SpendAll; cfg.SaveDebounced(); }
+
+                if (ImGui.RadioButton("Spend up to a set amount of gems", cfg.SpendMode == GemstoneSpendMode.SpendGems))
+                { cfg.SpendMode = GemstoneSpendMode.SpendGems; cfg.SaveDebounced(); }
+
+                if (cfg.SpendMode == GemstoneSpendMode.SpendGems)
+                {
+                    ImGui.Indent(20f);
+                    var g = cfg.SpendGemsAmount;
+                    ImGui.SetNextItemWidth(220);
+                    if (ImGui.SliderInt("##tr_spend_gems", ref g, 50, 1500, "%d gems / trade"))
+                    { cfg.SpendGemsAmount = Math.Clamp(g, 50, 1500); cfg.SaveDebounced(); }
+                    ImGui.Unindent(20f);
+                }
+
+                if (ImGui.RadioButton("Buy a fixed number of the item", cfg.SpendMode == GemstoneSpendMode.BuyQuantity))
+                { cfg.SpendMode = GemstoneSpendMode.BuyQuantity; cfg.SaveDebounced(); }
+
+                if (cfg.SpendMode == GemstoneSpendMode.BuyQuantity)
+                {
+                    ImGui.Indent(20f);
+                    var n = cfg.BuyQuantityAmount;
+                    ImGui.SetNextItemWidth(220);
+                    if (ImGui.SliderInt("##tr_buy_qty", ref n, 1, 99, "%d × item"))
+                    { cfg.BuyQuantityAmount = Math.Clamp(n, 1, 99); cfg.SaveDebounced(); }
+                    ImGui.Unindent(20f);
+                }
+            });
+
+        SettingsRow.Draw("Keep in reserve",
+            "Gems left untouched on every trade. Use this when you want to save toward a pricier item without turning auto-trade off.",
+            () =>
+            {
+                var v = cfg.KeepGemstonesReserve;
+                ImGui.SetNextItemWidth(280);
+                if (ImGui.SliderInt("##tr_reserve", ref v, 0, 1500, "%d gems"))
+                { cfg.KeepGemstonesReserve = Math.Clamp(v, 0, 1500); cfg.SaveDebounced(); }
+            });
+
+        DrawSpendPreview(cfg);
+
         SettingsRow.Draw("After the trade",
             "What to do once the buy succeeds.", () =>
             {
@@ -188,6 +240,29 @@ public sealed class ConfigWindow : Window, IDisposable
                 if (ImGui.RadioButton("Stop the run", !resume))
                 { cfg.AfterTrade = AfterTradeAction.Stop; cfg.SaveDebounced(); }
             });
+    }
+
+    private static void DrawSpendPreview(Configuration cfg)
+    {
+        var item = GemstoneCatalog.FindById(cfg.TargetTradeItemId);
+        if (item is null) return;
+
+        var spendable = Math.Max(0, cfg.TradeThreshold - cfg.KeepGemstonesReserve);
+        var affordable = (int)(spendable / item.CostPerOne);
+        var qty = cfg.SpendMode switch
+        {
+            GemstoneSpendMode.SpendAll    => affordable,
+            GemstoneSpendMode.SpendGems   => Math.Min(affordable, (int)(cfg.SpendGemsAmount / item.CostPerOne)),
+            GemstoneSpendMode.BuyQuantity => Math.Min(affordable, cfg.BuyQuantityAmount),
+            _ => affordable,
+        };
+
+        var color = qty <= 0 ? Styling.AccentRose : Styling.TextMuted;
+        using (ImRaii.PushColor(ImGuiCol.Text, color))
+            ImGui.TextWrapped(qty <= 0
+                ? $"Threshold/reserve won't afford any {item.ItemName} at {item.CostPerOne}g each."
+                : $"At threshold {cfg.TradeThreshold}g (keeping {cfg.KeepGemstonesReserve}g), next trade buys ~{qty} × {item.ItemName} for {qty * item.CostPerOne}g.");
+        ImGui.Spacing();
     }
 
     private static void DrawToggle(Configuration cfg, Func<bool> getter, Action<bool> setter, string id, Vector4 accent)

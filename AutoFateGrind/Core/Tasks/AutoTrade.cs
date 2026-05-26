@@ -9,18 +9,29 @@ using System.Threading.Tasks;
 
 namespace AutoFateGrind.Core.Tasks;
 
-public sealed class AutoTrade(uint targetItemId, ExpansionKind originExpansion) : AutoCommon
+// Spends Bicolor Gemstones at the trader local to the zone we just farmed. Falls back
+// to the expansion's hub trader if the origin zone has none (e.g. non-Shared-FATE zones
+// running in Endless/RunCount mode).
+//
+// Per-zone traders have a SelectIconString menu in front of their shop (rank tiers). The
+// target item lives in exactly one of those tiers, so we click each menu entry in turn
+// and check whether the resulting ShopExchangeCurrency addon contains our target item;
+// if not, close it and try the next entry.
+public sealed class AutoTrade(uint targetItemId, uint originTerritoryId, ExpansionKind originExpansion) : AutoCommon
 {
     private readonly uint targetItemId = targetItemId;
+    private readonly uint originTerritoryId = originTerritoryId;
     private readonly ExpansionKind originExpansion = originExpansion;
 
     protected override async Task Execute()
     {
         var item = GemstoneCatalog.FindById(targetItemId);
-        var trader = GemstoneTrader.PickFor(originExpansion);
-        ErrorIf(item is null, "No target item set. Open /afg config -> Trader and pick one.");
+        ErrorIf(item is null, "No target item set. Open /afg config → Trader and pick one.");
 
-        Svc.Chat.Print($"[AFG] Auto-trade: {item!.ItemName} ({item.CostPerOne} gems each) at {trader.Name}");
+        var trader = GemstoneTrader.PickFor(originTerritoryId, originExpansion);
+        ErrorIf(trader is null, $"No Bicolor trader is registered for territory {originTerritoryId} or expansion {originExpansion}.");
+
+        Svc.Chat.Print($"[AFG] Auto-trade: {item!.ItemName} ({item.CostPerOne} gems each) at {trader!.Name}");
 
         if (Svc.ClientState.TerritoryType != trader.TerritoryId)
         {
@@ -37,31 +48,35 @@ public sealed class AutoTrade(uint targetItemId, ExpansionKind originExpansion) 
             onStopReached: null,
             allowAethernetWithinTerritory: true);
 
-        var npc = FindNearestNpc(trader.Position, 8f);
-        ErrorIf(npc is null, $"Could not find a vendor NPC near {trader.Name}. Move next to them and rerun.");
+        var npc = FindTraderObject(trader.EnpcBaseId);
+        ErrorIf(npc is null, $"Could not find {trader.Name} (ENpcBase {trader.EnpcBaseId}) near {trader.Position}.");
 
-        Status = $"Talking to {npc!.Name}";
+        Status = $"Talking to {trader.Name}";
+        Diag($"Interacting with {trader.Name} (BaseId={npc!.BaseId})");
         await InteractWith(npc, waitUntil: null, selectStringIndex: null, skip: UiSkipOptions.YesNo);
 
         await WaitUntil(
-            condition: () => ShopInteraction.ShopOpen() || ShopInteraction.SelectIconStringOpen(),
+            condition: () => ShopInteraction.ShopExchangeCurrencyOpen() || ShopInteraction.SelectIconStringOpen(),
             scopeName: "wait-shop-or-menu",
             checkFrequency: 30,
             logContinuously: false);
 
         if (ShopInteraction.SelectIconStringOpen())
-        {
-            Status = "Selecting gemstone exchange";
-            ShopInteraction.ClickSelectIconString(0);
-            await WaitUntil(ShopInteraction.ShopOpen, "wait-shop-after-menu", 30, false);
-        }
+            await NavigateSubMenu(item);
+
+        ErrorIf(!ShopInteraction.ShopExchangeCurrencyOpen(),
+            "Could not open the gemstone exchange shop. Target item may not be sold by this trader.");
 
         var wallet = GemstoneCount();
-        var maxQty = (int)Math.Max(1, wallet / (int)item.CostPerOne);
-        Status = $"Buying {maxQty} of {item.ItemName}";
-        Diag($"Shop open. Wallet={wallet}, cost={item.CostPerOne}, qty={maxQty}");
+        var qty = ComputeBuyQuantity(wallet, item.CostPerOne);
+        ErrorIf(qty <= 0,
+            $"Reserve ({Plugin.Cfg.KeepGemstonesReserve}g) and spend mode leave no budget for {item.ItemName} ({item.CostPerOne}g each); wallet={wallet}.");
 
-        ShopInteraction.BuyFromShop(slotIndex: ResolveSlotIndex(item), quantity: maxQty);
+        Status = $"Buying {qty} × {item.ItemName}";
+        Diag($"Shop open. Wallet={wallet}, cost={item.CostPerOne}, mode={Plugin.Cfg.SpendMode}, qty={qty}");
+
+        ErrorIf(!ShopInteraction.BuyFromCurrencyShop(item.ItemId, qty),
+            $"Target item {item.ItemName} not visible in the open shop.");
 
         await WaitUntil(
             condition: () => ShopInteraction.SelectYesnoOpen() || GemstoneCount() < wallet,
@@ -85,25 +100,77 @@ public sealed class AutoTrade(uint targetItemId, ExpansionKind originExpansion) 
         Svc.Chat.Print($"[AFG] Trade complete. Gemstones now: {GemstoneCount()}");
     }
 
-    // v0.2: hardcoded to first shop slot. v0.3 will resolve via FateShop -> SpecialShop ordering.
-    private static int ResolveSlotIndex(GemstoneTradeItem item)
+    private async Task NavigateSubMenu(GemstoneTradeItem item)
     {
-        _ = item;
-        return 0;
+        var menuCount = ShopInteraction.SelectIconStringEntryCount();
+        Diag($"Sub-menu open with {menuCount} entries; scanning for {item.ItemName}.");
+
+        for (var i = 0; i < menuCount; i++)
+        {
+            if (!ShopInteraction.SelectIconStringOpen()) break;
+
+            Status = $"Trying menu entry {i + 1}/{menuCount}";
+            if (!ShopInteraction.ClickSelectIconString(i))
+            {
+                await NextFrame(30);
+                continue;
+            }
+
+            await WaitUntil(
+                condition: () => ShopInteraction.ShopExchangeCurrencyOpen() || ShopInteraction.SelectIconStringOpen(),
+                scopeName: $"wait-submenu-{i}",
+                checkFrequency: 30,
+                logContinuously: false);
+
+            if (!ShopInteraction.ShopExchangeCurrencyOpen()) continue;
+
+            if (ShopInteraction.FindCurrencyShopSlot(item.ItemId) >= 0)
+            {
+                Diag($"Found {item.ItemName} in menu entry {i}.");
+                return;
+            }
+
+            Diag($"Menu entry {i} did not contain {item.ItemName}; closing and trying next.");
+            ShopInteraction.CloseShop();
+            await WaitUntil(
+                condition: ShopInteraction.SelectIconStringOpen,
+                scopeName: $"wait-submenu-reopen-{i}",
+                checkFrequency: 30,
+                logContinuously: false);
+        }
     }
 
-    private static Dalamud.Game.ClientState.Objects.Types.IGameObject? FindNearestNpc(Vector3 anchor, float maxDistance)
+    private static Dalamud.Game.ClientState.Objects.Types.IGameObject? FindTraderObject(uint enpcBaseId)
     {
         Dalamud.Game.ClientState.Objects.Types.IGameObject? best = null;
         var bestDist = float.MaxValue;
+        var player = Svc.Objects.LocalPlayer;
+        var playerPos = player?.Position ?? Vector3.Zero;
+
         foreach (var obj in Svc.Objects)
         {
-            if (obj.ObjectKind != Dalamud.Game.ClientState.Objects.Enums.ObjectKind.EventNpc) continue;
-            var d = Vector3.Distance(obj.Position, anchor);
-            if (d > maxDistance) continue;
+            if (obj.BaseId != enpcBaseId) continue;
+            var d = player is null ? 0 : Vector3.Distance(obj.Position, playerPos);
             if (d < bestDist) { best = obj; bestDist = d; }
         }
         return best;
+    }
+
+    private static int ComputeBuyQuantity(int wallet, uint costPerOne)
+    {
+        var cost = (int)costPerOne;
+        if (cost <= 0) return 0;
+
+        var spendable = Math.Max(0, wallet - Plugin.Cfg.KeepGemstonesReserve);
+        var affordable = spendable / cost;
+
+        return Plugin.Cfg.SpendMode switch
+        {
+            GemstoneSpendMode.SpendAll    => affordable,
+            GemstoneSpendMode.SpendGems   => Math.Min(affordable, Plugin.Cfg.SpendGemsAmount / cost),
+            GemstoneSpendMode.BuyQuantity => Math.Min(affordable, Plugin.Cfg.BuyQuantityAmount),
+            _ => affordable,
+        };
     }
 
     private static unsafe int GemstoneCount()

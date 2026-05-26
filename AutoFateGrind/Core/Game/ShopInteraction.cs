@@ -13,6 +13,10 @@ internal static unsafe class ShopInteraction
         => GenericHelpers.TryGetAddonByName<AtkUnitBase>("Shop", out var addon)
         && GenericHelpers.IsAddonReady(addon);
 
+    public static bool ShopExchangeCurrencyOpen()
+        => GenericHelpers.TryGetAddonByName<AtkUnitBase>("ShopExchangeCurrency", out var addon)
+        && GenericHelpers.IsAddonReady(addon);
+
     public static bool InclusionShopOpen()
         => GenericHelpers.TryGetAddonByName<AtkUnitBase>("InclusionShop", out var addon)
         && GenericHelpers.IsAddonReady(addon);
@@ -25,12 +29,21 @@ internal static unsafe class ShopInteraction
         => GenericHelpers.TryGetAddonByName<AtkUnitBase>("SelectYesno", out var addon)
         && GenericHelpers.IsAddonReady(addon);
 
+    public static int SelectIconStringEntryCount()
+    {
+        if (!GenericHelpers.TryGetAddonByName<AtkUnitBase>("SelectIconString", out var addon)) return 0;
+        if (!GenericHelpers.IsAddonReady(addon)) return 0;
+        return new AddonMaster.SelectIconString(addon).Entries.Length;
+    }
+
     public static bool ClickSelectIconString(int index)
     {
         if (!EzThrottler.Throttle("AFG.ClickSelectIconString", 500)) return false;
         if (!GenericHelpers.TryGetAddonByName<AtkUnitBase>("SelectIconString", out var addon)) return false;
         if (!GenericHelpers.IsAddonReady(addon)) return false;
-        new AddonMaster.SelectIconString(addon).Entries[index].Select();
+        var entries = new AddonMaster.SelectIconString(addon).Entries;
+        if (index < 0 || index >= entries.Length) return false;
+        entries[index].Select();
         return true;
     }
 
@@ -41,6 +54,39 @@ internal static unsafe class ShopInteraction
         if (!GenericHelpers.IsAddonReady(addon)) return false;
         new AddonMaster.SelectYesno(addon).Yes();
         return true;
+    }
+
+    // Reads the open ShopExchangeCurrency addon's visible item list and returns the
+    // (zero-based) row of the first entry whose ItemId matches `targetItemId`. Returns
+    // -1 if not visible or no match. The Index field of each visible entry is the value
+    // passed back to the Select callback — `ShopItemInfo.Select()` already handles this.
+    public static int FindCurrencyShopSlot(uint targetItemId)
+    {
+        if (!GenericHelpers.TryGetAddonByName<AtkUnitBase>("ShopExchangeCurrency", out var addon)) return -1;
+        if (!GenericHelpers.IsAddonReady(addon)) return -1;
+
+        var master = new AddonMaster.ShopExchangeCurrency(addon);
+        var items = master.BasicShopItems;
+        for (var i = 0; i < items.Length; i++)
+            if (items[i].ItemId == targetItemId) return i;
+        return -1;
+    }
+
+    public static bool BuyFromCurrencyShop(uint targetItemId, int quantity)
+    {
+        if (!EzThrottler.Throttle("AFG.BuyFromCurrencyShop", 500)) return false;
+        if (!GenericHelpers.TryGetAddonByName<AtkUnitBase>("ShopExchangeCurrency", out var addon)) return false;
+        if (!GenericHelpers.IsAddonReady(addon)) return false;
+
+        var master = new AddonMaster.ShopExchangeCurrency(addon);
+        foreach (var entry in master.BasicShopItems)
+        {
+            if (entry.ItemId != targetItemId) continue;
+            entry.Select(quantity);
+            Svc.Log.Info($"[AFG] ShopExchangeCurrency.Select(item={targetItemId} qty={quantity} index={entry.Index})");
+            return true;
+        }
+        return false;
     }
 
     public static bool BuyFromShop(int slotIndex, int quantity)
@@ -60,15 +106,24 @@ internal static unsafe class ShopInteraction
 
     public static bool CloseShop()
     {
-        if (!GenericHelpers.TryGetAddonByName<AtkUnitBase>("Shop", out var addon)) return false;
-        if (!GenericHelpers.IsAddonReady(addon)) return false;
-        addon->Close(true);
-        return true;
+        if (GenericHelpers.TryGetAddonByName<AtkUnitBase>("ShopExchangeCurrency", out var exch)
+            && GenericHelpers.IsAddonReady(exch))
+        {
+            exch->Close(true);
+            return true;
+        }
+        if (GenericHelpers.TryGetAddonByName<AtkUnitBase>("Shop", out var addon)
+            && GenericHelpers.IsAddonReady(addon))
+        {
+            addon->Close(true);
+            return true;
+        }
+        return false;
     }
 
     public static string? CurrentAddonName()
     {
-        string[] candidates = ["Shop", "InclusionShop", "SelectIconString", "SelectString", "SelectYesno", "InputNumeric", "InputString"];
+        string[] candidates = ["Shop", "ShopExchangeCurrency", "InclusionShop", "SelectIconString", "SelectString", "SelectYesno", "InputNumeric", "InputString"];
         foreach (var name in candidates)
         {
             if (GenericHelpers.TryGetAddonByName<AtkUnitBase>(name, out var addon)
