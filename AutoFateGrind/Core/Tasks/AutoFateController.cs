@@ -9,22 +9,15 @@ internal sealed class AutoFateController
     public string Status => Svc.Automation.CurrentTask?.Status ?? "Idle";
 
     private AutoFateSession? session;
+    private IReadOnlyList<ZoneInfo> activeZones = [];
     public AutoFateSession? SessionSnapshot => session;
-
-    public void Run(ZoneInfo zone)
-    {
-        session = new AutoFateSession();
-        Svc.Automation.Start(new AutoFate(zone, session));
-    }
 
     public void RunAll(IEnumerable<ZoneInfo> zones)
     {
         session = new AutoFateSession();
-        var list = zones.ToList();
-        for (var i = 0; i < list.Count; i++)
-        {
-            Svc.Automation.Start(new AutoFate(list[i], session), queue: i > 0);
-        }
+        activeZones = zones.ToList();
+        if (activeZones.Count == 0) return;
+        Svc.Automation.Start(new AutoFate(activeZones, session));
         Svc.Automation.Start(new AutoFateBridge(this, session), queue: true);
     }
 
@@ -39,8 +32,14 @@ internal sealed class AutoFateController
 
         Svc.Automation.Start(new AutoTrade(itemId, origin.TerritoryId, origin.Expansion), queue: true);
 
-        if (Plugin.Cfg.AfterTrade == AfterTradeAction.Resume)
-            Svc.Automation.Start(new AutoFate(origin, session), queue: true);
+        if (Plugin.Cfg.AfterTrade == AfterTradeAction.Resume && activeZones.Count > 0)
+        {
+            var resumeIndex = 0;
+            for (var i = 0; i < activeZones.Count; i++)
+                if (activeZones[i].TerritoryId == origin.TerritoryId) { resumeIndex = i; break; }
+            Svc.Automation.Start(new AutoFate(activeZones, session, resumeIndex), queue: true);
+            Svc.Automation.Start(new AutoFateBridge(this, session), queue: true);
+        }
 
         session.PendingTradeFromZone = null;
     }
