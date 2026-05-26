@@ -1,0 +1,110 @@
+name: Bug report
+description: Something's broken or behaving unexpectedly.
+title: "[Bug] "
+labels: ["bug"]
+assignees: ["XeldarAlz"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. Please fill out as much as you can; it makes a huge difference.
+
+        If you're not sure whether it's a bug or expected behavior, prefer [Help & troubleshooting discussions](https://github.com/XeldarAlz/FFXIV-AutoFateGrind/discussions/new?category=help-troubleshooting); triage is faster there.
+
+        For security issues, please use [private vulnerability reporting](https://github.com/XeldarAlz/FFXIV-AutoFateGrind/security/advisories/new) instead.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you see? What did you expect to see instead?
+      placeholder: "The plugin teleported to Living Memory but never engaged any of the active FATEs..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps to trigger the bug. If it's intermittent, say so.
+      placeholder: |
+        1. Open `/afg`
+        2. Tick "Living Memory"
+        3. Press Run selected
+        4. ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: plugin-version
+    attributes:
+      label: Plugin version
+      description: Shown in `/xlplugins` next to "Auto Fate Grind".
+      options:
+        - 0.1.0.0
+        - Older / not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: expansion
+    attributes:
+      label: Expansion of the affected zone(s)
+      description: FATE pacing, level sync, and reward addons shift between expansions, so expansion is a frequent root cause.
+      options:
+        - ShB (Shadowbringers)
+        - EW (Endwalker)
+        - DT (Dawntrail)
+        - Multiple expansions
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: zones-affected
+    attributes:
+      label: Specific zone(s) affected
+      description: Which zone(s) were involved? List one or more.
+      placeholder: "Living Memory, Heritage Found, ..."
+
+  - type: dropdown
+    id: stage
+    attributes:
+      label: Where in the run did it fail?
+      description: The plugin's per-zone flow runs teleport -> mount -> scan -> move -> engage -> wait -> next.
+      options:
+        - Teleport (didn't move / wrong destination)
+        - Mount / movement (vnavmesh issue, stuck, can't reach FATE)
+        - Scan (didn't find an active FATE that was clearly there)
+        - Engage (didn't start fighting, BossMod didn't take over)
+        - Combat / completion (FATE expired, player died, didn't recover)
+        - Zone swap (didn't move to next selected zone)
+        - Selection / UI (issue before pressing Run)
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: attachments
+    attributes:
+      label: Attachments
+      description: |
+        **If you can provide any of these, it turns guesswork into a fix.**
+
+        - **Dalamud log**: open `/xllog`, click the *Open log folder* button at the bottom-right, attach `dalamud.log`. Filter by `[AutoFateGrind]` if you want to trim it down.
+        - **Screenshots / short clip** if the issue is visual (selection state, wrong tooltip, frozen card, etc.)
+        - **Other plugins active** that touch FATEs, combat, teleport, or input — helps rule out conflicts.
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Inline log excerpt (optional)
+      description: |
+        Short snippets (chat-log tail, Dalamud error text) belong here. For full log files, use **Attachments** above; don't paste them inline.
+      render: text
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Character class/job, current achievement progress in the affected zone, hunches, anything that helps the bug land.

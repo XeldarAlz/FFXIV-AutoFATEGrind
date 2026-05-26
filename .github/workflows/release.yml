@@ -1,0 +1,160 @@
+name: Release AutoFateGrind
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  # Manual fallback: when auto-tag pushes a tag via GITHUB_TOKEN, GitHub
+  # sometimes refuses to cascade-trigger this workflow. Dispatch on the tag
+  # ref to publish the release without having to delete and re-push the tag.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v1.0.0.0). Defaults to the ref this is dispatched on.'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Resolve target tag
+        id: tag
+        shell: bash
+        run: |
+          ref_name="${{ github.ref_name }}"
+          input_tag="${{ inputs.tag }}"
+          if [ -n "$input_tag" ]; then
+            target="$input_tag"
+          else
+            target="$ref_name"
+          fi
+          if [[ ! "$target" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+            echo "::error::Resolved target '$target' is not a v*.*.* tag — pass the tag input or dispatch on a tag ref."
+            exit 1
+          fi
+          echo "target=$target" >> "$GITHUB_OUTPUT"
+          echo "version=${target#v}" >> "$GITHUB_OUTPUT"
+          echo "Releasing $target"
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.tag.outputs.target }}
+          submodules: recursive
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Download Dalamud dev build
+        shell: pwsh
+        # Track staging while API 15 / Patch 7.50 is in beta — the release
+        # channel is still API 14 and won't satisfy Dalamud.NET.Sdk 15.x.
+        # Revert to /latest.zip once Dalamud 15 GAs.
+        run: |
+          $dalamudUrl = "https://goatcorp.github.io/dalamud-distrib/stg/latest.zip"
+          $dalamudDir = "$env:AppData\XIVLauncher\addon\Hooks\dev"
+          New-Item -ItemType Directory -Force -Path $dalamudDir | Out-Null
+          Invoke-WebRequest -Uri $dalamudUrl -OutFile dalamud.zip
+          Expand-Archive -Path dalamud.zip -DestinationPath $dalamudDir -Force
+          Remove-Item dalamud.zip
+
+      - name: Build (Release)
+        run: dotnet build AutoFateGrind.sln --configuration Release
+
+      - name: Stage latest.zip
+        shell: pwsh
+        run: |
+          $src = 'AutoFateGrind/bin/Release/AutoFateGrind/latest.zip'
+          if (-not (Test-Path $src)) { throw "SDK-built plugin zip not found at $src" }
+          Copy-Item $src 'latest.zip' -Force
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.tag.outputs.target }}
+          name: ${{ steps.tag.outputs.target }}
+          files: latest.zip
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+
+      - name: Fetch total download count
+        id: count
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          total=$(gh api "repos/${{ github.repository }}/releases" --paginate \
+            --jq '[.[].assets[].download_count] | add // 0')
+          echo "total=$total" >> "$GITHUB_OUTPUT"
+          echo "Total downloads across all releases: $total"
+
+      - name: Update local repo.json
+        shell: pwsh
+        run: |
+          $v = '${{ steps.tag.outputs.version }}'
+          $path = 'repo.json'
+          $json = Get-Content -Raw -Path $path | ConvertFrom-Json
+          $json[0].AssemblyVersion = $v
+          $json[0].TestingAssemblyVersion = $v
+          $json[0].DownloadCount = [int]'${{ steps.count.outputs.total }}'
+          $json[0] | Add-Member -NotePropertyName 'LastUpdate' -NotePropertyValue ([string][int][double]::Parse((Get-Date -UFormat %s))) -Force
+          # -AsArray preserves the array wrapper; piping a single-element array through | unrolls it and loses the [ ... ] Dalamud requires.
+          ConvertTo-Json -InputObject $json -Depth 10 -AsArray | Set-Content -Path $path -Encoding utf8
+
+      - name: Commit local repo.json
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add repo.json
+          if (-not (git status --porcelain)) {
+            Write-Host 'No changes to commit.'
+            exit 0
+          }
+          git commit -m "Release ${{ steps.tag.outputs.target }}: bump repo.json"
+          # -X theirs auto-resolves any repo.json conflict in favour of our just-bumped values
+          # (rebase semantics: "theirs" = the commits being rebased, i.e. ours).
+          # Without it, a concurrent push that touched repo.json leaves conflict markers,
+          # push then reports "Everything up-to-date" with exit 0, and downstream steps
+          # silently consume the corrupted file.
+          for ($i = 1; $i -le 5; $i++) {
+            git fetch origin master
+            git rebase -X theirs origin/master
+            if ($LASTEXITCODE -ne 0) {
+              git rebase --abort 2>$null
+              Write-Host "Rebase failed (attempt $i); retrying..."
+              Start-Sleep -Seconds 2
+              continue
+            }
+            git push origin HEAD:master
+            if ($LASTEXITCODE -eq 0) { exit 0 }
+            Write-Host "Push rejected (attempt $i); retrying after rebase..."
+            Start-Sleep -Seconds 2
+          }
+          Write-Error 'Failed to push repo.json bump after 5 attempts.'
+          exit 1
+
+      # Ping the multi-plugin hub repo so it regenerates repo.json immediately
+      # instead of waiting for its daily cron. The hub workflow re-reads each
+      # plugin's repo.json and refreshes DownloadCount from the GitHub API.
+      - name: Trigger hub repo regeneration
+        if: ${{ env.HUB_REPO_PAT != '' }}
+        env:
+          HUB_REPO_PAT: ${{ secrets.HUB_REPO_PAT }}
+        shell: bash
+        run: |
+          curl -fsSL -X POST \
+            -H "Authorization: Bearer $HUB_REPO_PAT" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/XeldarAlz/DalamudPlugins/dispatches \
+            -d '{"event_type":"plugin-released","client_payload":{"plugin":"${{ github.event.repository.name }}","version":"${{ steps.tag.outputs.version }}"}}'

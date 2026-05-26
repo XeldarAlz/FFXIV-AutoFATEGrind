@@ -1,0 +1,17 @@
+{
+    "Author": "XeldarAlz",
+    "Name": "Auto Fate Grind",
+    "InternalName": "AutoFateGrind",
+    "Punchline": "Shared FATE farming, automated.",
+    "Description": "Tick the zones, the plugin teleports, finds active FATEs, and runs them in a loop.",
+    "ApplicableVersion": "any",
+    "RepoUrl": "https://github.com/XeldarAlz/FFXIV-AutoFateGrind",
+    "IconUrl": "https://raw.githubusercontent.com/XeldarAlz/FFXIV-AutoFateGrind/master/AutoFateGrind/Images/Icon.png",
+    "Tags": [
+        "FATE",
+        "Shared FATE",
+        "Bicolor Gemstones",
+        "Date with Destiny",
+        "Automation"
+    ]
+}
