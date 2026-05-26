@@ -50,6 +50,9 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
     private const int   ReleaseTransitionWaitMs = 60_000;
     private const int   IdleScansBeforeSwap = 30;
     private const int   MidPathRetargetIntervalMs = 1_500;
+    // Retarget hysteresis: stops Progress ticks (ranked above Distance) from flip-flopping the target.
+    private const float RetargetDistanceMarginMeters = 15f;
+    private const float RetargetNearArrivalLockMeters = 20f;
     private const int   TeleportWatchdogMs = 60_000;
     private const int   TerritoryWaitMs = 45_000;
     private const int   AethernetWatchdogMs = 60_000;
@@ -946,12 +949,18 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
                     var player = Svc.Objects.LocalPlayer;
                     if (player is not null)
                     {
-                        var better = FateScanner.PickNext(Plugin.Cfg, player.Position, sessionStuckFateIds, null);
-                        if (better is not null && better.Id != targetId)
+                        var distToCurrent = Vector3.Distance(player.Position, refreshed.Position);
+                        // Once we've basically reached the target, finish the trip rather than re-path.
+                        if (distToCurrent > RetargetNearArrivalLockMeters)
                         {
-                            Diag($"Mid-path retarget: {targetId} -> {better.Id} ({better.Name})");
-                            stopReason = MoveStopReason.HigherPriority;
-                            return true;
+                            var better = FateScanner.PickNext(Plugin.Cfg, player.Position, sessionStuckFateIds, null);
+                            if (better is not null && better.Id != targetId
+                             && Vector3.Distance(player.Position, better.Position) + RetargetDistanceMarginMeters < distToCurrent)
+                            {
+                                Diag($"Mid-path retarget: {targetId} -> {better.Id} ({better.Name}) (closer by >{RetargetDistanceMarginMeters:F0}m)");
+                                stopReason = MoveStopReason.HigherPriority;
+                                return true;
+                            }
                         }
                     }
                 }
