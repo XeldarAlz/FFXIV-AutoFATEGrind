@@ -173,27 +173,31 @@ public sealed class ConfigWindow : Window, IDisposable
             "Equip the first eligible gearset below when you press Start. Disable to leave the run on whatever class you're currently on.",
             () => DrawToggle(cfg, () => cfg.ApplyClassOnStart, v => cfg.ApplyClassOnStart = v, "##cls_apply", Styling.AccentMint));
 
-        using (ImRaii.Disabled(!cfg.ApplyClassOnStart))
+        if (!cfg.ApplyClassOnStart)
         {
-            SettingsRow.Draw("When all classes are done",
-                "After every queued class has hit its level cap, either keep grinding on the last one or stop the run.",
-                () =>
-                {
-                    var keep = cfg.AfterClassQueueDone == AfterClassQueueDone.KeepGrindingOnLast;
-                    if (ImGui.RadioButton("Keep grinding on the last class", keep))
-                    { cfg.AfterClassQueueDone = AfterClassQueueDone.KeepGrindingOnLast; cfg.SaveDebounced(); }
-                    if (ImGui.RadioButton("Stop the run", !keep))
-                    { cfg.AfterClassQueueDone = AfterClassQueueDone.StopRun; cfg.SaveDebounced(); }
-                });
-
-            SettingsRow.Draw("Add a gearset",
-                "Use the gear-set number shown in your in-game Gear Set list (1–100). Class is resolved automatically.",
-                () => DrawAddClassRow(cfg));
-
-            SettingsRow.Draw("Queue",
-                "Order matters: top entry runs first, then advances when its level cap is hit.",
-                () => DrawClassQueueList(cfg));
+            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
+                ImGui.TextWrapped("Class switching is off. Enable the toggle above to configure the queue.");
+            return;
         }
+
+        SettingsRow.Draw("When all classes are done",
+            "After every queued class has hit its level cap, either keep grinding on the last one or stop the run.",
+            () =>
+            {
+                var keep = cfg.AfterClassQueueDone == AfterClassQueueDone.KeepGrindingOnLast;
+                if (ImGui.RadioButton("Keep grinding on the last class", keep))
+                { cfg.AfterClassQueueDone = AfterClassQueueDone.KeepGrindingOnLast; cfg.SaveDebounced(); }
+                if (ImGui.RadioButton("Stop the run", !keep))
+                { cfg.AfterClassQueueDone = AfterClassQueueDone.StopRun; cfg.SaveDebounced(); }
+            });
+
+        SettingsRow.Draw("Add a gearset",
+            "Use the gear-set number shown in your in-game Gear Set list (1–100). Class is resolved automatically.",
+            () => DrawAddClassRow(cfg));
+
+        SettingsRow.Draw("Queue",
+            "Order matters: top entry runs first, then advances when its level cap is hit.",
+            () => DrawClassQueueList(cfg));
     }
 
     private void DrawAddClassRow(Configuration cfg)
@@ -228,11 +232,13 @@ public sealed class ConfigWindow : Window, IDisposable
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentMint))
             if (ImGui.SmallButton("Add##cls_add"))
             {
+                var maxLevel = ClassSwitcher.GameMaxLevel;
+                var atCap = ClassSwitcher.UnsyncedLevelForJobId(picked.JobId) >= maxLevel;
                 cfg.ClassQueue.Add(new ClassQueueEntry
                 {
                     GearsetIndex = picked.UserIndex,
                     JobId = picked.JobId,
-                    StopAtLevel = ClassSwitcher.GameMaxLevel,
+                    StopAtLevel = atCap ? 0 : maxLevel,
                 });
                 cfg.SaveDebounced();
                 var nextFree = gearsets.FindIndex(g => !alreadyQueued.Contains(g.UserIndex) && g.UserIndex != picked.UserIndex);
@@ -311,7 +317,7 @@ public sealed class ConfigWindow : Window, IDisposable
             ImGui.SameLine();
             ImGui.SetNextItemWidth(140);
             var cap = entry.StopAtLevel;
-            if (ImGui.SliderInt($"##cls_cap_{index}", ref cap, 0, ClassSwitcher.GameMaxLevel, cap == 0 ? "no cap" : "stop @ %d"))
+            if (ImGui.SliderInt($"##cls_cap_{index}", ref cap, 0, ClassSwitcher.GameMaxLevel, cap == 0 ? "no cap" : "Stop at %d Level"))
             { entry.StopAtLevel = cap; cfg.SaveDebounced(); }
 
             var rightStart = ImGui.GetContentRegionAvail().X + ImGui.GetCursorPosX() - rowRightWidth;
