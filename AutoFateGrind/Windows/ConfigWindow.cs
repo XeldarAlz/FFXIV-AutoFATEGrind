@@ -11,7 +11,7 @@ namespace AutoFateGrind.Windows;
 
 public sealed class ConfigWindow : Window, IDisposable
 {
-    private enum Tab { General, Filters, Combat, Gemstones }
+    private enum Tab { General, Filters, Gemstones }
 
     private readonly Plugin plugin;
     private Tab activeTab = Tab.General;
@@ -52,7 +52,6 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.Spacing();
         if (SidebarTab.Draw("General",      FontAwesomeIcon.Cog,        Styling.AccentViolet,     activeTab == Tab.General)) activeTab = Tab.General;
         if (SidebarTab.Draw("FATE filters", FontAwesomeIcon.Filter,     Styling.AccentVioletSoft, activeTab == Tab.Filters)) activeTab = Tab.Filters;
-        if (SidebarTab.Draw("Combat",       FontAwesomeIcon.Crosshairs, Styling.AccentRose,       activeTab == Tab.Combat))  activeTab = Tab.Combat;
         if (SidebarTab.Draw("Gemstones",    FontAwesomeIcon.Gem,        Styling.AccentPink,       activeTab == Tab.Gemstones)) activeTab = Tab.Gemstones;
     }
 
@@ -63,7 +62,6 @@ public sealed class ConfigWindow : Window, IDisposable
         {
             case Tab.General: DrawHeader("General", "Window and behavior preferences."); DrawGeneralTab(cfg); break;
             case Tab.Filters: DrawHeader("FATE filters", "Keeps the plugin off dying or late FATEs."); DrawFiltersTab(cfg); break;
-            case Tab.Combat:  DrawHeader("Combat", "Which auto-rotation preset to drive while engaged."); DrawCombatTab(cfg); break;
             case Tab.Gemstones: DrawHeader("Gemstones", "Auto-spend Bicolor Gemstones once the wallet hits your threshold."); DrawGemstonesTab(cfg); break;
         }
     }
@@ -122,27 +120,6 @@ public sealed class ConfigWindow : Window, IDisposable
                 ImGui.SetNextItemWidth(280);
                 if (ImGui.SliderInt("##filt_maxprog", ref v, 50, 99, "%d %%"))
                 { cfg.MaxProgressPct = v; cfg.SaveDebounced(); }
-            });
-    }
-
-    private static void DrawCombatTab(Configuration cfg)
-    {
-        SettingsRow.Draw("BossMod preset name",
-            "Name of the BossMod (or BossMod Reborn) preset to activate on engage. Define your custom preset in BossMod and put its exact name here.",
-            () =>
-            {
-                var v = cfg.CombatPresetName;
-                ImGui.SetNextItemWidth(320);
-                if (ImGui.InputText("##cmb_preset", ref v, 64))
-                { cfg.CombatPresetName = v; cfg.SaveDebounced(); }
-            });
-
-        SettingsRow.Draw("Install bundled preset",
-            "Installs a bundled default preset into BossMod under the name above. Overwrites any existing preset with that name.",
-            () =>
-            {
-                using (ImRaii.Disabled(true))
-                    ImGui.Button("Install (TODO v0.3)");
             });
     }
 

@@ -21,7 +21,7 @@ public sealed class Configuration : IPluginConfiguration
     // Legacy. Kept so old saved configs deserialize; no longer used in the UI.
     public ExpansionFilter RegionFilter { get; set; } = ExpansionFilter.All;
 
-    public string CombatPresetName { get; set; } = "AFG - Default";
+    public string CombatPresetName { get; set; } = Core.AfgConstants.BundledCombatPresetName;
 
     public int MinTimeRemainingSec { get; set; } = 120;
     public int MaxProgressPct { get; set; } = 90;
