@@ -31,11 +31,10 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
     private static readonly HashSet<uint> obstacleMapBlacklist = new() { 1831, 1832, 1914, 1915 };
 
     private const float StuckMoveThresholdMeters = 1.5f;
-    private const int   StuckMoveTimeoutMs = 2_000;
-    private const int   VnavIdleTimeoutMs = 1_500;
-    // Absolute no-physical-movement floor that fires even while casting / in combat, so a wandering
-    // mob that roots us mid-travel recovers in seconds instead of falling through to the wall-clock.
-    private const int   HardStuckTimeoutMs = 8_000;
+    private const int   HardStuckTimeoutMs = 3_000;
+    private const int   InFightStuckTimeoutMs = 2_500;
+    private const float InFightTargetReachMeters = 6.0f;
+    private const int   InFightJumpCooldownMs = 1_500;
     private const float TeleportRetryProgressMeters = 3.0f;
     private const int   MoveToFateWatchdogMs = 60_000;
     private const int   MoveToUnwindGraceMs = 5_000;
@@ -45,6 +44,8 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
     private const int   CollectExpiryTimeoutMs = 90_000;
     private const int   EngageStallTimeoutMs = 60_000;
     private const int   EngageOutOfCombatGraceMs = 30_000;
+    // Cap on fighting off a mob that aggroed mid-travel, so an unkillable add can't park the run.
+    private const int   CombatClearTimeoutMs = 30_000;
     private const int   RaiseWaitMs = 30_000;
     private const int   ReleaseTransitionWaitMs = 60_000;
     private const int   IdleScansBeforeSwap = 30;
@@ -368,6 +369,13 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         if (moveResult is MoveStopReason.HigherPriority or MoveStopReason.NpcSpawned)
             return ExitReason.Continue;
 
+        // Teleport can't fire in combat, and the FATE is still reachable — fight free, don't blacklist.
+        if (moveResult == MoveStopReason.StuckInCombat)
+        {
+            await ClearBlockingCombat();
+            return ExitReason.Continue;
+        }
+
         if (lastTeleportedFateId == fate.Id && moveResult != MoveStopReason.None)
         {
             Diag($"Still stuck after teleport recovery for FATE {fate.Id} ({fate.Name}); blacklisting for this session");
@@ -397,6 +405,12 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
 
         if (moveResult == MoveStopReason.StuckTeleport)
         {
+            if (Svc.Condition[ConditionFlag.InCombat])
+            {
+                Diag($"Stuck-teleport for FATE {fate.Id} but in combat; clearing aggro before teleporting (teleport is blocked in combat)");
+                await ClearBlockingCombat();
+                return ExitReason.Continue;
+            }
             if (await TryTeleportToFate(fate))
             {
                 lastTeleportedFateId = fate.Id;
@@ -436,11 +450,14 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         SyncToFate(fateId);
         AssertPresetActive(preset);
 
+        await EnsureObstacleMapForEngage(fate);
+
         Status = $"Engaging {fate.Name}";
 
         var lastProgress = fate.Progress;
         var lastProgressAtMs = Environment.TickCount64;
         var lastInCombatAtMs = Environment.TickCount64;
+        var inFightStuck = new InFightStuckTracker();
         var collectTextAdvanceArmed = false;
         // Only an entry that fought the fate while Running may book the completion — guards against
         // a re-entry during the lingering 100% frame double-counting.
@@ -483,6 +500,12 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
                 }
 
                 SyncToFate(fateId);
+
+                if (inFightStuck.ShouldJump())
+                {
+                    Diag($"In-fight stuck on FATE {fateId}: target out of reach with no movement for {InFightStuckTimeoutMs/1000.0:0.#}s; jumping to unstick");
+                    Jump();
+                }
 
                 if (fate.Rule == PublicEvent.FateRule.Collect && !collectTextAdvanceArmed)
                 {
@@ -764,7 +787,67 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         }
     }
 
-    private enum MoveStopReason { None, StuckRetry, StuckTeleport, HigherPriority, NpcSpawned, FateInvalid }
+    // BossMod navigates around terrain only when an obstacle map is active; regenerate if we engaged
+    // without one (death-teleport return, follow-up, or a FATE that popped on us).
+    private async Task EnsureObstacleMapForEngage(PublicEvent fate)
+    {
+        if (!BossModIPC.Instance.IsAvailable) return;
+        if (!fate.IsOnMap) return;
+        if (BossModIPC.Instance.HasTempObstacleMap()) return;
+        await GenerateObstacleMap(fate);
+    }
+
+    private static unsafe void Jump()
+    {
+        var am = ActionManager.Instance();
+        if (am is null) return;
+        am->UseAction(ActionType.GeneralAction, 2); // GeneralAction #2 = Jump
+    }
+
+    // Jumps only when a target sits beyond reach yet we haven't physically moved — BossMod wedged on
+    // terrain — so it stays silent while legitimately stood in a hitbox. A jump never repositions.
+    private sealed class InFightStuckTracker
+    {
+        private Vector3? lastPos;
+        private long lastMoveAtMs = Environment.TickCount64;
+        private long lastJumpAtMs;
+
+        public bool ShouldJump()
+        {
+            var player = Svc.Objects.LocalPlayer;
+            if (player is null) return false;
+
+            var now = Environment.TickCount64;
+            var pos = player.Position;
+
+            var target = player.TargetObject;
+            if (target is null
+             || !Svc.Condition[ConditionFlag.InCombat]
+             || Svc.Condition[ConditionFlag.Mounted]
+             || IsPositionFrozenLegit()
+             || Vector3.Distance(pos, target.Position) <= InFightTargetReachMeters)
+            {
+                lastPos = pos;
+                lastMoveAtMs = now;
+                return false;
+            }
+
+            if (lastPos is null || Vector3.Distance(lastPos.Value, pos) > StuckMoveThresholdMeters)
+            {
+                lastPos = pos;
+                lastMoveAtMs = now;
+                return false;
+            }
+
+            if (now - lastMoveAtMs < InFightStuckTimeoutMs) return false;
+            if (now - lastJumpAtMs < InFightJumpCooldownMs) return false;
+
+            lastJumpAtMs = now;
+            return true;
+        }
+    }
+
+    private enum MoveStopReason { None, StuckRetry, StuckTeleport, StuckInCombat, HigherPriority, NpcSpawned, FateInvalid }
 
     private async Task GenerateObstacleMap(PublicEvent fate)
     {
@@ -884,12 +967,35 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
             onStopReached: null,
             allowAethernetWithinTerritory: true);
 
-        // Wall-clock backstop: if clib parks inside a sub-flow without polling stopCondition,
-        // the watchdog forces a stop here.
         var nextProgressLogMs = Environment.TickCount64 + MoveProgressLogMs;
+        // Wall-clock backstop for when clib parks without polling stopCondition (so the StuckTracker
+        // can't see it): catch the physical freeze in ~8s instead of waiting out the 60s watchdog.
+        Vector3? wallclockLastPos = Svc.Objects.LocalPlayer?.Position;
+        var wallclockLastMoveAtMs = Environment.TickCount64;
+        var wallclockStall = MoveStopReason.None;
         while (!moveTask.IsCompleted && Environment.TickCount64 < deadline)
         {
             if (CancelToken.IsCancellationRequested) break;
+
+            var nowPos = Svc.Objects.LocalPlayer?.Position;
+            if (nowPos is { } np)
+            {
+                if (wallclockLastPos is null || Vector3.Distance(wallclockLastPos.Value, np) > StuckMoveThresholdMeters)
+                {
+                    wallclockLastPos = np;
+                    wallclockLastMoveAtMs = Environment.TickCount64;
+                }
+                else if (Environment.TickCount64 - wallclockLastMoveAtMs >= HardStuckTimeoutMs
+                      && !IsPositionFrozenLegit())
+                {
+                    // Teleport is blocked in combat, so fight free first; otherwise escalate to teleport.
+                    wallclockStall = Svc.Condition[ConditionFlag.InCombat]
+                        ? MoveStopReason.StuckInCombat
+                        : MoveStopReason.StuckTeleport;
+                    break;
+                }
+            }
+
             if (Environment.TickCount64 >= nextProgressLogMs)
             {
                 nextProgressLogMs = Environment.TickCount64 + MoveProgressLogMs;
@@ -900,10 +1006,21 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
             await NextFrame(120);
         }
 
-        if (!moveTask.IsCompleted)
+        // Any path where the move didn't finish cleanly must tear moveTask down before we hand off: a
+        // still-running MoveTo keeps driving vnav and fights whatever runs next. (This was the combat
+        // break — the old combat-stall returned without unwinding, leaving a zombie that re-pathed
+        // under ClearBlockingCombat and wedged the run.) Set stopReason so the closure unwinds if clib
+        // still polls it, stop vnav, grace-wait, and abandon (observed) only if it refuses to die.
+        if (wallclockStall != MoveStopReason.None || !moveTask.IsCompleted)
         {
-            stopReason = MoveStopReason.StuckTeleport;
-            Diag($"MoveTo watchdog: no completion after {MoveToFateWatchdogMs/1000}s for FATE {targetId} ({fate.Name}); forcing vnav stop and escalating");
+            if (stopReason == MoveStopReason.None)
+                stopReason = wallclockStall != MoveStopReason.None ? wallclockStall : MoveStopReason.StuckTeleport;
+
+            Diag(wallclockStall == MoveStopReason.StuckInCombat
+                ? $"MoveTo combat-stall: stationary in combat {HardStuckTimeoutMs/1000}s with no nav completion for FATE {targetId} ({fate.Name}); stopping vnav and clearing aggro (teleport is blocked in combat)"
+                : wallclockStall == MoveStopReason.StuckTeleport
+                    ? $"MoveTo froze: no physical progress in {HardStuckTimeoutMs/1000}s and not in a frozen-legit state for FATE {targetId} ({fate.Name}); forcing vnav stop and escalating"
+                    : $"MoveTo watchdog: no completion after {MoveToFateWatchdogMs/1000}s for FATE {targetId} ({fate.Name}); forcing vnav stop and escalating");
             try { NavmeshIPC.Instance.Stop(); } catch { /* best-effort */ }
 
             var graceDeadline = Environment.TickCount64 + MoveToUnwindGraceMs;
@@ -911,11 +1028,14 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
                 await NextFrame(120);
 
             if (!moveTask.IsCompleted)
-                Diag($"MoveTo did not unwind within {MoveToUnwindGraceMs/1000}s of NavmeshIPC.Stop; continuing without await — task may leak");
+            {
+                Diag($"MoveTo did not unwind within {MoveToUnwindGraceMs/1000}s of NavmeshIPC.Stop; abandoning task (fault observed)");
+                ObserveLeak(moveTask);
+            }
             else
                 await moveTask;
 
-            return MoveStopReason.StuckTeleport;
+            return stopReason;
         }
 
         await moveTask;
@@ -956,17 +1076,68 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         return true;
     }
 
+    // Teleport is blocked in combat, so fight off a mob that aggroed mid-travel (auto-target) to drop
+    // combat before the loop re-paths.
+    private async Task ClearBlockingCombat()
+    {
+        if (!Svc.Condition[ConditionFlag.InCombat]) return;
+
+        Status = "Clearing aggro";
+        Diag("In combat during travel; enabling rotation to fight free before resuming");
+
+        var preset = Plugin.Cfg.CombatPresetName;
+        EnsureCombatPreset(preset);
+        if (Svc.Condition[ConditionFlag.Mounted]) await Dismount();
+        AssertPresetActive(preset);
+
+        var deadline = Environment.TickCount64 + CombatClearTimeoutMs;
+        try
+        {
+            while (Environment.TickCount64 < deadline)
+            {
+                if (CancelToken.IsCancellationRequested) return;
+                if (!Svc.Condition[ConditionFlag.InCombat]) break;
+                if (IsPlayerKO()) break;
+                // A real FATE may have started on top of us; let the state machine take over.
+                if (PublicEvent.CurrentFate is { State: FateState.Running }) break;
+                if (Svc.Condition[ConditionFlag.Mounted]) { BossModIPC.Instance.ClearActive(); await Dismount(); }
+                AssertPresetActive(preset);
+                await NextFrame(30);
+            }
+        }
+        finally
+        {
+            BossModIPC.Instance.ClearActive();
+        }
+
+        if (Svc.Condition[ConditionFlag.InCombat])
+            Diag($"Still in combat after {CombatClearTimeoutMs / 1000}s of fighting; will retry travel");
+    }
+
+    // Excludes Mounted: a mount stuck on terrain is a real freeze.
+    private static bool IsPositionFrozenLegit()
+        => Svc.Condition[ConditionFlag.Casting]
+        || Svc.Condition[ConditionFlag.Casting87]
+        || Svc.Condition[ConditionFlag.BetweenAreas]
+        || Svc.Condition[ConditionFlag.BetweenAreas51]
+        || Svc.Condition[ConditionFlag.OccupiedInCutSceneEvent]
+        || Svc.Condition[ConditionFlag.WatchingCutscene]
+        || Svc.Condition[ConditionFlag.WatchingCutscene78];
+
+    // Observe an abandoned MoveTo's eventual fault so it can't reach the finalizer as an unobserved
+    // exception. Must not touch nav — a later firing could stop the next FATE's navigation.
+    private static void ObserveLeak(Task leaked)
+        => leaked.ContinueWith(static t => { _ = t.Exception; }, TaskScheduler.Default);
+
     private sealed class StuckTracker
     {
-        private Vector3? lastProgressPos;
-        private long lastProgressAtMs = Environment.TickCount64;
-        private long lastPathActivityAtMs = Environment.TickCount64;
         private Vector3? lastPhysicalPos;
         private long lastPhysicalMoveAtMs = Environment.TickCount64;
         private Vector3? retryPos;
         private bool retriedOnce;
-        private bool wasRunning;
 
+        // Wedged = no physical movement for HardStuckTimeoutMs outside a legit frozen state. Teleport
+        // is blocked in combat, so signal clear-aggro there; otherwise retry-then-teleport.
         public MoveStopReason Check()
         {
             var player = Svc.Objects.LocalPlayer;
@@ -975,83 +1146,27 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
             var now = Environment.TickCount64;
             var pos = player.Position;
 
-            // Genuinely position-frozen, bounded states. Reset everything including the hard floor.
-            if (Svc.Condition[ConditionFlag.BetweenAreas]
-             || Svc.Condition[ConditionFlag.BetweenAreas51]
-             || Svc.Condition[ConditionFlag.OccupiedInCutSceneEvent]
-             || Svc.Condition[ConditionFlag.WatchingCutscene]
-             || Svc.Condition[ConditionFlag.WatchingCutscene78])
+            if (IsPositionFrozenLegit())
             {
-                lastProgressPos = pos;
-                lastProgressAtMs = now;
                 lastPhysicalPos = pos;
                 lastPhysicalMoveAtMs = now;
-                lastPathActivityAtMs = now;
                 return MoveStopReason.None;
             }
 
-            // Hard floor: fires even while casting / in combat. A mob that roots us mid-travel must
-            // not suppress recovery (the casting flag used to do exactly that). Re-pathing won't move
-            // a rooted character, so if we're in combat, teleport straight past it.
             if (lastPhysicalPos is null
              || Vector3.Distance(lastPhysicalPos.Value, pos) > StuckMoveThresholdMeters)
             {
                 lastPhysicalPos = pos;
                 lastPhysicalMoveAtMs = now;
-            }
-            else if (now - lastPhysicalMoveAtMs >= HardStuckTimeoutMs)
-            {
-                return Svc.Condition[ConditionFlag.InCombat]
-                    ? MoveStopReason.StuckTeleport
-                    : EscalateOrRetry(pos);
-            }
-
-            // Soft pause during a cast (teleport / aethernet / mount) so the fast timer doesn't
-            // false-flag; the hard floor above still backstops if a cast-like state persists.
-            if (Svc.Condition[ConditionFlag.Casting] || Svc.Condition[ConditionFlag.Casting87])
-            {
-                lastProgressPos = pos;
-                lastProgressAtMs = now;
                 return MoveStopReason.None;
             }
 
-            var isRunning = NavmeshIPC.Instance.IsRunning();
-            var isPathfinding = NavmeshIPC.Instance.IsBusy() && !isRunning;
-
-            if (isRunning || isPathfinding)
-                lastPathActivityAtMs = now;
-
-            if (!isRunning)
-            {
-                wasRunning = false;
-                lastProgressPos = pos;
-                lastProgressAtMs = now;
-
-                if (!isPathfinding && now - lastPathActivityAtMs >= VnavIdleTimeoutMs)
-                    return EscalateOrRetry(pos);
-                return MoveStopReason.None;
-            }
-
-            if (!wasRunning)
-            {
-                wasRunning = true;
-                lastProgressPos = pos;
-                lastProgressAtMs = now;
-                return MoveStopReason.None;
-            }
-
-            if (lastProgressPos is null
-             || Vector3.Distance(lastProgressPos.Value, pos) > StuckMoveThresholdMeters)
-            {
-                lastProgressPos = pos;
-                lastProgressAtMs = now;
-                return MoveStopReason.None;
-            }
-
-            if (now - lastProgressAtMs < StuckMoveTimeoutMs)
+            if (now - lastPhysicalMoveAtMs < HardStuckTimeoutMs)
                 return MoveStopReason.None;
 
-            return EscalateOrRetry(pos);
+            return Svc.Condition[ConditionFlag.InCombat]
+                ? MoveStopReason.StuckInCombat
+                : EscalateOrRetry(pos);
         }
 
         private MoveStopReason EscalateOrRetry(Vector3 currentPos)
