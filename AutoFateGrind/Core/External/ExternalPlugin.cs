@@ -6,7 +6,6 @@ public enum ExternalPlugin
 {
     Vnavmesh,
     BossMod,
-    Lifestream,
     TextAdvance,
 }
 
@@ -39,12 +38,6 @@ public static class ExternalPlugins
             Purpose: "Auto-rotation, targeting, and dodging during FATE combat.",
             Required: true,
             Aliases: ["BossModReborn"]),
-        [ExternalPlugin.Lifestream] = new(
-            InternalName: "Lifestream",
-            DisplayName: "Lifestream",
-            RepoUrl: "https://puni.sh/api/plugins",
-            Purpose: "Aethernet hops between FATEs in the same zone.",
-            Required: false),
         [ExternalPlugin.TextAdvance] = new(
             InternalName: "TextAdvance",
             DisplayName: "TextAdvance",
