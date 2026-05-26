@@ -122,8 +122,9 @@ internal static class RunningPanel
             .Where(f => f.State == FateState.Running)
             .Where(f => !cfg.BlacklistedFateIds.Contains(f.Id))
             .OrderByDescending(f => f.HasBonus)
-            .ThenBy(f => f.TimeRemaining)
+            .ThenByDescending(f => f.Progress)
             .ThenBy(f => Vector3.DistanceSquared(f.Position, player.Position))
+            .ThenBy(f => f.TimeRemaining)
             .Take(5)
             .ToArray();
         if (fates.Length == 0) { EmptyHint("No other active FATEs in this zone."); return; }

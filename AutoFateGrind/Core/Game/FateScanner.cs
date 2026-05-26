@@ -14,8 +14,9 @@ internal static class FateScanner
         return fates
             .Where(f => IsEligible(f, cfg, sessionBlacklist))
             .OrderByDescending(f => f.HasBonus)
-            .ThenBy(f => f.TimeRemaining)
+            .ThenByDescending(f => f.Progress)
             .ThenBy(f => Vector3.DistanceSquared(f.Position, playerPos))
+            .ThenBy(f => f.TimeRemaining)
             .FirstOrDefault();
     }
 
