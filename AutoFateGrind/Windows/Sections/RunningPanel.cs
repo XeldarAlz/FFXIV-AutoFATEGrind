@@ -197,7 +197,9 @@ internal static class RunningPanel
         var current = Svc.ClientState.TerritoryType;
         var zone = ZoneRegistry.Zones.FirstOrDefault(z => z.TerritoryId == current);
         var name = zone?.Name ?? "(somewhere else)";
-        var queued = cfg.SelectedZones.Count;
+        var queued = ZoneSelection.IsAutoSelected(cfg)
+            ? ZoneSelection.AutoQueue(cfg).Count
+            : cfg.SelectedZones.Count;
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
             ImGui.TextUnformatted($"in: {name}   ·   {queued} zone{(queued == 1 ? "" : "s")} queued");
     }

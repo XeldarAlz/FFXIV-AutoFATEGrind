@@ -46,46 +46,30 @@ internal static class GoalSummary
                 ImGui.TextUnformatted($"gems  ·  have {GemstoneCount()}");
         }
 
-        DrawScopeToggle(cfg);
-
         ImGui.Spacing();
 
-        var byId = ZoneRegistry.Zones.ToDictionary(z => z.TerritoryId);
-        var runnable = cfg.SelectedZones.Where(byId.ContainsKey).Count();
+        var startList = ZoneSelection.ResolveStartList(cfg);
+        var runnable = startList.Count;
         var canStart = runnable > 0 && !controller.Running;
         var label = canStart ? $"START   ({runnable} zone{(runnable == 1 ? "" : "s")})" : "START";
 
         if (PrimaryButton.Draw(label, Styling.AccentViolet, canStart))
-            controller.RunAll(cfg.SelectedZones.Where(byId.ContainsKey).Select(id => byId[id]));
+            controller.RunAll(startList);
 
         if (!canStart && runnable == 0)
-            Tooltip.For("Pick at least one zone below.");
+            Tooltip.For(ZoneSelection.IsAutoSelected(cfg)
+                ? "All Shared FATE achievements are already complete."
+                : "Pick at least one zone below.");
     }
 
     private static unsafe string SummaryFor(Configuration cfg) => cfg.Mode switch
     {
         GrindMode.MaxGemstones => "Stops at",
-        GrindMode.MaxFates     => "Stops when every selected zone hits 60 Shared FATEs.",
+        GrindMode.MaxFates     => "Auto-rotates ShB / EW / DT zones until every Shared FATE achievement is complete.",
         GrindMode.RunCount     => "Stops after",
         GrindMode.Endless      => "Rotates selected zones until you press Stop.",
         _ => "",
     };
-
-    private static void DrawScopeToggle(Configuration cfg)
-    {
-        if (cfg.Mode != GrindMode.MaxFates) return;
-
-        ImGui.SameLine();
-        var label = cfg.ShowAllZonesOverride ? "Hide ARR/HW/SB" : "Show ARR/HW/SB";
-        using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentVioletSoft))
-            if (ImGui.SmallButton($"  {label}  "))
-            {
-                cfg.ShowAllZonesOverride = !cfg.ShowAllZonesOverride;
-                cfg.SaveDebounced();
-            }
-        if (ImGui.IsItemHovered())
-            ImGui.SetTooltip("Shared FATE achievements only exist in ShB, EW, and DT. Earlier expansions are hidden by default in this mode.");
-    }
 
     private static unsafe int GemstoneCount()
     {
