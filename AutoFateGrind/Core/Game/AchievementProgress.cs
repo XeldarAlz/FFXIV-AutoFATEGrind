@@ -1,6 +1,7 @@
 using Dalamud.Hooking;
 using ECommons.DalamudServices;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
+using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 
 namespace AutoFateGrind.Core.Game;
 
@@ -17,6 +18,7 @@ internal static unsafe class AchievementProgress
     private static readonly Dictionary<uint, Entry> cache = new();
     private static readonly object cacheLock = new();
     private static Hook<Achievement.Delegates.ReceiveAchievementProgress>? receiveHook;
+    private static long lastListRequestTickMs;
 
     // Server already throttles; this guards against client-side spam.
     private const int RequestCooldownMs = 5_000;
@@ -70,20 +72,41 @@ internal static unsafe class AchievementProgress
             {
                 if (!force && entry.Received) return;
                 if (!force && now - entry.LastRequestedTickMs < RequestCooldownMs) return;
-                entry.LastRequestedTickMs = now;
-                cache[id] = entry;
-            }
-            else
-            {
-                cache[id] = new Entry { LastRequestedTickMs = now };
             }
         }
 
         try
         {
             var ach = Achievement.Instance();
-            if (ach == null || !ach->IsLoaded()) return;
+            if (ach == null) return;
+
+            // The achievement module only populates after its agent has been shown once — opening the
+            // Achievements window is what loads the data from the server. Until then IsLoaded stays
+            // false and every RequestAchievementProgress is silently dropped, so trigger the load
+            // ourselves (Show then immediate Hide so the window doesn't actually linger) and bail; a
+            // later retry plus the receive hook pick up the value once it's ready.
+            if (!ach->IsLoaded())
+            {
+                if (now - lastListRequestTickMs >= RequestCooldownMs)
+                {
+                    lastListRequestTickMs = now;
+                    var agent = AgentAchievement.Instance();
+                    if (agent != null)
+                    {
+                        agent->Show();
+                        agent->Hide();
+                    }
+                }
+                return;
+            }
+
             ach->RequestAchievementProgress(id);
+            lock (cacheLock)
+            {
+                var entry = cache.TryGetValue(id, out var e) ? e : new Entry();
+                entry.LastRequestedTickMs = now;
+                cache[id] = entry;
+            }
         }
         catch (Exception ex)
         {
