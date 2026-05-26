@@ -33,9 +33,13 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
     private const float StuckMoveThresholdMeters = 1.5f;
     private const int   StuckMoveTimeoutMs = 2_000;
     private const int   VnavIdleTimeoutMs = 1_500;
+    // Absolute no-physical-movement floor that fires even while casting / in combat, so a wandering
+    // mob that roots us mid-travel recovers in seconds instead of falling through to the wall-clock.
+    private const int   HardStuckTimeoutMs = 8_000;
     private const float TeleportRetryProgressMeters = 3.0f;
-    private const int   MoveToFateWatchdogMs = 120_000;
+    private const int   MoveToFateWatchdogMs = 60_000;
     private const int   MoveToUnwindGraceMs = 5_000;
+    private const int   MoveProgressLogMs = 15_000;
     private const int   FollowUpWatchMs = 15_000;
     private const int   NpcSpawnTimeoutMs = 30_000;
     private const int   CollectExpiryTimeoutMs = 90_000;
@@ -879,9 +883,17 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
 
         // Wall-clock backstop: if clib parks inside a sub-flow without polling stopCondition,
         // the watchdog forces a stop here.
+        var nextProgressLogMs = Environment.TickCount64 + MoveProgressLogMs;
         while (!moveTask.IsCompleted && Environment.TickCount64 < deadline)
         {
             if (CancelToken.IsCancellationRequested) break;
+            if (Environment.TickCount64 >= nextProgressLogMs)
+            {
+                nextProgressLogMs = Environment.TickCount64 + MoveProgressLogMs;
+                var p = Svc.Objects.LocalPlayer?.Position;
+                var pStr = p is { } v ? $"({v.X:F0},{v.Y:F0},{v.Z:F0})" : "?";
+                Diag($"Still moving to FATE {targetId}: pos={pStr} navRun={NavmeshIPC.Instance.IsRunning()} inCombat={Svc.Condition[ConditionFlag.InCombat]}");
+            }
             await NextFrame(120);
         }
 
@@ -946,6 +958,8 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         private Vector3? lastProgressPos;
         private long lastProgressAtMs = Environment.TickCount64;
         private long lastPathActivityAtMs = Environment.TickCount64;
+        private Vector3? lastPhysicalPos;
+        private long lastPhysicalMoveAtMs = Environment.TickCount64;
         private Vector3? retryPos;
         private bool retriedOnce;
         private bool wasRunning;
@@ -955,21 +969,49 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
             var player = Svc.Objects.LocalPlayer;
             if (player is null) return MoveStopReason.None;
 
+            var now = Environment.TickCount64;
+            var pos = player.Position;
+
+            // Genuinely position-frozen, bounded states. Reset everything including the hard floor.
             if (Svc.Condition[ConditionFlag.BetweenAreas]
              || Svc.Condition[ConditionFlag.BetweenAreas51]
              || Svc.Condition[ConditionFlag.OccupiedInCutSceneEvent]
              || Svc.Condition[ConditionFlag.WatchingCutscene]
-             || Svc.Condition[ConditionFlag.WatchingCutscene78]
-             || Svc.Condition[ConditionFlag.Casting]
-             || Svc.Condition[ConditionFlag.Casting87])
+             || Svc.Condition[ConditionFlag.WatchingCutscene78])
             {
-                lastProgressPos = player.Position;
-                lastProgressAtMs = Environment.TickCount64;
+                lastProgressPos = pos;
+                lastProgressAtMs = now;
+                lastPhysicalPos = pos;
+                lastPhysicalMoveAtMs = now;
+                lastPathActivityAtMs = now;
                 return MoveStopReason.None;
             }
 
-            var now = Environment.TickCount64;
-            var pos = player.Position;
+            // Hard floor: fires even while casting / in combat. A mob that roots us mid-travel must
+            // not suppress recovery (the casting flag used to do exactly that). Re-pathing won't move
+            // a rooted character, so if we're in combat, teleport straight past it.
+            if (lastPhysicalPos is null
+             || Vector3.Distance(lastPhysicalPos.Value, pos) > StuckMoveThresholdMeters)
+            {
+                lastPhysicalPos = pos;
+                lastPhysicalMoveAtMs = now;
+            }
+            else if (now - lastPhysicalMoveAtMs >= HardStuckTimeoutMs)
+            {
+                return Svc.Condition[ConditionFlag.InCombat]
+                    ? MoveStopReason.StuckTeleport
+                    : EscalateOrRetry(pos);
+            }
+
+            // Soft pause during a cast (teleport / aethernet / mount) so the fast timer doesn't
+            // false-flag; the hard floor above still backstops if a cast-like state persists.
+            if (Svc.Condition[ConditionFlag.Casting] || Svc.Condition[ConditionFlag.Casting87])
+            {
+                lastProgressPos = pos;
+                lastProgressAtMs = now;
+                return MoveStopReason.None;
+            }
+
             var isRunning = NavmeshIPC.Instance.IsRunning();
             var isPathfinding = NavmeshIPC.Instance.IsBusy() && !isRunning;
 
