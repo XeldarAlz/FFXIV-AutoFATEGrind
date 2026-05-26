@@ -3,68 +3,54 @@ using Lumina.Excel.Sheets;
 
 namespace AutoFateGrind.Core.Zones;
 
-// Resolves the per-zone "Date with Destiny" Achievement.RowId by scanning the Lumina
-// Achievement sheet for entries whose Description text mentions the zone's PlaceName.
+// Resolves the per-zone Shared FATE Achievement.RowId — i.e., the "Free Market Friend"
+// series introduced in Shadowbringers and extended in Endwalker/Dawntrail. Each Shared
+// FATE zone has exactly one such achievement (rank 3 for ShB/EW, rank 4 for DT), with
+// Name "Free Market Friend: <ZoneName>". The suffix after the colon matches the
+// TerritoryType PlaceName 1:1.
 //
-// Works for HW+ (one achievement per zone, e.g. "Like a Boss" for the Sea of Clouds)
-// and ARR (one regional achievement listing all member zones, e.g. "A Date with the
-// Twelveswood" listing Central/East/South/North Shroud). When multiple tiers exist
-// for the same zone, picks the lowest Order (60-FATE first tier).
+// Pre-ShB expansions (ARR/HW/SB) have no per-zone Shared FATE mechanic — there is no
+// in-game achievement that tracks FATE progress per zone for those expansions, so they
+// resolve to 0. Diadem ("Crowning Achievement") and Occult Crescent ("Occult Erudition")
+// are instanced and excluded from the zone registry.
 internal static class ZoneAchievementResolver
 {
-    private readonly record struct FateAchievement(uint RowId, string DescriptionLower, ushort Order);
+    private const string NamePrefix = "Free Market Friend: ";
 
-    private static FateAchievement[]? cached;
+    private static Dictionary<string, uint>? cached;
 
     public static uint Resolve(string placeName)
     {
         if (string.IsNullOrWhiteSpace(placeName)) return 0;
-        var entries = cached ??= LoadFateAchievements();
-        if (entries.Length == 0) return 0;
-
-        var needle = placeName.ToLowerInvariant();
-
-        uint bestRowId = 0;
-        ushort bestOrder = ushort.MaxValue;
-
-        foreach (var e in entries)
-        {
-            if (!e.DescriptionLower.Contains(needle)) continue;
-            if (e.Order < bestOrder)
-            {
-                bestOrder = e.Order;
-                bestRowId = e.RowId;
-            }
-        }
-
-        return bestRowId;
+        var map = cached ??= LoadFreeMarketFriendMap();
+        return map.TryGetValue(NormalizeZone(placeName), out var rowId) ? rowId : 0;
     }
 
     public static void Invalidate() => cached = null;
 
-    private static FateAchievement[] LoadFateAchievements()
+    private static Dictionary<string, uint> LoadFreeMarketFriendMap()
     {
         var sheet = Svc.Data.GetExcelSheet<Achievement>();
-        if (sheet is null) return [];
+        if (sheet is null)
+        {
+            Svc.Log.Warning("[AFG] Achievement sheet unavailable; per-zone resolution disabled.");
+            return [];
+        }
 
-        var result = new List<FateAchievement>(capacity: 64);
+        var map = new Dictionary<string, uint>(capacity: 24);
         foreach (var a in sheet)
         {
             if (a.RowId == 0) continue;
-            var desc = a.Description.ExtractText();
-            if (string.IsNullOrEmpty(desc)) continue;
+            var name = a.Name.ExtractText();
+            if (string.IsNullOrEmpty(name) || !name.StartsWith(NamePrefix, StringComparison.Ordinal)) continue;
 
-            var descLower = desc.ToLowerInvariant();
-            // Narrow to "Complete N FATEs in <place>" entries. "complete" + "fate" is
-            // the smallest pair of tokens that reliably catches the Date-with-Destiny
-            // series across all expansions without sweeping in slay/boss-in-FATE
-            // achievements that don't track per-zone FATE counts.
-            if (!descLower.Contains("fate")) continue;
-            if (!descLower.Contains("complete")) continue;
-
-            result.Add(new FateAchievement(a.RowId, descLower, (ushort)a.Order));
+            var zoneSuffix = name[NamePrefix.Length..];
+            map[NormalizeZone(zoneSuffix)] = a.RowId;
         }
 
-        return [.. result];
+        Svc.Log.Info($"[AFG] Resolved {map.Count} Shared FATE achievements from Lumina.");
+        return map;
     }
+
+    private static string NormalizeZone(string s) => s.Trim().ToLowerInvariant();
 }

@@ -7,7 +7,7 @@ namespace AutoFateGrind.Windows.Components;
 
 internal static class GoalCard
 {
-    public static bool Draw(string id, string label, FontAwesomeIcon icon, Vector4 accent, bool selected, Vector2 size)
+    public static bool Draw(string id, string label, FontAwesomeIcon icon, Vector4 accent, bool selected, Vector2 size, string? tooltip = null)
     {
         var origin = ImGui.GetCursorScreenPos();
         var end = origin + size;
@@ -50,6 +50,8 @@ internal static class GoalCard
         if (hovered)
         {
             ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
+            if (!string.IsNullOrEmpty(tooltip))
+                ImGui.SetTooltip(tooltip);
             if (ImGui.IsMouseClicked(ImGuiMouseButton.Left))
                 return true;
         }

@@ -49,7 +49,7 @@ internal static class GoalSummary
     private static unsafe string SummaryFor(Configuration cfg) => cfg.Mode switch
     {
         GrindMode.MaxGemstones => $"Stops at {cfg.TradeThreshold} Bicolor Gemstones (you have {GemstoneCount()}).",
-        GrindMode.MaxFates     => "Stops when every selected zone's 'Date with Destiny' achievement is complete.",
+        GrindMode.MaxFates     => "Stops when every selected zone's 'Free Market Friend' achievement (60 Shared FATEs) is complete.",
         GrindMode.RunCount     => "Stops after",
         GrindMode.Endless      => "Runs forever until you press Stop. Rotates between selected zones.",
         _ => "",

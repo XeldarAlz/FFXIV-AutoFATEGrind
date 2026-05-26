@@ -8,14 +8,18 @@ namespace AutoFateGrind.Windows.Sections;
 
 internal static class GoalGrid
 {
-    private record GoalDef(string Label, FontAwesomeIcon Icon, Vector4 Accent, GrindMode Mode);
+    private record GoalDef(string Label, FontAwesomeIcon Icon, Vector4 Accent, GrindMode Mode, string Tooltip);
 
     private static readonly GoalDef[] goals =
     [
-        new("Farm Gemstones",       FontAwesomeIcon.Gem,      Styling.AccentViolet,     GrindMode.MaxGemstones),
-        new("Complete Achievement", FontAwesomeIcon.Trophy,   Styling.AccentAmber,      GrindMode.MaxFates),
-        new("Run N FATEs",          FontAwesomeIcon.ListOl,   Styling.AccentVioletSoft, GrindMode.RunCount),
-        new("Endless Grind",        FontAwesomeIcon.Infinity, Styling.AccentPink,       GrindMode.Endless),
+        new("Farm Gemstones",     FontAwesomeIcon.Gem,      Styling.AccentViolet,     GrindMode.MaxGemstones,
+            "Stops when Bicolor Gemstones hit your trade threshold. Auto-trade resumes the grind."),
+        new("Max Shared FATEs",   FontAwesomeIcon.Trophy,   Styling.AccentAmber,      GrindMode.MaxFates,
+            "Stops when every selected zone's 'Free Market Friend' achievement (60 Shared FATEs) is complete. ShB / EW / DT only — no equivalent exists in earlier expansions."),
+        new("Run N FATEs",        FontAwesomeIcon.ListOl,   Styling.AccentVioletSoft, GrindMode.RunCount,
+            "Stops after a fixed number of FATE completions across all selected zones."),
+        new("Endless Grind",      FontAwesomeIcon.Infinity, Styling.AccentPink,       GrindMode.Endless,
+            "Runs forever, rotating between selected zones, until you press Stop."),
     ];
 
     public static void Draw(Configuration cfg)
@@ -34,7 +38,7 @@ internal static class GoalGrid
             var g = goals[i];
             if (i > 0) ImGui.SameLine(0, gap);
 
-            if (GoalCard.Draw($"##goal_{g.Mode}", g.Label, g.Icon, g.Accent, cfg.Mode == g.Mode, size))
+            if (GoalCard.Draw($"##goal_{g.Mode}", g.Label, g.Icon, g.Accent, cfg.Mode == g.Mode, size, g.Tooltip))
             {
                 cfg.Mode = g.Mode;
                 cfg.SaveDebounced();
