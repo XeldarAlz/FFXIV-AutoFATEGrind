@@ -44,25 +44,45 @@ internal static class RunningPanel
         var fate = PublicEvent.CurrentFate;
         var inFate = fate is not null && fate.State == FateState.Running;
 
-        var border = inFate
-            ? Styling.PulseColor(Styling.AccentViolet, Styling.AccentVioletSoft, Styling.PulseFast)
-            : Styling.BorderDim;
-        var bg = inFate ? Vector4.Lerp(Styling.CardBg, Styling.AccentViolet, 0.08f) : Styling.CardBgSoft;
+        var (accent, accentSoft, label) = PhasePalette(controller, inFate);
+        var active = controller.Running;
 
-        using (Card.Begin("##afg_status", new Vector2(-1, height), bg, border, inFate ? 2f : 1.0f))
+        var border = active
+            ? Styling.PulseColor(accent, accentSoft, inFate ? Styling.PulseFast : Styling.PulseMedium)
+            : Styling.BorderDim;
+        var bg = active ? Vector4.Lerp(Styling.CardBg, accent, 0.08f) : Styling.CardBgSoft;
+
+        using (Card.Begin("##afg_status", new Vector2(-1, height), bg, border, active ? 2f : 1.0f))
         {
-            if (inFate) DrawActive(fate!, controller);
+            DrawPhaseLabel(label, accent, active);
+            if (inFate) DrawActive(fate!, controller, accent);
             else DrawTransitioning(controller);
         }
     }
 
-    private static void DrawActive(PublicEvent fate, AutoFateController controller)
+    private static (Vector4 accent, Vector4 accentSoft, string label) PhasePalette(AutoFateController controller, bool inFate)
+    {
+        if (!controller.Running)
+            return (Styling.TextDim, Styling.TextSecondary, "READY");
+
+        return controller.Phase switch
+        {
+            AutoPhase.Trading  => (Styling.AccentAmber, Styling.AccentAmberSoft, "TRADING GEMSTONES"),
+            AutoPhase.Grinding => (Styling.AccentBlue,  Styling.AccentBlueSoft,  inFate ? "ENGAGING FATE" : "GRINDING FATES"),
+            _                  => (Styling.TextDim,    Styling.TextSecondary,   "STANDING BY"),
+        };
+    }
+
+    private static void DrawPhaseLabel(string label, Vector4 accent, bool active)
     {
         ImGui.SetWindowFontScale(0.9f);
-        using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
-            ImGui.TextUnformatted("ENGAGING");
+        using (ImRaii.PushColor(ImGuiCol.Text, active ? accent : Styling.TextDim))
+            ImGui.TextUnformatted(label);
         ImGui.SetWindowFontScale(1.0f);
+    }
 
+    private static void DrawActive(PublicEvent fate, AutoFateController controller, Vector4 accent)
+    {
         ImGui.SetWindowFontScale(1.45f);
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextStrong))
             ImGui.TextUnformatted($"L{fate.Level}   {fate.Name}");
@@ -77,7 +97,7 @@ internal static class RunningPanel
         }
 
         ImGui.Spacing();
-        DrawFatProgressBar(fate.Progress / 100f, Styling.AccentViolet);
+        DrawFatProgressBar(fate.Progress / 100f, accent);
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
             ImGui.TextUnformatted($"{fate.Progress}%   ·   {FormatTime(fate.TimeRemaining)} remaining");
 
@@ -87,11 +107,6 @@ internal static class RunningPanel
 
     private static void DrawTransitioning(AutoFateController controller)
     {
-        ImGui.SetWindowFontScale(0.9f);
-        using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
-            ImGui.TextUnformatted(controller.Running ? "STANDING BY" : "READY");
-        ImGui.SetWindowFontScale(1.0f);
-
         ImGui.SetWindowFontScale(1.30f);
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextSecondary))
             ImGui.TextUnformatted(string.IsNullOrWhiteSpace(controller.Status) ? "Waiting..." : controller.Status);
@@ -105,6 +120,7 @@ internal static class RunningPanel
     {
         var s = controller.SessionSnapshot;
         if (s is null) return;
+        ImGui.SetCursorPosY(ImGui.GetCursorPosY() - 4f * ImGuiHelpers.GlobalScale);
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
             ImGui.TextUnformatted($"Session:  {s.CompletedCount} FATEs  ·  {s.GemstonesEarned} gems  ·  {FormatElapsed(s.Elapsed)}  ·  {s.FatesPerHour:F1}/h");
     }
