@@ -15,7 +15,11 @@ public sealed record ExternalPluginInfo(
     string DisplayName,
     string RepoUrl,
     string Purpose,
-    bool Required);
+    bool Required,
+    // Alternate InternalNames that should also satisfy the install check. Used when a
+    // plugin has a community fork shipping under a different name but exposing the same
+    // IPC surface — e.g. BossMod Reborn ("BossModReborn") for upstream BossMod.
+    string[]? Aliases = null);
 
 public static class ExternalPlugins
 {
@@ -33,7 +37,8 @@ public static class ExternalPlugins
             DisplayName: "BossMod / BossMod Reborn",
             RepoUrl: "https://puni.sh/api/repository/veyn",
             Purpose: "Auto-rotation, targeting, and dodging during FATE combat.",
-            Required: true),
+            Required: true,
+            Aliases: ["BossModReborn"]),
         [ExternalPlugin.Lifestream] = new(
             InternalName: "Lifestream",
             DisplayName: "Lifestream",
@@ -53,8 +58,10 @@ public static class ExternalPlugins
     public static bool IsInstalled(ExternalPlugin plugin)
     {
         var info = Catalog[plugin];
-        return Svc.PluginInterface.InstalledPlugins
-            .Any(p => p.InternalName == info.InternalName && p.IsLoaded);
+        return Svc.PluginInterface.InstalledPlugins.Any(p =>
+            p.IsLoaded
+            && (p.InternalName == info.InternalName
+                || (info.Aliases is not null && Array.IndexOf(info.Aliases, p.InternalName) >= 0)));
     }
 
     public static bool AllRequiredInstalled()
