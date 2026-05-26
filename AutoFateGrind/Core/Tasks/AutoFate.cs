@@ -23,11 +23,10 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
     private int zoneIndex = zones.Count == 0 ? 0 : Math.Clamp(startIndex, 0, zones.Count - 1);
     private ZoneInfo zone => zones[zoneIndex];
 
-    // Session-scoped: reset on the next run so transient blockers (a party member at a
-    // chokepoint, stale vnav cache) get a fresh attempt.
+    // Session-scoped so transient blockers get a fresh attempt next run.
     private readonly HashSet<uint> sessionStuckFateIds = new();
 
-    // Known-bad terrain for BossMod's obstacle map generator — skip the pre-gen step.
+    // Known-bad terrain for BossMod's obstacle map generator.
     private static readonly HashSet<uint> obstacleMapBlacklist = new() { 1831, 1832, 1914, 1915 };
 
     private const float StuckMoveThresholdMeters = 1.5f;
@@ -46,7 +45,6 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
     {
         ErrorIf(zones.Count == 0, "No zones to grind.");
 
-        // In MaxFates mode, skip past already-completed zones so we don't waste a teleport.
         if (Plugin.Cfg.Mode == GrindMode.MaxFates && zone.AchievementDone)
             AdvanceZone();
 
@@ -66,8 +64,6 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         }
     }
 
-    // Round-robin to the next zone, skipping any whose Shared FATE achievement is already
-    // done when running in MaxFates mode. Returns false when no eligible zone remains.
     private bool AdvanceZone()
     {
         if (zones.Count <= 1)
@@ -79,7 +75,6 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
             var candidate = (zoneIndex + step) % zones.Count;
             if (Plugin.Cfg.Mode == GrindMode.MaxFates && zones[candidate].AchievementDone) continue;
             zoneIndex = candidate;
-            // Clear single-zone trackers — IDs and stuck counts don't carry across zones.
             sessionStuckFateIds.Clear();
             lastStuckFateId = null;
             consecutiveStuckRetries = 0;
@@ -98,9 +93,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
 
         while (!CancelToken.IsCancellationRequested)
         {
-            // Recover from KO before any in-zone work. Resolves the case where the player
-            // released back to a home point — once released and respawned, the territory
-            // check below teleports us back to the grind zone.
+            // Run before any in-zone work — released-to-home is recovered by the territory check below.
             if (await HandleKoIfNeeded()) continue;
 
             if (Svc.ClientState.TerritoryType != zone.TerritoryId)
@@ -119,9 +112,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
                 return;
             }
 
-            // MaxFates: the current zone's achievement just filled (e.g., from the last
-            // completion). Rotate to the next unfinished zone instead of exiting; only
-            // bail out when no zones remain.
+            // Rotate to the next unfinished zone; only exit when none remain.
             if (Plugin.Cfg.Mode == GrindMode.MaxFates && zone.AchievementDone)
             {
                 Diag($"{zone.Name} achievement done");
@@ -178,9 +169,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
             var moveResult = await MoveToFate(fate);
             if (CancelToken.IsCancellationRequested) return;
 
-            // If we already burned a teleport recovery on this FATE and still can't reach it,
-            // the nearest aetheryte doesn't help — blacklist instead of re-entering the
-            // teleport→stuck→teleport loop at the same aetheryte.
+            // Already teleported once and still stuck — blacklist to break the teleport→stuck loop.
             if (lastTeleportedFateId == fate.Id && moveResult != MoveStopReason.None)
             {
                 Diag($"Still stuck after teleport recovery for FATE {fate.Id} ({fate.Name}); blacklisting for this session");
@@ -232,8 +221,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
 
             if (await HandleKoIfNeeded()) continue;
 
-            // Boss FATEs spawn in Preparation; the issuing NPC must be talked to before
-            // they transition to Running. Sentinel 0xE0000000 = "no NPC" (trash FATEs).
+            // Boss FATEs need the issuing NPC talked to before Running. 0xE0000000 = no NPC.
             if (fate.State == FateState.Preparing && fate.MotivationNpcId != 0xE0000000)
                 await ActivateFate(fate);
             if (CancelToken.IsCancellationRequested) return;
@@ -241,34 +229,33 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
 
             await EngageFate(fate);
             if (CancelToken.IsCancellationRequested) return;
-            // KO during the fight — skip completion accounting and let next iter re-teleport.
             if (await HandleKoIfNeeded()) continue;
 
-            // Collect FATEs award rewards on row-expiry, not on Progress==100. Hold the
-            // zone until the FateContext disappears so the auto-handin lands.
+            // Collect FATEs award rewards on row-expiry, not Progress==100.
             if (fate.Rule == PublicEvent.FateRule.Collect)
                 await WaitForFateExpiry(fate.Id);
 
             session.CompletedCount++;
             zone.CompletedThisRun++;
             session.GemstoneCurrent = GemstoneCount();
-            // Force a re-fetch so AchievementCurrent reflects the FATE we just finished
-            // before the next StopConditionMet() check.
+            // Force re-fetch so AchievementCurrent is fresh before StopConditionMet().
             AchievementProgress.Request(zone.AchievementId, force: true);
             Diag($"FATE {fate.Id} done (session total: {session.CompletedCount})");
 
-            // Some FATEs spawn a chained sequel at the same Location within ~15s. Sit
-            // briefly so the scanner picks the new one up before we wander off.
+            // Some FATEs spawn a chained sequel at the same Location within ~15s.
             await WatchForFollowUp(fate.Id);
+
+            if (AdvanceClassQueueIfCapHit()) return;
 
             if (Plugin.Cfg.TradeOnCap && session.GemstoneCurrent >= Plugin.Cfg.TradeThreshold)
             {
                 var targetId = GemstoneCatalog.EnsurePersistedTarget();
                 var target = targetId == 0 ? null : GemstoneCatalog.FindById(targetId);
                 if (target is not null
-                    && GemstoneCatalog.ComputeBuyQuantity(session.GemstoneCurrent, target.CostPerOne) > 0)
+                    && GemstoneCatalog.ComputeBuyQuantity(session.GemstoneCurrent, target.CostPerOne) > 0
+                    && GemstoneTrader.PickForItem(targetId, zone.TerritoryId, zone.Expansion) is { } trader)
                 {
-                    Diag($"Gemstone threshold {Plugin.Cfg.TradeThreshold} reached, queueing auto-trade for {target.ItemName}.");
+                    Diag($"Gemstone threshold {Plugin.Cfg.TradeThreshold} reached, queueing auto-trade for {target.ItemName} at {trader.Name}.");
                     session.PendingTradeFromZone = zone;
                     return;
                 }
@@ -276,8 +263,6 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         }
     }
 
-    // Returns true if a KO was detected and handled (either raised or released).
-    // Caller should `continue` so the outer loop can re-evaluate territory/state.
     private async Task<bool> HandleKoIfNeeded()
     {
         if (!IsPlayerKO()) return false;
@@ -285,7 +270,6 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         Status = "KO — waiting for raise";
         Diag("Player KO detected, waiting up to 30s for a raise");
 
-        // Pause the combat backend so it stops trying to act on a dead player.
         try { BossModIPC.Instance.ClearActive(); } catch { /* best-effort */ }
 
         const int raiseWaitMs = 30_000;
@@ -297,8 +281,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
             {
                 Status = "Raised, resuming";
                 Diag("Raised by another player, resuming loop");
-                // Brief settle to let weakness/transcendent statuses register
-                // before the next move/teleport attempt.
+                // Settle so weakness/transcendent statuses register before the next move.
                 await NextFrame(60);
                 return true;
             }
@@ -310,9 +293,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         try { Chat.SendMessage("/release"); }
         catch (Exception ex) { Diag($"/release send failed: {ex.Message}"); }
 
-        // Wait for the home-point teleport: ConditionFlag.Unconscious clears AND we are
-        // not currently mid-zone-transition. Cap at 60s in case the release prompt is
-        // intercepted by something else (party offer, etc.).
+        // 60s cap in case the release prompt is intercepted (party offer, etc.).
         var teleportDeadline = Environment.TickCount64 + 60_000;
         while (Environment.TickCount64 < teleportDeadline)
         {
@@ -419,8 +400,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
 
     private enum MoveStopReason { None, StuckRetry, StuckTeleport }
 
-    // Anchor the obstacle map at the nearest reachable point so terrain-blocked FATE
-    // centers (towers, cliffside spawns) still get a usable map.
+    // Anchor at nearest reachable point so terrain-blocked centers still get a usable map.
     private async Task GenerateObstacleMap(PublicEvent fate)
     {
         if (obstacleMapBlacklist.Contains(fate.Id)) return;
@@ -458,8 +438,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
     {
         await GenerateObstacleMap(fate);
 
-        // Snap the random in-radius point to the navmesh — raw FATE-center Y is often
-        // inside terrain in zones with verticality, leaving vnav with no reachable goal.
+        // Snap to navmesh — raw FATE-center Y is often inside terrain in vertical zones.
         var rnd = RandomPointInsideRadius(fate.Position, fate.Radius * 0.5f);
         var dest = rnd.OnMesh();
         if (dest == rnd)
@@ -490,8 +469,6 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         return MoveStopReason.None;
     }
 
-    // Recover via same-zone teleport to the nearest aetheryte, then aethernet-shard.
-    // Returns false if the player didn't actually relocate.
     private async Task<bool> TryTeleportToFate(PublicEvent fate)
     {
         var before = Svc.Objects.LocalPlayer?.Position;
@@ -521,8 +498,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         return true;
     }
 
-    // Navmesh-aware: distinguishes "vnav gave up" (fast fail) from "player not moving
-    // while path is active" (slow fail), and pauses during legitimate stationary phases.
+    // Distinguishes vnav-gave-up (fast fail) from player-not-moving (slow fail); pauses for cutscenes/casts.
     private sealed class StuckTracker
     {
         private Vector3? lastProgressPos;
@@ -621,14 +597,12 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
 
         try
         {
-            // Per-tick re-assert so a transient deactivation (death, manual /vbm clear,
-            // BossMod reload) doesn't leave us standing still next to a live mob.
+            // Per-tick re-assert covers transient deactivation (death, /vbm clear, BossMod reload).
             while (!CancelToken.IsCancellationRequested)
             {
                 if (fate.State != FateState.Running) break;
                 if (IsPlayerKO()) break;
 
-                // If we got remounted (e.g., aether-current quest auto-mount), pause combat.
                 if (Svc.Condition[ConditionFlag.Mounted])
                 {
                     BossModIPC.Instance.ClearActive();
@@ -640,8 +614,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
                     AssertPresetActive(preset);
                 }
 
-                // Re-sync defensively — covers FATEs that bump max level mid-fight, or
-                // a death+revive that dropped the sync.
+                // Re-sync covers mid-fight level bumps and death+revive sync drops.
                 SyncToFate(fate.Id);
 
                 await NextFrame(30);
@@ -681,9 +654,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         BossModIPC.Instance.AddTransientStrategy(preset, "BossMod.Autorotation.MiscAI.AutoTarget", "MaxTargets", PullSize().ToString());
     }
 
-    // Without an explicit sync, the game only auto-applies it if the player has
-    // "Allow level sync down" enabled in character config. Calling LevelSync()
-    // directly mirrors the FATE-icon button so we don't depend on user settings.
+    // Direct call mirrors the FATE-icon button so we don't depend on "Allow level sync down" setting.
     private static unsafe void SyncToFate(uint fateId)
     {
         var mgr = CSFateManager.Instance();
@@ -731,13 +702,41 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
     private bool StopConditionMet() => Plugin.Cfg.Mode switch
     {
         GrindMode.Endless      => false,
-        // Only stop once every selected zone is done — the per-zone case is handled by
-        // the rotation check at the top of the loop.
+        // Per-zone case is handled by the rotation check at the top of the loop.
         GrindMode.MaxFates     => zones.All(z => z.AchievementDone),
         GrindMode.MaxGemstones => GemstoneCount() >= Plugin.Cfg.TradeThreshold,
         GrindMode.RunCount     => session.CompletedCount >= Plugin.Cfg.TargetFateCount,
         _ => false,
     };
+
+    // Class swap is fire-and-forget; returns true when the caller should bail out of the FATE loop.
+    private bool AdvanceClassQueueIfCapHit()
+    {
+        var cfg = Plugin.Cfg;
+        if (!cfg.ApplyClassOnStart) return false;
+        if (cfg.ClassQueue.Count == 0) return false;
+
+        var idx = ClassSwitcher.FindActiveEntryIndex(cfg.ClassQueue);
+        if (idx < 0)
+        {
+            if (cfg.AfterClassQueueDone == AfterClassQueueDone.StopRun)
+            {
+                Status = "Class queue done";
+                Diag("All queued classes hit their level caps, stopping run");
+                return true;
+            }
+            return false;
+        }
+
+        var entry = cfg.ClassQueue[idx];
+        var jobId = ClassSwitcher.JobIdForUserIndex(entry.GearsetIndex);
+        var currentJob = Svc.Objects.LocalPlayer?.ClassJob.RowId ?? 0;
+        if (jobId == 0 || jobId == currentJob) return false;
+
+        Diag($"Class cap reached; switching to gearset {entry.GearsetIndex} ({ClassSwitcher.JobNameForUserIndex(entry.GearsetIndex)})");
+        ClassSwitcher.TryEquip(entry);
+        return false;
+    }
 
     private static unsafe int GemstoneCount()
     {
@@ -753,7 +752,6 @@ public sealed class AutoFateSession
     public int GemstoneStart;
     public int GemstoneCurrent;
 
-    // Set by AutoFate when it bails early on a cap-hit so the controller can route to AutoTrade.
     public ZoneInfo? PendingTradeFromZone;
 
     public TimeSpan Elapsed => DateTime.UtcNow - StartedAt;

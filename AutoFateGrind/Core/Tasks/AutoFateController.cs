@@ -1,3 +1,4 @@
+using AutoFateGrind.Core.Game;
 using AutoFateGrind.Core.Trading;
 using AutoFateGrind.Core.Zones;
 using clib.Services;
@@ -19,7 +20,21 @@ internal sealed class AutoFateController
         session = s;
         activeZones = zones.ToList();
         if (activeZones.Count == 0) return;
+        ApplyStartingClass();
         StartFateGrind(0, s);
+    }
+
+    private static void ApplyStartingClass()
+    {
+        var cfg = Plugin.Cfg;
+        if (!cfg.ApplyClassOnStart) return;
+        if (cfg.ClassQueue.Count == 0) return;
+
+        var idx = ClassSwitcher.FindActiveEntryIndex(cfg.ClassQueue);
+        if (idx < 0) return;
+        var entry = cfg.ClassQueue[idx];
+        if (ClassSwitcher.TryEquip(entry))
+            ECommons.DalamudServices.Svc.Chat.Print($"[AFG] Switching to gearset {entry.GearsetIndex} ({ClassSwitcher.JobNameForUserIndex(entry.GearsetIndex)}).");
     }
 
     public void Stop()
@@ -29,9 +44,7 @@ internal sealed class AutoFateController
         activeZones = [];
     }
 
-    // clib.Automation only buffers one queued task, so multi-step handoffs (FATE → trade →
-    // resume FATE) must chain through OnCompleted instead of stacking Start(queue:true) calls.
-    // Capturing `owningSession` lets stale callbacks from a stopped/restarted run bail cleanly.
+    // clib.Automation buffers only one queued task; multi-step handoffs chain via OnCompleted.
     private void StartFateGrind(int startZoneIndex, AutoFateSession owningSession)
     {
         Svc.Automation.Start(

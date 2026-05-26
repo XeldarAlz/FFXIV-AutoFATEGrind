@@ -1,3 +1,4 @@
+using AutoFateGrind.Core.Game;
 using AutoFateGrind.Core.Trading;
 using AutoFateGrind.Windows.Components;
 using clib.Utils;
@@ -12,10 +13,11 @@ namespace AutoFateGrind.Windows;
 
 public sealed class ConfigWindow : Window, IDisposable
 {
-    private enum Tab { General, Filters, Gemstones }
+    private enum Tab { General, Filters, Classes, Gemstones }
 
     private readonly Plugin plugin;
     private Tab activeTab = Tab.General;
+    private int classPickerSelection;
 
     public ConfigWindow(Plugin plugin) : base("Auto Fate Grind — Settings###AutoFateGrindConfig")
     {
@@ -53,6 +55,7 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.Spacing();
         if (SidebarTab.Draw("General",      FontAwesomeIcon.Cog,        Styling.AccentViolet,     activeTab == Tab.General)) activeTab = Tab.General;
         if (SidebarTab.Draw("FATE filters", FontAwesomeIcon.Filter,     Styling.AccentVioletSoft, activeTab == Tab.Filters)) activeTab = Tab.Filters;
+        if (SidebarTab.Draw("Class queue",  FontAwesomeIcon.UserShield, Styling.AccentMint,       activeTab == Tab.Classes)) activeTab = Tab.Classes;
         if (SidebarTab.Draw("Gemstones",    FontAwesomeIcon.Gem,        Styling.AccentPink,       activeTab == Tab.Gemstones)) activeTab = Tab.Gemstones;
     }
 
@@ -63,6 +66,7 @@ public sealed class ConfigWindow : Window, IDisposable
         {
             case Tab.General: DrawHeader("General", "Window and behavior preferences."); DrawGeneralTab(cfg); break;
             case Tab.Filters: DrawHeader("FATE filters", "Keeps the plugin off dying or late FATEs."); DrawFiltersTab(cfg); break;
+            case Tab.Classes: DrawHeader("Class queue", "Switch gearsets on start, and advance to the next class when one hits its level cap."); DrawClassesTab(cfg); break;
             case Tab.Gemstones: DrawHeader("Gemstones", "Auto-spend Bicolor Gemstones once the wallet hits your threshold."); DrawGemstonesTab(cfg); break;
         }
     }
@@ -128,8 +132,6 @@ public sealed class ConfigWindow : Window, IDisposable
             () => DrawFateRuleSkipList(cfg));
     }
 
-    // Display labels for each FateRule the scanner can match. Order matches what users
-    // typically run into; "None" is omitted because it isn't a real type.
     private static readonly (PublicEvent.FateRule Rule, string Label, string Helper)[] fateRuleRows =
     [
         (PublicEvent.FateRule.Normal,          "Slay enemies",      "Kill the target mobs in the FATE ring."),
@@ -163,6 +165,173 @@ public sealed class ConfigWindow : Window, IDisposable
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
                 ImGui.TextUnformatted("— " + helper);
         }
+    }
+
+    private void DrawClassesTab(Configuration cfg)
+    {
+        SettingsRow.Draw("Switch class when run starts",
+            "Equip the first eligible gearset below when you press Start. Disable to leave the run on whatever class you're currently on.",
+            () => DrawToggle(cfg, () => cfg.ApplyClassOnStart, v => cfg.ApplyClassOnStart = v, "##cls_apply", Styling.AccentMint));
+
+        using (ImRaii.Disabled(!cfg.ApplyClassOnStart))
+        {
+            SettingsRow.Draw("When all classes are done",
+                "After every queued class has hit its level cap, either keep grinding on the last one or stop the run.",
+                () =>
+                {
+                    var keep = cfg.AfterClassQueueDone == AfterClassQueueDone.KeepGrindingOnLast;
+                    if (ImGui.RadioButton("Keep grinding on the last class", keep))
+                    { cfg.AfterClassQueueDone = AfterClassQueueDone.KeepGrindingOnLast; cfg.SaveDebounced(); }
+                    if (ImGui.RadioButton("Stop the run", !keep))
+                    { cfg.AfterClassQueueDone = AfterClassQueueDone.StopRun; cfg.SaveDebounced(); }
+                });
+
+            SettingsRow.Draw("Add a gearset",
+                "Use the gear-set number shown in your in-game Gear Set list (1–100). Class is resolved automatically.",
+                () => DrawAddClassRow(cfg));
+
+            SettingsRow.Draw("Queue",
+                "Order matters: top entry runs first, then advances when its level cap is hit.",
+                () => DrawClassQueueList(cfg));
+        }
+    }
+
+    private void DrawAddClassRow(Configuration cfg)
+    {
+        var gearsets = ClassSwitcher.EnumerateGearsets();
+        if (gearsets.Count == 0)
+        {
+            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
+                ImGui.TextUnformatted("No gearsets found. Save one in-game (Character → Gear Set List) first.");
+            return;
+        }
+
+        var alreadyQueued = cfg.ClassQueue.Select(e => e.GearsetIndex).ToHashSet();
+        var labels = gearsets.Select(g =>
+        {
+            var job = ClassSwitcher.JobNameForJobId(g.JobId);
+            var name = string.IsNullOrWhiteSpace(g.Name) ? "" : $" — {g.Name}";
+            var taken = alreadyQueued.Contains(g.UserIndex) ? "  (queued)" : "";
+            return $"{g.UserIndex,3}. {job}{name}{taken}";
+        }).ToArray();
+
+        classPickerSelection = Math.Clamp(classPickerSelection, 0, gearsets.Count - 1);
+
+        ImGui.SetNextItemWidth(360);
+        ImGui.Combo("##cls_picker", ref classPickerSelection, labels, labels.Length);
+
+        var picked = gearsets[classPickerSelection];
+        var duplicate = alreadyQueued.Contains(picked.UserIndex);
+
+        ImGui.SameLine();
+        using (ImRaii.Disabled(duplicate))
+        using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentMint))
+            if (ImGui.SmallButton("Add##cls_add"))
+            {
+                cfg.ClassQueue.Add(new ClassQueueEntry
+                {
+                    GearsetIndex = picked.UserIndex,
+                    JobId = picked.JobId,
+                    StopAtLevel = ClassSwitcher.GameMaxLevel,
+                });
+                cfg.SaveDebounced();
+                var nextFree = gearsets.FindIndex(g => !alreadyQueued.Contains(g.UserIndex) && g.UserIndex != picked.UserIndex);
+                if (nextFree >= 0) classPickerSelection = nextFree;
+            }
+
+        if (duplicate)
+            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
+                ImGui.TextUnformatted("Already in the queue.");
+    }
+
+    private static void DrawClassQueueList(Configuration cfg)
+    {
+        if (cfg.ClassQueue.Count == 0)
+        {
+            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
+                ImGui.TextUnformatted("No classes queued. Automation will use whatever class you're on.");
+            return;
+        }
+
+        int? moveUp = null, moveDown = null, remove = null;
+        var btnSize = ImGui.GetFrameHeight();
+        var spacingX = 4f * ImGuiHelpers.GlobalScale;
+        var rowRightWidth = btnSize * 3 + spacingX * 2 + 8f * ImGuiHelpers.GlobalScale;
+
+        for (var i = 0; i < cfg.ClassQueue.Count; i++)
+        {
+            var entry = cfg.ClassQueue[i];
+            DrawClassQueueRow(i, cfg.ClassQueue.Count, entry, cfg, btnSize, spacingX, rowRightWidth,
+                onUp: () => moveUp = i,
+                onDown: () => moveDown = i,
+                onRemove: () => remove = i);
+        }
+
+        if (moveUp is int mu && mu > 0)
+        {
+            (cfg.ClassQueue[mu - 1], cfg.ClassQueue[mu]) = (cfg.ClassQueue[mu], cfg.ClassQueue[mu - 1]);
+            cfg.SaveDebounced();
+        }
+        else if (moveDown is int md && md < cfg.ClassQueue.Count - 1)
+        {
+            (cfg.ClassQueue[md + 1], cfg.ClassQueue[md]) = (cfg.ClassQueue[md], cfg.ClassQueue[md + 1]);
+            cfg.SaveDebounced();
+        }
+        else if (remove is int r)
+        {
+            cfg.ClassQueue.RemoveAt(r);
+            cfg.SaveDebounced();
+        }
+    }
+
+    private static void DrawClassQueueRow(
+        int index, int total, ClassQueueEntry entry, Configuration cfg,
+        float btnSize, float spacingX, float rowRightWidth,
+        Action onUp, Action onDown, Action onRemove)
+    {
+        var running = Plugin.Instance.Controller.Running;
+        using (ImRaii.Disabled(running))
+        {
+            ImGui.AlignTextToFramePadding();
+            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
+                ImGui.TextUnformatted($"{index + 1}.");
+            ImGui.SameLine();
+            var jobName = ClassSwitcher.JobNameForUserIndex(entry.GearsetIndex);
+            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextStrong))
+                ImGui.TextUnformatted($"{jobName} · gearset {entry.GearsetIndex}");
+
+            ImGui.SameLine();
+            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
+            {
+                var jobId = ClassSwitcher.JobIdForUserIndex(entry.GearsetIndex);
+                var lvl = ClassSwitcher.UnsyncedLevelForJobId(jobId);
+                ImGui.TextUnformatted($"  (lvl {lvl})");
+            }
+
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth(140);
+            var cap = entry.StopAtLevel;
+            if (ImGui.SliderInt($"##cls_cap_{index}", ref cap, 0, ClassSwitcher.GameMaxLevel, cap == 0 ? "no cap" : "stop @ %d"))
+            { entry.StopAtLevel = cap; cfg.SaveDebounced(); }
+
+            var rightStart = ImGui.GetContentRegionAvail().X + ImGui.GetCursorPosX() - rowRightWidth;
+            ImGui.SameLine(rightStart);
+
+            using (ImRaii.Disabled(index == 0))
+                if (DrawClassIconBtn(FontAwesomeIcon.ArrowUp, $"##cls_up_{index}", btnSize)) onUp();
+            ImGui.SameLine(0, spacingX);
+            using (ImRaii.Disabled(index == total - 1))
+                if (DrawClassIconBtn(FontAwesomeIcon.ArrowDown, $"##cls_dn_{index}", btnSize)) onDown();
+            ImGui.SameLine(0, spacingX);
+            using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentRose))
+                if (DrawClassIconBtn(FontAwesomeIcon.Times, $"##cls_rm_{index}", btnSize)) onRemove();
+        }
+    }
+
+    private static bool DrawClassIconBtn(FontAwesomeIcon icon, string id, float size)
+    {
+        using (ImRaii.PushFont(UiBuilder.IconFont))
+            return ImGui.Button(icon.ToIconString() + id, new Vector2(size, size));
     }
 
     private static void DrawGemstonesTab(Configuration cfg)
