@@ -190,6 +190,11 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
                     await NextFrame(30);
                     break;
             }
+
+            // Hard safety net: guarantee the loop yields the framework thread at least once per
+            // iteration. Some handlers can return synchronously (e.g. a FATE that ended the instant
+            // we entered); without this a synchronous state could spin and freeze the game.
+            await NextFrame();
         }
     }
 
@@ -243,7 +248,10 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         if (Plugin.Cfg.ActiveMode.RotatesSharedFateZones && zone.AchievementDone)
             return GrindState.SwapZone;
 
-        if (PublicEvent.CurrentFate is { } current)
+        // Only a *Running* CurrentFate means "fight it". After completion the row lingers non-Running
+        // for a frame or two; routing that to Engaging while EngageCurrentFate returns instantly would
+        // spin the framework thread and freeze the game. Let it fall through to follow-up / pick-next.
+        if (PublicEvent.CurrentFate is { State: FateState.Running } current)
         {
             // Collect at 100% — capture id for expiry hold, but stay Engaging until we're out of combat
             // so a non-FATE mob can't keep us stuck mid-deactivation.
