@@ -5,7 +5,7 @@ internal static class AfgConstants
     public const string PrimaryCommand = "/afg";
     public const string AliasCommand = "/fategrind";
 
-    public const string BundledCombatPresetName = "AFG - Default";
+    public const string BundledCombatPresetName = "Auto FATE Grind";
 
     public const int BicolorCap = 1500;
     public const int FollowUpWaitMs = 15_000;
