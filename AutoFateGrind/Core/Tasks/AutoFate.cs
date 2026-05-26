@@ -46,6 +46,11 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
     private const int   ReleaseTransitionWaitMs = 60_000;
     private const int   IdleScansBeforeSwap = 30;
     private const int   MidPathRetargetIntervalMs = 1_500;
+    private const int   TeleportWatchdogMs = 60_000;
+    private const int   TerritoryWaitMs = 45_000;
+    private const int   AethernetWatchdogMs = 60_000;
+    private const int   ActivateMoveWatchdogMs = 60_000;
+    private const int   HeartbeatMs = 30_000;
 
     private uint? lastStuckFateId;
     private int consecutiveStuckRetries;
@@ -83,6 +88,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
 
     private GrindState lastObservedState = GrindState.Idle;
     private long lastStateChangedAtMs;
+    private long lastHeartbeatAtMs;
 
     protected override async Task Execute()
     {
@@ -126,6 +132,12 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
                 Diag($"State {lastObservedState} -> {state}");
                 lastObservedState = state;
                 lastStateChangedAtMs = Environment.TickCount64;
+            }
+
+            if (Environment.TickCount64 - lastHeartbeatAtMs >= HeartbeatMs)
+            {
+                lastHeartbeatAtMs = Environment.TickCount64;
+                LogHeartbeat(state);
             }
 
             switch (state)
@@ -179,6 +191,25 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
                     break;
             }
         }
+    }
+
+    // Periodic snapshot for /xllog — the single most useful artifact when diagnosing a stuck run.
+    private void LogHeartbeat(GrindState state)
+    {
+        var player = Svc.Objects.LocalPlayer;
+        var pos = player?.Position;
+        var posStr = pos is { } p ? $"({p.X:F0},{p.Y:F0},{p.Z:F0})" : "?";
+        var fate = PublicEvent.CurrentFate;
+        var fateStr = fate is null ? "none" : $"{fate.Id}@{fate.Progress}%/{fate.State}";
+        var inState = (Environment.TickCount64 - lastStateChangedAtMs) / 1000;
+        var nav = NavmeshIPC.Instance;
+        var navStr = $"run={nav.IsRunning()} busy={nav.IsBusy()}";
+        Diag($"HEARTBEAT state={state} ({inState}s) terr={Svc.ClientState.TerritoryType} zone={zone.Name} pos={posStr} fate={fateStr} {navStr} " +
+             $"done={session.CompletedCount} ret={returnToFateId?.ToString() ?? "-"} followUp={followUpFateId?.ToString() ?? "-"} stuckBL={sessionStuckFateIds.Count}");
+
+        // A non-combat state that never moves is the classic "stuck" signature; flag it loudly.
+        if (state is not GrindState.Engaging and not GrindState.WaitingForFates && inState >= 180)
+            Diag($"STALL WARNING: state {state} held {inState}s — see prior heartbeats for context.");
     }
 
     private GrindState ComputeState()
@@ -264,8 +295,12 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
     {
         Status = $"Teleporting to {zone.Name}";
         Diag($"Off-zone (in {Svc.ClientState.TerritoryType}), teleporting to {zone.TerritoryId}");
-        await TeleportTo(zone.TerritoryId, zone.CentralLanding, allowSameZoneTeleport: false);
-        await WaitUntilTerritory(zone.TerritoryId);
+        if (!await AwaitWatchdog(TeleportTo(zone.TerritoryId, zone.CentralLanding, allowSameZoneTeleport: false), TeleportWatchdogMs, "teleport-to-zone"))
+        {
+            await NextFrame(60);
+            return;
+        }
+        await AwaitWatchdog(WaitUntilTerritory(zone.TerritoryId), TerritoryWaitMs, "wait-territory-zone");
     }
 
     private bool AdvanceZone()
@@ -574,8 +609,8 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
             Diag($"Re-engaging FATE {retId} after revive.");
             try
             {
-                await TeleportTo(zone.TerritoryId, retFate.Position, allowSameZoneTeleport: true);
-                await UseAethernet(zone.TerritoryId, retFate.Position);
+                if (await AwaitWatchdog(TeleportTo(zone.TerritoryId, retFate.Position, allowSameZoneTeleport: true), TeleportWatchdogMs, $"revive-return-tp-{retId}"))
+                    await AwaitWatchdog(UseAethernet(zone.TerritoryId, retFate.Position), AethernetWatchdogMs, $"revive-return-aethernet-{retId}");
             }
             catch (Exception ex)
             {
@@ -701,7 +736,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         try
         {
             var activateLabel = $"Activating {fate.Name}";
-            await MoveTo(zone.TerritoryId, npc.Position,
+            var moveTask = MoveTo(zone.TerritoryId, npc.Position,
                 MovementConfig.InteractRange,
                 allowTeleportIfFaster: false,
                 stopCondition: () =>
@@ -711,14 +746,16 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
                 },
                 onStopReached: null,
                 allowAethernetWithinTerritory: false);
+            await AwaitWatchdog(moveTask, ActivateMoveWatchdogMs, $"activate-move-{fate.Id}");
 
             if (fate.State == FateState.Running) return;
             if (Svc.Condition[ConditionFlag.Mounted]) await Dismount();
 
-            await InteractWith(npc,
+            var interactTask = InteractWith(npc,
                 waitUntil: () => fate.State == FateState.Running,
                 selectStringIndex: null,
                 skip: UiSkipOptions.Talk | UiSkipOptions.YesNo);
+            await AwaitWatchdog(interactTask, NpcSpawnTimeoutMs, $"activate-interact-{fate.Id}", stopNavOnTimeout: false);
         }
         catch (Exception ex)
         {
@@ -891,8 +928,9 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
 
         try
         {
-            await TeleportTo(zone.TerritoryId, fate.Position, allowSameZoneTeleport: true);
-            await UseAethernet(zone.TerritoryId, fate.Position);
+            if (!await AwaitWatchdog(TeleportTo(zone.TerritoryId, fate.Position, allowSameZoneTeleport: true), TeleportWatchdogMs, $"teleport-recovery-{fate.Id}"))
+                return false;
+            await AwaitWatchdog(UseAethernet(zone.TerritoryId, fate.Position), AethernetWatchdogMs, $"aethernet-recovery-{fate.Id}");
         }
         catch (Exception ex)
         {

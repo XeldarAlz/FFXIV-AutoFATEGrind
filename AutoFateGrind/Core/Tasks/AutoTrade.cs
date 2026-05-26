@@ -14,6 +14,15 @@ public sealed class AutoTrade(uint targetItemId, uint originTerritoryId, Expansi
     private readonly uint originTerritoryId = originTerritoryId;
     private readonly ExpansionKind originExpansion = originExpansion;
 
+    private const int TeleportWatchdogMs = 60_000;
+    private const int TerritoryWaitMs = 45_000;
+    private const int MoveWatchdogMs = 120_000;
+    private const int InteractWaitMs = 15_000;
+    private const int ShopOpenWaitMs = 15_000;
+    private const int ConfirmWaitMs = 10_000;
+    private const int SpendWaitMs = 10_000;
+    private const int SubmenuWaitMs = 10_000;
+
     protected override async Task Execute()
     {
         var item = GemstoneCatalog.FindById(targetItemId);
@@ -22,37 +31,45 @@ public sealed class AutoTrade(uint targetItemId, uint originTerritoryId, Expansi
         var trader = GemstoneTrader.PickForItem(targetItemId, originTerritoryId, originExpansion);
         ErrorIf(trader is null, $"No registered Bicolor trader sells {item!.ItemName}.");
 
-        Svc.Chat.Print($"[AFG] Auto-trade: {item!.ItemName} ({item.CostPerOne} gems each) at {trader!.Name}");
+        Diag($"AutoTrade start: item={item!.ItemName}({item.ItemId}) trader={trader!.Name} terr={trader.TerritoryId} from={originTerritoryId}");
+        Svc.Chat.Print($"[AFG] Auto-trade: {item.ItemName} ({item.CostPerOne} gems each) at {trader.Name}");
 
         if (Svc.ClientState.TerritoryType != trader.TerritoryId)
         {
             await RunWithStatusPinned($"Teleporting to {trader.Name}", async () =>
             {
-                await TeleportTo(trader.TerritoryId, trader.Position, allowSameZoneTeleport: false);
-                await WaitUntilTerritory(trader.TerritoryId);
+                if (!await AwaitWatchdog(TeleportTo(trader.TerritoryId, trader.Position, allowSameZoneTeleport: false), TeleportWatchdogMs, "trade-teleport"))
+                    return;
+                await AwaitWatchdog(WaitUntilTerritory(trader.TerritoryId), TerritoryWaitMs, "trade-wait-territory");
             });
+            ErrorIf(Svc.ClientState.TerritoryType != trader.TerritoryId,
+                $"Could not reach {trader.Name}'s zone (still in {Svc.ClientState.TerritoryType}); aborting trade.");
         }
 
-        await RunWithStatusPinned($"Walking to {trader.Name}", () =>
-            MoveTo(trader.TerritoryId, trader.Position,
+        await RunWithStatusPinned($"Walking to {trader.Name}", async () =>
+        {
+            var moveTask = MoveTo(trader.TerritoryId, trader.Position,
                 MovementConfig.Everything.WithTolerance(4f),
                 allowTeleportIfFaster: false,
                 stopCondition: null,
                 onStopReached: null,
-                allowAethernetWithinTerritory: true));
+                allowAethernetWithinTerritory: true);
+            await AwaitWatchdog(moveTask, MoveWatchdogMs, "trade-walk");
+        });
 
         var npc = FindTraderObject(trader.EnpcBaseId);
         ErrorIf(npc is null, $"Could not find {trader.Name} (ENpcBase {trader.EnpcBaseId}) near {trader.Position}.");
 
         Status = $"Talking to {trader.Name}";
         Diag($"Interacting with {trader.Name} (BaseId={npc!.BaseId})");
-        await InteractWith(npc, waitUntil: null, selectStringIndex: null, skip: UiSkipOptions.YesNo);
+        await AwaitWatchdog(
+            InteractWith(npc, waitUntil: null, selectStringIndex: null, skip: UiSkipOptions.YesNo),
+            InteractWaitMs, "trade-interact", stopNavOnTimeout: false);
 
-        await WaitUntil(
-            condition: () => ShopInteraction.ShopExchangeCurrencyOpen() || ShopInteraction.SelectIconStringOpen(),
-            scopeName: "wait-shop-or-menu",
-            checkFrequency: 30,
-            logContinuously: false);
+        ErrorIf(!await WaitUntilTimed(
+                () => ShopInteraction.ShopExchangeCurrencyOpen() || ShopInteraction.SelectIconStringOpen(),
+                ShopOpenWaitMs, "wait-shop-or-menu"),
+            $"{trader.Name} did not open a shop/menu within {ShopOpenWaitMs / 1000}s; aborting trade.");
 
         if (ShopInteraction.SelectIconStringOpen())
             await NavigateSubMenu(item);
@@ -71,20 +88,16 @@ public sealed class AutoTrade(uint targetItemId, uint originTerritoryId, Expansi
         ErrorIf(!ShopInteraction.BuyFromCurrencyShop(item.ItemId, qty),
             $"Target item {item.ItemName} not visible in the open shop.");
 
-        await WaitUntil(
-            condition: () => ShopInteraction.SelectYesnoOpen() || GemstoneCount() < wallet,
-            scopeName: "wait-confirm",
-            checkFrequency: 30,
-            logContinuously: false);
+        if (!await WaitUntilTimed(
+                () => ShopInteraction.SelectYesnoOpen() || GemstoneCount() < wallet,
+                ConfirmWaitMs, "wait-confirm"))
+            Diag("No confirm dialog and no spend detected within window; attempting to continue.");
 
         if (ShopInteraction.SelectYesnoOpen())
             ShopInteraction.ClickSelectYesno();
 
-        await WaitUntil(
-            condition: () => GemstoneCount() < wallet,
-            scopeName: "wait-spend",
-            checkFrequency: 30,
-            logContinuously: false);
+        if (!await WaitUntilTimed(() => GemstoneCount() < wallet, SpendWaitMs, "wait-spend"))
+            Diag($"Wallet unchanged after {SpendWaitMs / 1000}s (was {wallet}, now {GemstoneCount()}); closing shop anyway.");
 
         Status = "Closing shop";
         ShopInteraction.CloseShop();
@@ -109,11 +122,9 @@ public sealed class AutoTrade(uint targetItemId, uint originTerritoryId, Expansi
                 continue;
             }
 
-            await WaitUntil(
-                condition: () => ShopInteraction.ShopExchangeCurrencyOpen() || ShopInteraction.SelectIconStringOpen(),
-                scopeName: $"wait-submenu-{i}",
-                checkFrequency: 30,
-                logContinuously: false);
+            await WaitUntilTimed(
+                () => ShopInteraction.ShopExchangeCurrencyOpen() || ShopInteraction.SelectIconStringOpen(),
+                SubmenuWaitMs, $"wait-submenu-{i}");
 
             if (!ShopInteraction.ShopExchangeCurrencyOpen()) continue;
 
@@ -125,11 +136,9 @@ public sealed class AutoTrade(uint targetItemId, uint originTerritoryId, Expansi
 
             Diag($"Menu entry {i} did not contain {item.ItemName}; closing and trying next.");
             ShopInteraction.CloseShop();
-            await WaitUntil(
-                condition: ShopInteraction.SelectIconStringOpen,
-                scopeName: $"wait-submenu-reopen-{i}",
-                checkFrequency: 30,
-                logContinuously: false);
+            await WaitUntilTimed(
+                ShopInteraction.SelectIconStringOpen,
+                SubmenuWaitMs, $"wait-submenu-reopen-{i}");
         }
     }
 
