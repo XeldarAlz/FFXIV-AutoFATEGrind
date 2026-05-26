@@ -31,7 +31,6 @@ public sealed class MainWindow : Window, IDisposable
 
         using var style = Styling.PushWindowStyle();
 
-        // Corner-icon row sits at the very top, pushed to the right.
         ImGui.Dummy(new Vector2(0, 0));
         TopToolbar.Draw(plugin);
         ImGui.Spacing();
