@@ -12,7 +12,7 @@ public sealed class Configuration : IPluginConfiguration
 
     public List<uint> SelectedZones { get; set; } = [];
 
-    public GrindMode Mode { get; set; } = GrindMode.Endless;
+    public GrindMode Mode { get; set; } = GrindMode.MaxGemstones;
     public int TargetFateCount { get; set; } = 30;
 
     // Legacy. Kept so old saved configs deserialize; no longer used in the UI.
@@ -26,7 +26,14 @@ public sealed class Configuration : IPluginConfiguration
     public bool SwapZonesWhenEmpty { get; set; } = true;
     public bool ShowLivePopout { get; set; } = false;
 
+    // Hardcoded blacklist: FATEs with broken obstacle maps that pathfinding fails on.
     public HashSet<uint> BlacklistedFateIds { get; set; } = [1831, 1832, 1914, 1915];
+
+    public uint TargetTradeItemId { get; set; } = 0;
+    public bool TradeOnCap { get; set; } = true;
+    // Game-imposed Bicolor cap is 1500; user can set a lower trigger to trade earlier.
+    public int TradeThreshold { get; set; } = 1500;
+    public AfterTradeAction AfterTrade { get; set; } = AfterTradeAction.Resume;
 
     public void Save() => Plugin.PluginInterface.SavePluginConfig(this);
 
@@ -54,4 +61,10 @@ public enum ExpansionFilter
     ShB,
     EW,
     DT,
+}
+
+public enum AfterTradeAction
+{
+    Resume,
+    Stop,
 }

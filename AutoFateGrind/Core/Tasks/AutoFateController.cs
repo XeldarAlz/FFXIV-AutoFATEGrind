@@ -1,37 +1,47 @@
 using AutoFateGrind.Core.Zones;
+using clib.Services;
 
 namespace AutoFateGrind.Core.Tasks;
 
-// v1 stub. Holds the visible Running/Status flags so the UI compiles and renders;
-// the actual automation engine (Svc.Automation.Start(new AutoFate(zone))) will land
-// in the next pass once IPCs and FateScanner are in.
 internal sealed class AutoFateController
 {
-    public bool Running { get; private set; }
-    public string Status { get; private set; } = "Idle";
+    public bool Running => Svc.Automation.Running;
+    public string Status => Svc.Automation.CurrentTask?.Status ?? "Idle";
+
+    private AutoFateSession? session;
+    public AutoFateSession? SessionSnapshot => session;
 
     public void Run(ZoneInfo zone)
     {
-        // TODO: Svc.Automation.Start(new AutoFate(zone));
-        Running = true;
-        Status = $"(stub) Would start {zone.Name}";
+        session = new AutoFateSession();
+        Svc.Automation.Start(new AutoFate(zone, session));
     }
 
     public void RunAll(IEnumerable<ZoneInfo> zones)
     {
-        foreach (var z in zones)
+        session = new AutoFateSession();
+        var list = zones.ToList();
+        for (var i = 0; i < list.Count; i++)
         {
-            // TODO: Svc.Automation.Start(new AutoFate(z), queue: true after first iteration);
-            Status = $"(stub) Queued {z.Name}";
-            _ = z;
+            Svc.Automation.Start(new AutoFate(list[i], session), queue: i > 0);
         }
-        Running = true;
+        Svc.Automation.Start(new AutoFateBridge(this, session), queue: true);
     }
 
-    public void Stop()
+    public void Stop() => Svc.Automation.Stop();
+
+    internal void HandleTradeIfPending()
     {
-        // TODO: Svc.Automation.Stop();
-        Running = false;
-        Status = "Idle";
+        if (session?.PendingTradeFromZone is not { } origin) return;
+
+        var itemId = Plugin.Cfg.TargetTradeItemId;
+        if (itemId == 0) { session.PendingTradeFromZone = null; return; }
+
+        Svc.Automation.Start(new AutoTrade(itemId, origin.Expansion), queue: true);
+
+        if (Plugin.Cfg.AfterTrade == AfterTradeAction.Resume)
+            Svc.Automation.Start(new AutoFate(origin, session), queue: true);
+
+        session.PendingTradeFromZone = null;
     }
 }
