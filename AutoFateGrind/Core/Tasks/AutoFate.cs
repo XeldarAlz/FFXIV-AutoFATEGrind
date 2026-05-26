@@ -33,6 +33,8 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
     private const int FollowUpWatchMs = 15_000;
     private const int VnavIdleTimeoutMs = 1_500;
     private const float TeleportRetryProgressMeters = 3.0f;
+    private const int MoveToFateWatchdogMs = 120_000;
+    private const int MoveToUnwindGraceMs = 5_000;
 
     private uint? lastStuckFateId;
     private int consecutiveStuckRetries;
@@ -473,17 +475,49 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         var config = MovementConfig.Everything.WithTolerance(3f);
         var stuck = new StuckTracker();
         var label = $"Moving to {fate.Name}";
+        var deadline = Environment.TickCount64 + MoveToFateWatchdogMs;
+        var watchdogFired = false;
 
-        await MoveTo(zone.TerritoryId, dest, config,
+        var moveTask = MoveTo(zone.TerritoryId, dest, config,
             allowTeleportIfFaster: !PlayerHasTwistOfFate(),
             stopCondition: () =>
             {
                 Status = label;
-                return fate.State != FateState.Running
+                if (Environment.TickCount64 >= deadline) watchdogFired = true;
+                return watchdogFired
+                    || fate.State != FateState.Running
                     || stuck.Check() != MoveStopReason.None;
             },
             onStopReached: null,
             allowAethernetWithinTerritory: true);
+
+        // Wall-clock backstop: if clib parks inside its UseAethernet/TeleportTo sub-flow
+        // and never polls stopCondition, the watchdog Stop() forces the path task to bail.
+        while (!moveTask.IsCompleted && Environment.TickCount64 < deadline)
+        {
+            if (CancelToken.IsCancellationRequested) break;
+            await NextFrame(120);
+        }
+
+        if (!moveTask.IsCompleted)
+        {
+            watchdogFired = true;
+            Diag($"MoveTo watchdog: no completion after {MoveToFateWatchdogMs / 1000}s for FATE {fate.Id} ({fate.Name}); forcing vnav stop and escalating");
+            try { NavmeshIPC.Instance.Stop(); } catch { /* best-effort */ }
+
+            var graceDeadline = Environment.TickCount64 + MoveToUnwindGraceMs;
+            while (!moveTask.IsCompleted && Environment.TickCount64 < graceDeadline)
+                await NextFrame(120);
+
+            if (!moveTask.IsCompleted)
+                Diag($"MoveTo did not unwind within {MoveToUnwindGraceMs / 1000}s of NavmeshIPC.Stop; continuing without await — task may leak");
+            else
+                await moveTask;
+
+            return MoveStopReason.StuckTeleport;
+        }
+
+        await moveTask;
 
         if (stuck.Reason != MoveStopReason.None)
             return stuck.Reason;

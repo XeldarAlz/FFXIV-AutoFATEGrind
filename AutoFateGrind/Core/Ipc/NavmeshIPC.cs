@@ -14,6 +14,7 @@ internal sealed class NavmeshIPC
     private readonly ICallGateSubscriber<bool> simpleMovePathfindInProgress;
     private readonly ICallGateSubscriber<bool> navPathfindInProgress;
     private readonly ICallGateSubscriber<Vector3, float, float, Vector3?> nearestPointReachable;
+    private readonly ICallGateSubscriber<object> pathStop;
 
     private NavmeshIPC()
     {
@@ -21,6 +22,7 @@ internal sealed class NavmeshIPC
         simpleMovePathfindInProgress = Svc.PluginInterface.GetIpcSubscriber<bool>("vnavmesh.SimpleMove.PathfindInProgress");
         navPathfindInProgress       = Svc.PluginInterface.GetIpcSubscriber<bool>("vnavmesh.Nav.PathfindInProgress");
         nearestPointReachable       = Svc.PluginInterface.GetIpcSubscriber<Vector3, float, float, Vector3?>("vnavmesh.Query.Mesh.NearestPointReachable");
+        pathStop                    = Svc.PluginInterface.GetIpcSubscriber<object>("vnavmesh.Path.Stop");
     }
 
     public bool IsAvailable => pathIsRunning.HasFunction;
@@ -53,5 +55,12 @@ internal sealed class NavmeshIPC
         if (!nearestPointReachable.HasFunction) return null;
         try { return nearestPointReachable.InvokeFunc(position, halfExtentXZ, halfExtentY); }
         catch (Exception ex) { Svc.Log.Warning(ex, "[NavmeshIPC] NearestPointReachable failed"); return null; }
+    }
+
+    public void Stop()
+    {
+        if (!pathStop.HasFunction) return;
+        try { pathStop.InvokeAction(); }
+        catch (Exception ex) { Svc.Log.Warning(ex, "[NavmeshIPC] Stop failed"); }
     }
 }
