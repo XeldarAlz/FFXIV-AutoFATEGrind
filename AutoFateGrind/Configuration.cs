@@ -16,6 +16,7 @@ public sealed class Configuration : IPluginConfiguration
     public int TargetFateCount { get; set; } = 30;
 
     public bool ShowAllZonesOverride { get; set; } = false;
+    public bool ShowCompletedZones { get; set; } = false;
 
     // Legacy. Kept so old saved configs deserialize; no longer used in the UI.
     public ExpansionFilter RegionFilter { get; set; } = ExpansionFilter.All;

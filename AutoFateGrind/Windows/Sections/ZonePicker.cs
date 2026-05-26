@@ -14,6 +14,11 @@ internal static class ZonePicker
     {
         var scopedToShared = IsSharedScoped(cfg.Mode) && !cfg.ShowAllZonesOverride;
 
+        // Eager refresh so the header's completed-count covers collapsed groups too.
+        if (cfg.Mode == GrindMode.MaxFates)
+            foreach (var z in ZoneRegistry.Zones)
+                if (z.AchievementId != 0) ZoneStateReader.Refresh(z);
+
         DrawHeader(cfg, scopedToShared);
 
         foreach (var exp in Enum.GetValues<ExpansionKind>().Reverse())
@@ -47,11 +52,34 @@ internal static class ZonePicker
                     cfg.SaveDebounced();
                 }
         }
+
+        if (cfg.Mode == GrindMode.MaxFates)
+        {
+            var doneCount = ZoneRegistry.Zones.Count(z => z.AchievementDone);
+            if (doneCount > 0)
+            {
+                ImGui.SameLine();
+                var t = cfg.ShowCompletedZones
+                    ? $"Hide {doneCount} completed"
+                    : $"Show {doneCount} completed";
+                using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentMint))
+                    if (ImGui.SmallButton($"  {t}  "))
+                    {
+                        cfg.ShowCompletedZones = !cfg.ShowCompletedZones;
+                        cfg.SaveDebounced();
+                    }
+            }
+        }
         ImGui.Spacing();
     }
 
     private static void DrawGroup(ExpansionKind exp, ZoneInfo[] zones, Configuration cfg, AutoFateController controller)
     {
+        var hideCompleted = cfg.Mode == GrindMode.MaxFates && !cfg.ShowCompletedZones;
+        var visible = hideCompleted ? zones.Where(z => !z.AchievementDone).ToArray() : zones;
+
+        if (hideCompleted && visible.Length == 0) return;
+
         var territoryIds = zones.Select(z => z.TerritoryId).ToHashSet();
         var selected = cfg.SelectedZones.Count(territoryIds.Contains);
         var allSelected = selected == zones.Length;
@@ -71,7 +99,7 @@ internal static class ZonePicker
 
         if (!open) return;
 
-        foreach (var zone in zones)
+        foreach (var zone in visible)
         {
             ZoneStateReader.Refresh(zone);
             DrawRow(zone, cfg, controller);
@@ -82,7 +110,8 @@ internal static class ZonePicker
     private static void DrawRow(ZoneInfo zone, Configuration cfg, AutoFateController controller)
     {
         var sel = cfg.SelectedZones.Contains(zone.TerritoryId);
-        var disabled = controller.Running || !zone.Unlocked || zone.AchievementDone;
+        var achievementBlocks = cfg.Mode == GrindMode.MaxFates && zone.AchievementDone;
+        var disabled = controller.Running || !zone.Unlocked || achievementBlocks;
 
         ImGui.Indent(8f);
 
@@ -98,6 +127,9 @@ internal static class ZonePicker
                 cfg.SaveDebounced();
             }
         }
+
+        if (disabled && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+            ImGui.SetTooltip(DisabledReason(controller.Running, zone.Unlocked, achievementBlocks));
 
         ImGui.SameLine();
         var nameColor = (zone.Unlocked, zone.AchievementDone) switch
@@ -127,4 +159,12 @@ internal static class ZonePicker
 
     private static bool IsSharedScoped(GrindMode mode)
         => mode is GrindMode.MaxGemstones or GrindMode.MaxFates;
+
+    private static string DisabledReason(bool running, bool unlocked, bool achievementBlocks)
+    {
+        if (running) return "Stop the runner to change zone selection.";
+        if (!unlocked) return "Locked — attune an aetheryte in this zone first.";
+        if (achievementBlocks) return "Free Market Friend already complete here. Switch goal to grind this zone.";
+        return "";
+    }
 }
