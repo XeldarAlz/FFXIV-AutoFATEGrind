@@ -7,32 +7,49 @@ namespace AutoFateGrind.Windows.Sections;
 
 internal static class TopToolbar
 {
-    public static void Draw(Plugin plugin)
+    // Draws the plug/info/cog icons right-aligned on the current line. Used inline
+    // from the GOAL row (idle) and the status header (running) so we never have a
+    // standalone empty band above the content.
+    public static void DrawIconsInline(Plugin plugin)
     {
+        var anyMissing = !ExternalPlugins.AllRequiredInstalled();
+
         var plugLabel = FontAwesomeIcon.Plug.ToIconString();
         var infoLabel = FontAwesomeIcon.InfoCircle.ToIconString();
         var gearLabel = FontAwesomeIcon.Cog.ToIconString();
 
-        var anyMissing = !ExternalPlugins.AllRequiredInstalled();
-
-        bool plugClicked, infoClicked, gearClicked;
+        float btnW;
         using (ImRaii.PushFont(UiBuilder.IconFont))
-        {
-            var framePadX = ImGui.GetStyle().FramePadding.X;
-            var spacingX = ImGui.GetStyle().ItemSpacing.X;
-            var btnW = ImGui.CalcTextSize(gearLabel).X + framePadX * 2;
-            ImGui.SameLine(ImGui.GetWindowContentRegionMax().X - btnW * 3 - spacingX * 2);
+            btnW = ImGui.CalcTextSize(gearLabel).X + ImGui.GetStyle().FramePadding.X * 2;
 
-            using (ImRaii.PushColor(ImGuiCol.Text, anyMissing ? Styling.AccentRose : Styling.TextSecondary))
-                plugClicked = ImGui.Button(plugLabel + "##deps");
-            ImGui.SameLine();
+        var spacingX = ImGui.GetStyle().ItemSpacing.X;
+        ImGui.SameLine(ImGui.GetContentRegionAvail().X + ImGui.GetCursorPosX() - btnW * 3 - spacingX * 2);
+
+        bool plugClicked;
+        using (ImRaii.PushFont(UiBuilder.IconFont))
+        using (ImRaii.PushColor(ImGuiCol.Text, anyMissing ? Styling.AccentRose : Styling.TextSecondary))
+            plugClicked = ImGui.Button(plugLabel + "##deps");
+        HoverTip(anyMissing ? "Required plugins missing" : "Dependencies");
+
+        ImGui.SameLine();
+        bool infoClicked;
+        using (ImRaii.PushFont(UiBuilder.IconFont))
             infoClicked = ImGui.Button(infoLabel + "##about");
-            ImGui.SameLine();
+        HoverTip("About");
+
+        ImGui.SameLine();
+        bool gearClicked;
+        using (ImRaii.PushFont(UiBuilder.IconFont))
             gearClicked = ImGui.Button(gearLabel + "##gear");
-        }
+        HoverTip("Settings");
 
         if (plugClicked) plugin.ToggleDependenciesUi();
         if (infoClicked) plugin.ToggleAboutUi();
         if (gearClicked) plugin.ToggleConfigUi();
+    }
+
+    private static void HoverTip(string text)
+    {
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip(text);
     }
 }
