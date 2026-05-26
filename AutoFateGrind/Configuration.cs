@@ -15,6 +15,7 @@ public sealed class Configuration : IPluginConfiguration
     public GrindMode Mode { get; set; } = GrindMode.Endless;
     public int TargetFateCount { get; set; } = 30;
 
+    // Legacy. Kept so old saved configs deserialize; no longer used in the UI.
     public ExpansionFilter RegionFilter { get; set; } = ExpansionFilter.All;
 
     public string CombatPresetName { get; set; } = "AFG - Default";
@@ -47,6 +48,9 @@ public enum GrindMode
 public enum ExpansionFilter
 {
     All,
+    ARR,
+    HW,
+    SB,
     ShB,
     EW,
     DT,
