@@ -1,5 +1,6 @@
 using AutoFateGrind.Core;
 using AutoFateGrind.Core.Debug;
+using AutoFateGrind.Core.Game;
 using AutoFateGrind.Core.Tasks;
 using AutoFateGrind.Windows;
 using clib;
@@ -34,6 +35,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         ECommonsMain.Init(PluginInterface, this);
         CLibMain.Init(PluginInterface, this, CLibModule.Automation);
+        AchievementProgress.Initialize();
 
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         Cfg = Configuration;
@@ -78,6 +80,7 @@ public sealed class Plugin : IDalamudPlugin
         CommandManager.RemoveHandler(AfgConstants.PrimaryCommand);
         CommandManager.RemoveHandler(AfgConstants.AliasCommand);
 
+        AchievementProgress.Shutdown();
         CLibMain.Dispose();
         ECommonsMain.Dispose();
     }
