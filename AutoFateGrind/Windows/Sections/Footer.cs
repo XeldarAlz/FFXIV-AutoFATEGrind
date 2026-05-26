@@ -10,6 +10,6 @@ internal static class Footer
     {
         ImGui.Separator();
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
-            ImGui.TextUnformatted($"Auto Fate Grind — {AfgConstants.PrimaryCommand} / {AfgConstants.AliasCommand}");
+            ImGui.TextUnformatted($"Auto FATE Grind — {AfgConstants.PrimaryCommand} / {AfgConstants.AliasCommand}");
     }
 }

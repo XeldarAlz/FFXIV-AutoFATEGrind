@@ -30,7 +30,7 @@ public sealed class AboutWindow : Window, IDisposable
 
     private static readonly Dictionary<string, float> linkHoverPulse = new();
 
-    public AboutWindow() : base("Auto Fate Grind: About###AutoFateGrindAbout")
+    public AboutWindow() : base("Auto FATE Grind: About###AutoFateGrindAbout")
     {
         Flags = ImGuiWindowFlags.NoCollapse;
         Size = new Vector2(560, 460);

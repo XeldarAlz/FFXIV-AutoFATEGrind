@@ -60,7 +60,7 @@ public sealed class Plugin : IDalamudPlugin
 
         CommandManager.AddHandler(AfgConstants.PrimaryCommand, new CommandInfo(OnCommand)
         {
-            HelpMessage = "Toggle the Auto Fate Grind window. /afg config | deps | about | target (dump current target's BaseId)."
+            HelpMessage = "Toggle the Auto FATE Grind window. /afg config | deps | about | target (dump current target's BaseId)."
         });
         CommandManager.AddHandler(AfgConstants.AliasCommand, new CommandInfo(OnCommand)
         {

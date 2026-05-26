@@ -39,7 +39,7 @@ body:
     id: plugin-version
     attributes:
       label: Plugin version
-      description: Shown in `/xlplugins` next to "Auto Fate Grind".
+      description: Shown in `/xlplugins` next to "Auto FATE Grind".
       options:
         - 0.1.0.0
         - Older / not sure

@@ -19,7 +19,7 @@ public sealed class ConfigWindow : Window, IDisposable
     private Tab activeTab = Tab.General;
     private int classPickerSelection;
 
-    public ConfigWindow(Plugin plugin) : base("Auto Fate Grind — Settings###AutoFateGrindConfig")
+    public ConfigWindow(Plugin plugin) : base("Auto FATE Grind — Settings###AutoFateGrindConfig")
     {
         this.plugin = plugin;
         Flags = ImGuiWindowFlags.NoCollapse;

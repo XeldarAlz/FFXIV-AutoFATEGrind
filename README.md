@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="AutoFateGrind/Images/Icon.png" width="180" alt="Auto Fate Grind icon" />
+  <img src="AutoFateGrind/Images/Icon.png" width="180" alt="Auto FATE Grind icon" />
 </p>
 
-<h1 align="center">Auto Fate Grind</h1>
+<h1 align="center">Auto FATE Grind</h1>
 
 <p align="center">
   <a href="https://github.com/XeldarAlz/FFXIV-AutoFATEGrind/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/XeldarAlz/FFXIV-AutoFATEGrind?style=flat-square&color=blue"></a>
@@ -18,7 +18,7 @@
 ---
 
 <p align="center">
-  <img src="AutoFateGrind/Images/demo.gif" alt="Auto Fate Grind demo" />
+  <img src="AutoFateGrind/Images/demo.gif" alt="Auto FATE Grind demo" />
 </p>
 
 ## What it does
@@ -45,7 +45,7 @@ In-game: `/xlsettings` → **Experimental** → paste into **Custom Plugin Repos
 https://raw.githubusercontent.com/XeldarAlz/DalamudPlugins/main/repo.json
 ```
 
-Tick **Enabled**, click **+**, then **Save and Close**. Open `/xlplugins` → **All Plugins**, search for **Auto Fate Grind**, and install.
+Tick **Enabled**, click **+**, then **Save and Close**. Open `/xlplugins` → **All Plugins**, search for **Auto FATE Grind**, and install.
 
 The plugin needs a few helpers for movement and combat to be installed and loaded. Open `/afg deps` after install to see the list and one-click each missing one.
 

@@ -9,7 +9,7 @@ public sealed class MainWindow : Window, IDisposable
 {
     private readonly Plugin plugin;
 
-    public MainWindow(Plugin plugin) : base("Auto Fate Grind###AutoFateGrindMain")
+    public MainWindow(Plugin plugin) : base("Auto FATE Grind###AutoFateGrindMain")
     {
         this.plugin = plugin;
         SizeConstraints = new WindowSizeConstraints
