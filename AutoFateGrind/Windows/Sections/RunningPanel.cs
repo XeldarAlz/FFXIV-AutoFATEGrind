@@ -136,13 +136,10 @@ internal static class RunningPanel
             return;
         }
         var current = PublicEvent.CurrentFate;
-        var fates = (PublicEvent.Fates ?? Enumerable.Empty<PublicEvent>())
+        var eligible = (PublicEvent.Fates ?? Enumerable.Empty<PublicEvent>())
             .Where(f => current is null || f.Id != current.Id)
-            .Where(f => FateScanner.IsEligible(f, cfg, null))
-            .OrderByDescending(f => f.HasBonus)
-            .ThenByDescending(f => f.Progress)
-            .ThenBy(f => Vector3.DistanceSquared(f.Position, player.Position))
-            .ThenBy(f => f.TimeRemaining)
+            .Where(f => FateScanner.IsEligible(f, cfg, null));
+        var fates = FateScanner.ApplySort(eligible, cfg.FateSortOrder, player.Position)
             .Take(5)
             .ToArray();
         if (fates.Length == 0) { EmptyHint("No other eligible FATEs in this zone."); return; }

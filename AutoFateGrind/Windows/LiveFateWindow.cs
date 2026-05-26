@@ -97,12 +97,10 @@ public sealed class LiveFateWindow : Window, IDisposable
         if (player is null) return;
 
         var current = PublicEvent.CurrentFate;
-        var fates = (PublicEvent.Fates ?? Enumerable.Empty<PublicEvent>())
+        var eligible = (PublicEvent.Fates ?? Enumerable.Empty<PublicEvent>())
             .Where(f => current is null || f.Id != current.Id)
-            .Where(f => Core.Game.FateScanner.IsEligible(f, cfg, null))
-            .OrderByDescending(f => f.HasBonus)
-            .ThenBy(f => f.TimeRemaining)
-            .ThenBy(f => Vector3.DistanceSquared(f.Position, player.Position))
+            .Where(f => Core.Game.FateScanner.IsEligible(f, cfg, null));
+        var fates = Core.Game.FateScanner.ApplySort(eligible, cfg.FateSortOrder, player.Position)
             .Take(3)
             .ToArray();
 
