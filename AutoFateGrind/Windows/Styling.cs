@@ -8,8 +8,6 @@ namespace AutoFateGrind.Windows;
 
 internal static class Styling
 {
-    // Violet / pink palette keyed off the stone-face icon. Differentiates this
-    // plugin visually from AutoDailyTribes (teal).
     public static readonly Vector4 AccentViolet     = new(0.62f, 0.42f, 0.96f, 1.00f);
     public static readonly Vector4 AccentVioletSoft = new(0.78f, 0.60f, 1.00f, 1.00f);
     public static readonly Vector4 AccentPink       = new(0.95f, 0.45f, 0.78f, 1.00f);
@@ -17,7 +15,7 @@ internal static class Styling
     public static readonly Vector4 AccentAmber      = new(0.92f, 0.74f, 0.34f, 1.00f);
     public static readonly Vector4 AccentRose       = new(0.93f, 0.42f, 0.50f, 1.00f);
 
-    // Legacy aliases. About window + a couple of components reference these names.
+    // Aliases kept for components that still reference the teal naming.
     public static readonly Vector4 AccentTeal     = AccentViolet;
     public static readonly Vector4 AccentTealSoft = AccentVioletSoft;
 

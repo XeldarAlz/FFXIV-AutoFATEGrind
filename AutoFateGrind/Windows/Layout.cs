@@ -18,6 +18,5 @@ internal static class Layout
 
     public const float FooterHeight = 22f;
 
-    // Retained for the legacy ActionButton component still referenced from a few places.
     public const float ActionButtonHeight = 28f;
 }

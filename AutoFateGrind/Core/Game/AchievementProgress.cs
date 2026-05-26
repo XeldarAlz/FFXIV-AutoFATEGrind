@@ -18,7 +18,7 @@ internal static unsafe class AchievementProgress
     private static readonly object cacheLock = new();
     private static Hook<Achievement.Delegates.ReceiveAchievementProgress>? receiveHook;
 
-    // Server has its own cooldown on achievement requests; this guards against client-side spam.
+    // Server already throttles; this guards against client-side spam.
     private const int RequestCooldownMs = 5_000;
 
     public static void Initialize()

@@ -35,7 +35,6 @@ internal static class ZoneStateReader
 
     public static void InvalidateUnlockedCache() => unlockedTerritoryCache = null;
 
-    // Built from Svc.AetheryteList, refreshed at most once per second.
     private static bool IsTerritoryUnlocked(uint territoryId)
     {
         var now = Environment.TickCount64;

@@ -6,7 +6,7 @@ using FFXIVClientStructs.FFXIV.Component.GUI;
 
 namespace AutoFateGrind.Core.Game;
 
-// Patterned after Senither/AutoWeeklyCap. 500ms throttle prevents addon spam.
+// 500ms throttle prevents addon spam.
 internal static unsafe class ShopInteraction
 {
     public static bool ShopOpen()
@@ -56,10 +56,6 @@ internal static unsafe class ShopInteraction
         return true;
     }
 
-    // Reads the open ShopExchangeCurrency addon's visible item list and returns the
-    // (zero-based) row of the first entry whose ItemId matches `targetItemId`. Returns
-    // -1 if not visible or no match. The Index field of each visible entry is the value
-    // passed back to the Select callback — `ShopItemInfo.Select()` already handles this.
     public static int FindCurrencyShopSlot(uint targetItemId)
     {
         if (!GenericHelpers.TryGetAddonByName<AtkUnitBase>("ShopExchangeCurrency", out var addon)) return -1;

@@ -47,7 +47,7 @@ internal static class GoalGrid
 
     private static void DrawHeaderRow(Plugin plugin)
     {
-        // Zero-width placeholder so the inline icon strip has a line to attach to.
+        // Placeholder so the inline icon strip has a line to attach to.
         ImGui.Dummy(new Vector2(0, ImGui.GetFrameHeight()));
         TopToolbar.DrawIconsInline(plugin);
     }

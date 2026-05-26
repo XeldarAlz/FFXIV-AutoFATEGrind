@@ -14,7 +14,7 @@ internal static class ZonePicker
     {
         var scopedToShared = IsSharedScoped(cfg.Mode) && !cfg.ShowAllZonesOverride;
 
-        // Eager refresh so the tab badges' completed-count covers collapsed expansions too.
+        // Eager refresh so tab badges cover collapsed expansions too.
         if (cfg.Mode == GrindMode.MaxFates)
             foreach (var z in ZoneRegistry.Zones)
                 if (z.AchievementId != 0) ZoneStateReader.Refresh(z);
@@ -95,7 +95,6 @@ internal static class ZonePicker
         var rightLabel = allSelected ? "Clear all" : "Select all";
         var rightWidth = ImGui.CalcTextSize(rightLabel).X + ImGui.GetStyle().FramePadding.X * 2;
 
-        // "Hide completed" appears only on the Shared-FATE expansions during MaxFates.
         var canHideCompleted = cfg.Mode == GrindMode.MaxFates && zones.Any(z => z.AchievementDone);
         string? toggleLabel = canHideCompleted
             ? (cfg.ShowCompletedZones ? "Hide done" : "Show done")

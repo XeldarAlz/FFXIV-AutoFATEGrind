@@ -15,9 +15,7 @@ public sealed record ExternalPluginInfo(
     string RepoUrl,
     string Purpose,
     bool Required,
-    // Alternate InternalNames that should also satisfy the install check. Used when a
-    // plugin has a community fork shipping under a different name but exposing the same
-    // IPC surface — e.g. BossMod Reborn ("BossModReborn") for upstream BossMod.
+    // Alternate InternalNames (community forks with the same IPC surface).
     string[]? Aliases = null);
 
 public static class ExternalPlugins

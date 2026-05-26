@@ -4,7 +4,7 @@ using System.Numerics;
 
 namespace AutoFateGrind.Core.Ipc;
 
-// vnavmesh IPC channels (clib's own wrapper is internal, so we resubscribe).
+// Re-subscribes because clib's own wrapper is internal.
 internal sealed class NavmeshIPC
 {
     private static NavmeshIPC? instance;
@@ -32,7 +32,6 @@ internal sealed class NavmeshIPC
         catch (Exception ex) { Svc.Log.Warning(ex, "[NavmeshIPC] IsRunning failed"); return false; }
     }
 
-    // True while vnav is actively computing or executing a path.
     public bool IsBusy()
     {
         if (IsRunning()) return true;

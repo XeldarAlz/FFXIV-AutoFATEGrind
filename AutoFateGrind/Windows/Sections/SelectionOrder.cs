@@ -22,11 +22,9 @@ internal static class SelectionOrder
             return;
         }
 
-        // Defer mutations so the for-loop doesn't trip over self-mutation.
+        // Deferred so the for-loop doesn't trip over self-mutation.
         int? moveUp = null, moveDown = null, remove = null;
 
-        // Square icon buttons. We pass explicit spacing to SameLine and add a hard
-        // right margin so the row can't clip regardless of GlobalScale or tab insets.
         var btnSize = ImGui.GetFrameHeight();
         var spacingX = 4f * ImGuiHelpers.GlobalScale;
         var rightMargin = 8f * ImGuiHelpers.GlobalScale;

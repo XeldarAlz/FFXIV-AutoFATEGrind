@@ -7,9 +7,6 @@ namespace AutoFateGrind.Windows.Sections;
 
 internal static class TopToolbar
 {
-    // Draws the plug/info/cog icons right-aligned on the current line. Used inline
-    // from the GOAL row (idle) and the status header (running) so we never have a
-    // standalone empty band above the content.
     public static void DrawIconsInline(Plugin plugin)
     {
         var anyMissing = !ExternalPlugins.AllRequiredInstalled();

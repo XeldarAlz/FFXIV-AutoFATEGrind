@@ -3,16 +3,7 @@ using Lumina.Excel.Sheets;
 
 namespace AutoFateGrind.Core.Zones;
 
-// Resolves the per-zone Shared FATE Achievement.RowId — i.e., the "Free Market Friend"
-// series introduced in Shadowbringers and extended in Endwalker/Dawntrail. Each Shared
-// FATE zone has exactly one such achievement (rank 3 for ShB/EW, rank 4 for DT), with
-// Name "Free Market Friend: <ZoneName>". The suffix after the colon matches the
-// TerritoryType PlaceName 1:1.
-//
-// Pre-ShB expansions (ARR/HW/SB) have no per-zone Shared FATE mechanic — there is no
-// in-game achievement that tracks FATE progress per zone for those expansions, so they
-// resolve to 0. Diadem ("Crowning Achievement") and Occult Crescent ("Occult Erudition")
-// are instanced and excluded from the zone registry.
+// "Free Market Friend: <ZoneName>" achievements (ShB/EW/DT). Pre-ShB has no equivalent → 0.
 internal static class ZoneAchievementResolver
 {
     private const string NamePrefix = "Free Market Friend: ";

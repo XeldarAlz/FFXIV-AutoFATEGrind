@@ -12,7 +12,6 @@ public sealed class ZoneInfo
     public Vector3 CentralLanding { get; init; }
     public string? IconFile { get; init; }
 
-    // Live state, refreshed each draw.
     public bool Unlocked;
     public int AchievementCurrent;
     public int AchievementMax;
