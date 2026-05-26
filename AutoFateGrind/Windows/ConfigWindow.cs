@@ -1,5 +1,6 @@
 using AutoFateGrind.Core.Trading;
 using AutoFateGrind.Windows.Components;
+using clib.Utils;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility;
@@ -121,6 +122,47 @@ public sealed class ConfigWindow : Window, IDisposable
                 if (ImGui.SliderInt("##filt_maxprog", ref v, 50, 99, "%d %%"))
                 { cfg.MaxProgressPct = v; cfg.SaveDebounced(); }
             });
+
+        SettingsRow.Draw("Skip FATE types",
+            "Toggle on a type to skip every FATE of that kind. Useful if you don't enjoy escorts or collect hand-ins.",
+            () => DrawFateRuleSkipList(cfg));
+    }
+
+    // Display labels for each FateRule the scanner can match. Order matches what users
+    // typically run into; "None" is omitted because it isn't a real type.
+    private static readonly (PublicEvent.FateRule Rule, string Label, string Helper)[] fateRuleRows =
+    [
+        (PublicEvent.FateRule.Normal,          "Slay enemies",      "Kill the target mobs in the FATE ring."),
+        (PublicEvent.FateRule.Collect,         "Collect / hand-in", "Gather items off mobs or nodes and turn them in."),
+        (PublicEvent.FateRule.Escort,          "Escort",            "Protect an NPC that walks a fixed path."),
+        (PublicEvent.FateRule.Defend,          "Defend",            "Hold a point or NPC against waves."),
+        (PublicEvent.FateRule.EventFate,       "Talk to NPC",       "Dialogue-style FATE that starts by interacting with an NPC."),
+        (PublicEvent.FateRule.Chase,           "Chase",             "Pursue a moving enemy across the zone."),
+        (PublicEvent.FateRule.ConcertedWorks,  "Boss",              "Single-boss encounter (notorious monster style)."),
+        (PublicEvent.FateRule.Fete,            "Fete",              "Special seasonal / community FATE."),
+    ];
+
+    private static void DrawFateRuleSkipList(Configuration cfg)
+    {
+        foreach (var (rule, label, helper) in fateRuleRows)
+        {
+            var key = (int)rule;
+            var skipped = cfg.SkippedFateRules.Contains(key);
+            var id = $"##filt_rule_{key}";
+            if (ToggleSwitch.Draw(id, ref skipped, Styling.AccentVioletSoft))
+            {
+                if (skipped) cfg.SkippedFateRules.Add(key);
+                else         cfg.SkippedFateRules.Remove(key);
+                cfg.SaveDebounced();
+            }
+            ImGui.SameLine();
+            ImGui.AlignTextToFramePadding();
+            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextStrong))
+                ImGui.TextUnformatted(label);
+            ImGui.SameLine();
+            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
+                ImGui.TextUnformatted("— " + helper);
+        }
     }
 
     private static void DrawGemstonesTab(Configuration cfg)

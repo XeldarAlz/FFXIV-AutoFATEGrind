@@ -24,6 +24,7 @@ internal static class FateScanner
         if (f.State != FateState.Running) return false;
         if (cfg.BlacklistedFateIds.Contains(f.Id)) return false;
         if (sessionBlacklist is not null && sessionBlacklist.Contains(f.Id)) return false;
+        if (cfg.SkippedFateRules.Contains((int)f.Rule)) return false;
         if (f.TimeRemaining < cfg.MinTimeRemainingSec) return false;
         if (f.Progress > cfg.MaxProgressPct) return false;
         if (!f.IsOnMap) return false;

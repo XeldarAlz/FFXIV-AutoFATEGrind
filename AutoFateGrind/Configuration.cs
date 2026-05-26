@@ -32,6 +32,10 @@ public sealed class Configuration : IPluginConfiguration
     // Hardcoded blacklist: FATEs with broken obstacle maps that pathfinding fails on.
     public HashSet<uint> BlacklistedFateIds { get; set; } = [1831, 1832, 1914, 1915];
 
+    // Stored as the underlying int of clib.Utils.PublicEvent.FateRule so the saved config
+    // survives a clib enum reordering. The scanner casts back when checking.
+    public HashSet<int> SkippedFateRules { get; set; } = [];
+
     public uint TargetTradeItemId { get; set; } = 0;
     public bool TradeOnCap { get; set; } = true;
     // Game-imposed Bicolor cap is 1500; user can set a lower trigger to trade earlier.
