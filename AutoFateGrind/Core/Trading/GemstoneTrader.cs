@@ -62,13 +62,26 @@ public static class GemstoneTrader
     private static Dictionary<uint, TraderLocation[]> ShopToTraders =>
         shopToTraders ??= BuildShopToTraders();
 
-    // Bicolor traders surface tiered shops via TopicSelect / PreHandler, not direct SpecialShop refs.
+    // ShB traders whose FateShop row is empty in Lumina — manual override matches clib/OmenTools.
+    private static readonly Dictionary<uint, uint> ShbFateShopFallback = new()
+    {
+        { 1027998, 1769957 }, // Gramsol (Crystarium)
+        { 1027538, 1769958 }, // Pedronille (Eulmore)
+        { 1027385, 1769959 }, // Siulmet (Lakeland)
+        { 1027497, 1769960 }, // Zumutt (Kholusia)
+        { 1027892, 1769961 }, // Halden (Amh Araeng)
+        { 1027665, 1769962 }, // Sul Lad (Il Mheg)
+        { 1027709, 1769963 }, // Nacille (Rak'tika)
+        { 1027766, 1769964 }, // Goushs Ooan (Tempest)
+    };
+
+    // Bicolor traders expose their stock through FateShop, which is keyed directly by ENpcBase.RowId
+    // (not via ENpcData / TopicSelect / PreHandler). Pattern matches clib's ItemCostLookup.
     private static Dictionary<uint, TraderLocation[]> BuildShopToTraders()
     {
-        var enpcSheet = Svc.Data.GetExcelSheet<ENpcBase>();
-        if (enpcSheet is null) return [];
+        var fateShops = Svc.Data.GetExcelSheet<FateShop>();
+        if (fateShops is null) return [];
 
-        var byBase = Traders.ToDictionary(t => t.EnpcBaseId);
         var accum = new Dictionary<uint, List<TraderLocation>>();
 
         void Attach(uint shopId, TraderLocation trader)
@@ -82,30 +95,35 @@ public static class GemstoneTrader
             if (!list.Contains(trader)) list.Add(trader);
         }
 
-        void Resolve(Lumina.Excel.RowRef r, TraderLocation trader)
+        var perTraderCount = new Dictionary<TraderLocation, int>();
+
+        foreach (var trader in Traders)
         {
-            if (r.Is<SpecialShop>())
+            var count = 0;
+            if (fateShops.GetRowOrDefault(trader.EnpcBaseId) is { } fateShop)
             {
-                Attach(r.RowId, trader);
+                foreach (var shopRef in fateShop.SpecialShop)
+                {
+                    if (shopRef.RowId == 0) continue;
+                    Attach(shopRef.RowId, trader);
+                    count++;
+                }
             }
-            else if (r.Is<PreHandler>() && r.GetValueOrDefault<PreHandler>() is { } pre)
+
+            if (count == 0 && ShbFateShopFallback.TryGetValue(trader.EnpcBaseId, out var fallbackShopId))
             {
-                if (pre.Target.Is<SpecialShop>()) Attach(pre.Target.RowId, trader);
+                Attach(fallbackShopId, trader);
+                count = 1;
             }
+
+            perTraderCount[trader] = count;
         }
 
-        foreach (var npc in enpcSheet)
-        {
-            if (!byBase.TryGetValue(npc.RowId, out var trader)) continue;
-            foreach (var data in npc.ENpcData)
-            {
-                Resolve(data, trader);
-
-                if (data.Is<TopicSelect>() && data.GetValueOrDefault<TopicSelect>() is { } topic)
-                    foreach (var shopRef in topic.Shop)
-                        Resolve(shopRef, trader);
-            }
-        }
+        var totalShops = accum.Count;
+        var totalMapped = perTraderCount.Count(kv => kv.Value > 0);
+        Svc.Log.Info($"[AFG] Bicolor catalog: {totalMapped}/{Traders.Length} traders mapped, {totalShops} unique shops.");
+        foreach (var kv in perTraderCount.Where(kv => kv.Value == 0))
+            Svc.Log.Warning($"[AFG] Bicolor trader {kv.Key.Name} (ENpcBase {kv.Key.EnpcBaseId}) mapped to 0 shops.");
 
         return accum.ToDictionary(kv => kv.Key, kv => kv.Value.ToArray());
     }
