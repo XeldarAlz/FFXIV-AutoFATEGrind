@@ -7,7 +7,6 @@ public enum ExternalPlugin
     Vnavmesh,
     BossMod,
     Lifestream,
-    WrathCombo,
     TextAdvance,
 }
 
@@ -20,7 +19,6 @@ public sealed record ExternalPluginInfo(
 
 public static class ExternalPlugins
 {
-    // Repo URLs as of 2026-05. Update if upstream relocates.
     public static readonly IReadOnlyDictionary<ExternalPlugin, ExternalPluginInfo> Catalog
         = new Dictionary<ExternalPlugin, ExternalPluginInfo>
     {
@@ -32,7 +30,7 @@ public static class ExternalPlugins
             Required: true),
         [ExternalPlugin.BossMod] = new(
             InternalName: "BossMod",
-            DisplayName: "BossMod (VBM)",
+            DisplayName: "BossMod / BossMod Reborn",
             RepoUrl: "https://puni.sh/api/repository/veyn",
             Purpose: "Auto-rotation, targeting, and dodging during FATE combat.",
             Required: true),
@@ -41,12 +39,6 @@ public static class ExternalPlugins
             DisplayName: "Lifestream",
             RepoUrl: "https://puni.sh/api/plugins",
             Purpose: "Aethernet hops between FATEs in the same zone.",
-            Required: false),
-        [ExternalPlugin.WrathCombo] = new(
-            InternalName: "WrathCombo",
-            DisplayName: "Wrath Combo",
-            RepoUrl: "https://love.puni.sh/ment.json",
-            Purpose: "Combat fallback if BossMod is unavailable.",
             Required: false),
         [ExternalPlugin.TextAdvance] = new(
             InternalName: "TextAdvance",
