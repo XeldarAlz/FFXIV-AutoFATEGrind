@@ -39,7 +39,7 @@ public static class ExternalPlugins
         [ExternalPlugin.TextAdvance] = new(
             InternalName: "TextAdvance",
             DisplayName: "TextAdvance",
-            RepoUrl: "https://puni.sh/api/plugins",
+            RepoUrl: "https://raw.githubusercontent.com/NightmareXIV/MyDalamudPlugins/main/pluginmaster.json",
             Purpose: "Talk-skip during Collect FATE turn-ins (scoped, only enabled mid-Collect).",
             Required: false),
     };
