@@ -8,7 +8,6 @@ using clib.Utils;
 using Dalamud.Game.ClientState.Conditions;
 using ECommons.Automation;
 using ECommons.DalamudServices;
-using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Fate;
 using System.Numerics;
 using System.Threading.Tasks;
@@ -237,10 +236,10 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
 
             session.CompletedCount++;
             zone.CompletedThisRun++;
-            session.GemstoneCurrent = GemstoneCount();
+            session.GemstoneCurrent = GemstoneCatalog.CurrentWalletCount();
             // Force re-fetch so AchievementCurrent is fresh before StopConditionMet().
             AchievementProgress.Request(zone.AchievementId, force: true);
-            Diag($"FATE {fate.Id} done (session total: {session.CompletedCount})");
+            Diag($"FATE {fate.Id} done (session total: {session.CompletedCount}, wallet {session.GemstoneCurrent}g)");
 
             // Some FATEs spawn a chained sequel at the same Location within ~15s.
             await WatchForFollowUp(fate.Id);
@@ -249,18 +248,45 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
 
             if (Plugin.Cfg.TradeOnCap && session.GemstoneCurrent >= Plugin.Cfg.TradeThreshold)
             {
-                var targetId = GemstoneCatalog.EnsurePersistedTarget();
-                var target = targetId == 0 ? null : GemstoneCatalog.FindById(targetId);
-                if (target is not null
-                    && GemstoneCatalog.ComputeBuyQuantity(session.GemstoneCurrent, target.CostPerOne) > 0
-                    && GemstoneTrader.PickForItem(targetId, zone.TerritoryId, zone.Expansion) is { } trader)
-                {
-                    Diag($"Gemstone threshold {Plugin.Cfg.TradeThreshold} reached, queueing auto-trade for {target.ItemName} at {trader.Name}.");
-                    session.PendingTradeFromZone = zone;
-                    return;
-                }
+                if (TryQueueTrade()) return;
             }
         }
+    }
+
+    // Names every skip path so the user can see *why* trade-on-cap didn't fire instead of guessing.
+    private bool TryQueueTrade()
+    {
+        var targetId = GemstoneCatalog.EnsurePersistedTarget();
+        if (targetId == 0)
+        {
+            Diag("Trade-on-cap skipped: EnsurePersistedTarget returned 0 (no gem catalog item maps to a registered Bicolor trader).");
+            return false;
+        }
+
+        var target = GemstoneCatalog.FindById(targetId);
+        if (target is null)
+        {
+            Diag($"Trade-on-cap skipped: saved target id {targetId} is not in the gem catalog (was the item removed or renamed?).");
+            return false;
+        }
+
+        var qty = GemstoneCatalog.ComputeBuyQuantity(session.GemstoneCurrent, target.CostPerOne);
+        if (qty <= 0)
+        {
+            Diag($"Trade-on-cap skipped: spend mode {Plugin.Cfg.SpendMode} with {Plugin.Cfg.KeepGemstonesReserve}g reserve buys 0× {target.ItemName} ({target.CostPerOne}g each, wallet {session.GemstoneCurrent}g).");
+            return false;
+        }
+
+        var trader = GemstoneTrader.PickForItem(targetId, zone.TerritoryId, zone.Expansion);
+        if (trader is null)
+        {
+            Diag($"Trade-on-cap skipped: no registered Bicolor trader sells {target.ItemName}. Pick a different item in /afg config → Trader.");
+            return false;
+        }
+
+        Diag($"Gemstone threshold {Plugin.Cfg.TradeThreshold}g reached: queueing auto-trade for {qty}× {target.ItemName} at {trader.Name} (territory {trader.TerritoryId}).");
+        session.PendingTradeFromZone = zone;
+        return true;
     }
 
     private async Task<bool> HandleKoIfNeeded()
@@ -704,7 +730,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         GrindMode.Endless      => false,
         // Per-zone case is handled by the rotation check at the top of the loop.
         GrindMode.MaxFates     => zones.All(z => z.AchievementDone),
-        GrindMode.MaxGemstones => GemstoneCount() >= Plugin.Cfg.TradeThreshold,
+        GrindMode.MaxGemstones => GemstoneCatalog.CurrentWalletCount() >= Plugin.Cfg.TradeThreshold,
         GrindMode.RunCount     => session.CompletedCount >= Plugin.Cfg.TargetFateCount,
         _ => false,
     };
@@ -738,11 +764,6 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         return false;
     }
 
-    private static unsafe int GemstoneCount()
-    {
-        const uint bicolorItemId = 26807;
-        return InventoryManager.Instance()->GetInventoryItemCount(bicolorItemId);
-    }
 }
 
 public sealed class AutoFateSession

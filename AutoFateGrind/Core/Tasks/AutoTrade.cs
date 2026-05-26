@@ -3,7 +3,6 @@ using AutoFateGrind.Core.Trading;
 using AutoFateGrind.Core.Zones;
 using clib.TaskSystem;
 using ECommons.DalamudServices;
-using FFXIVClientStructs.FFXIV.Client.Game;
 using System.Numerics;
 using System.Threading.Tasks;
 
@@ -149,9 +148,5 @@ public sealed class AutoTrade(uint targetItemId, uint originTerritoryId, Expansi
         return best;
     }
 
-    private static unsafe int GemstoneCount()
-    {
-        var im = InventoryManager.Instance();
-        return im is null ? 0 : im->GetInventoryItemCount(GemstoneCatalog.BicolorGemstoneItemId);
-    }
+    private static int GemstoneCount() => GemstoneCatalog.CurrentWalletCount();
 }

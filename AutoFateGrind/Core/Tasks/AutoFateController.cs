@@ -9,17 +9,33 @@ internal sealed class AutoFateController
 {
     public bool Running => Svc.Automation.Running;
     public string Status => Svc.Automation.CurrentTask?.Status ?? "Idle";
+    public AutoPhase Phase { get; private set; } = AutoPhase.Idle;
 
     private AutoFateSession? session;
     private IReadOnlyList<ZoneInfo> activeZones = [];
     public AutoFateSession? SessionSnapshot => session;
 
+    private static void Diag(string message)
+        => ECommons.DalamudServices.Svc.Log.Info($"[AFG] {message}");
+
     public void RunAll(IEnumerable<ZoneInfo> zones)
     {
-        var s = new AutoFateSession();
-        session = s;
         activeZones = zones.ToList();
-        if (activeZones.Count == 0) return;
+        if (activeZones.Count == 0)
+        {
+            Diag("Start aborted: no zones selected.");
+            return;
+        }
+
+        var startWallet = GemstoneCatalog.CurrentWalletCount();
+        var s = new AutoFateSession
+        {
+            GemstoneStart = startWallet,
+            GemstoneCurrent = startWallet,
+        };
+        session = s;
+        Diag($"Run starting: {activeZones.Count} zone(s), mode {Plugin.Cfg.Mode}, wallet {startWallet}g, threshold {Plugin.Cfg.TradeThreshold}g, trade-on-cap {(Plugin.Cfg.TradeOnCap ? "on" : "off")}.");
+
         ApplyStartingClass();
         StartFateGrind(0, s);
     }
@@ -31,22 +47,35 @@ internal sealed class AutoFateController
         if (cfg.ClassQueue.Count == 0) return;
 
         var idx = ClassSwitcher.FindActiveEntryIndex(cfg.ClassQueue);
-        if (idx < 0) return;
+        if (idx < 0)
+        {
+            ECommons.DalamudServices.Svc.Chat.Print("[AFG] Class queue: every entry is at its level cap, staying on current class.");
+            return;
+        }
         var entry = cfg.ClassQueue[idx];
+        var label = $"gearset {entry.GearsetIndex} ({ClassSwitcher.JobNameForUserIndex(entry.GearsetIndex)})";
         if (ClassSwitcher.TryEquip(entry))
-            ECommons.DalamudServices.Svc.Chat.Print($"[AFG] Switching to gearset {entry.GearsetIndex} ({ClassSwitcher.JobNameForUserIndex(entry.GearsetIndex)}).");
+            ECommons.DalamudServices.Svc.Chat.Print($"[AFG] Switching to {label}.");
+        else
+            ECommons.DalamudServices.Svc.Chat.PrintError($"[AFG] Could not equip {label} (game refused — combat, mount, or transient lock?). See /xllog for details.");
     }
 
     public void Stop()
     {
+        var wasRunning = session is not null;
         Svc.Automation.Stop();
         session = null;
         activeZones = [];
+        Phase = AutoPhase.Idle;
+        if (wasRunning) Diag("Stop requested; session cleared.");
     }
 
     // clib.Automation buffers only one queued task; multi-step handoffs chain via OnCompleted.
     private void StartFateGrind(int startZoneIndex, AutoFateSession owningSession)
     {
+        Phase = AutoPhase.Grinding;
+        var startName = startZoneIndex < activeZones.Count ? activeZones[startZoneIndex].Name : "?";
+        Diag($"FATE grind phase entering at zone[{startZoneIndex}] {startName}.");
         Svc.Automation.Start(
             new AutoFate(activeZones, owningSession, startZoneIndex),
             OnCompleted: () => HandleTradeIfPending(owningSession));
@@ -54,27 +83,62 @@ internal sealed class AutoFateController
 
     private void HandleTradeIfPending(AutoFateSession owningSession)
     {
-        if (owningSession != session) return;
-        if (owningSession.PendingTradeFromZone is not { } origin) return;
+        if (owningSession != session)
+        {
+            Diag("FATE grind ended: owning session is stale (Stop was called or a new run replaced it). Ignoring trade hand-off.");
+            Phase = AutoPhase.Idle;
+            return;
+        }
+        if (owningSession.PendingTradeFromZone is not { } origin)
+        {
+            Diag("FATE grind ended without queueing a trade (stop condition, error, or trade-on-cap skipped). Run ends.");
+            Phase = AutoPhase.Idle;
+            return;
+        }
 
         owningSession.PendingTradeFromZone = null;
 
         var itemId = GemstoneCatalog.EnsurePersistedTarget();
-        if (itemId == 0) return;
+        if (itemId == 0)
+        {
+            Diag("Trade hand-off aborted: EnsurePersistedTarget returned 0 (no purchasable item resolvable). Run ends.");
+            Phase = AutoPhase.Idle;
+            return;
+        }
 
+        Phase = AutoPhase.Trading;
+        Diag($"Trade phase entering: item {itemId}, origin zone {origin.Name} ({origin.TerritoryId}).");
         Svc.Automation.Start(
             new AutoTrade(itemId, origin.TerritoryId, origin.Expansion),
             OnCompleted: () =>
             {
-                if (owningSession != session) return;
-                if (Plugin.Cfg.AfterTrade != AfterTradeAction.Resume) return;
-                if (activeZones.Count == 0) return;
+                if (owningSession != session)
+                {
+                    Diag("AutoTrade finished: owning session is stale; not resuming.");
+                    Phase = AutoPhase.Idle;
+                    return;
+                }
+                if (Plugin.Cfg.AfterTrade != AfterTradeAction.Resume)
+                {
+                    Diag($"AutoTrade finished: AfterTrade = {Plugin.Cfg.AfterTrade}; not resuming.");
+                    Phase = AutoPhase.Idle;
+                    return;
+                }
+                if (activeZones.Count == 0)
+                {
+                    Diag("AutoTrade finished: no active zones recorded; cannot resume.");
+                    Phase = AutoPhase.Idle;
+                    return;
+                }
 
                 var resumeIndex = 0;
                 for (var i = 0; i < activeZones.Count; i++)
                     if (activeZones[i].TerritoryId == origin.TerritoryId) { resumeIndex = i; break; }
 
+                Diag($"AutoTrade finished: resuming FATE grind at {activeZones[resumeIndex].Name}.");
                 StartFateGrind(resumeIndex, owningSession);
             });
     }
 }
+
+internal enum AutoPhase { Idle, Grinding, Trading }

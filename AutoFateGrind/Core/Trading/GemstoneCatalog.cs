@@ -1,4 +1,5 @@
 using ECommons.DalamudServices;
+using FFXIVClientStructs.FFXIV.Client.Game;
 using Lumina.Excel.Sheets;
 
 namespace AutoFateGrind.Core.Trading;
@@ -21,6 +22,12 @@ public static class GemstoneCatalog
 
     public static GemstoneTradeItem? FindById(uint itemId)
         => Array.Find(All, i => i.ItemId == itemId);
+
+    public static unsafe int CurrentWalletCount()
+    {
+        var im = InventoryManager.Instance();
+        return im is null ? 0 : im->GetInventoryItemCount(BicolorGemstoneItemId);
+    }
 
     // Picks the cheapest routable item as a default so fresh installs don't no-op trade-on-cap.
     public static uint EnsurePersistedTarget()
