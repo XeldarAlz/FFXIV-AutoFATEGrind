@@ -21,6 +21,37 @@ public static class GemstoneCatalog
     public static GemstoneTradeItem? FindById(uint itemId)
         => Array.Find(All, i => i.ItemId == itemId);
 
+    // Side-effecting: writes back the cheapest catalog entry when the saved id is missing
+    // or stale, so a stored 0 (fresh install) can't silently no-op the trade-on-cap gate.
+    public static uint EnsurePersistedTarget()
+    {
+        var cfg = Plugin.Cfg;
+        if (cfg.TargetTradeItemId != 0 && FindById(cfg.TargetTradeItemId) is not null)
+            return cfg.TargetTradeItemId;
+        if (All.Length == 0) return 0;
+        cfg.TargetTradeItemId = All[0].ItemId;
+        cfg.Save();
+        return cfg.TargetTradeItemId;
+    }
+
+    public static int ComputeBuyQuantity(int wallet, uint costPerOne)
+    {
+        var cost = (int)costPerOne;
+        if (cost <= 0) return 0;
+
+        var cfg = Plugin.Cfg;
+        var spendable = Math.Max(0, wallet - cfg.KeepGemstonesReserve);
+        var affordable = spendable / cost;
+
+        return cfg.SpendMode switch
+        {
+            GemstoneSpendMode.SpendAll    => affordable,
+            GemstoneSpendMode.SpendGems   => Math.Min(affordable, cfg.SpendGemsAmount / cost),
+            GemstoneSpendMode.BuyQuantity => Math.Min(affordable, cfg.BuyQuantityAmount),
+            _ => affordable,
+        };
+    }
+
     // Walks the SpecialShop sheet and collects every distinct item that can be bought
     // with Bicolor Gemstones. The trader/slot for purchase is resolved at runtime by
     // ShopInteraction (per-trader sub-menu and per-shop slot index).

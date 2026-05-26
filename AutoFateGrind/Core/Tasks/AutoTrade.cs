@@ -40,11 +40,12 @@ public sealed class AutoTrade(uint targetItemId, uint originTerritoryId, Expansi
             await WaitUntilTerritory(trader.TerritoryId);
         }
 
-        Status = $"Walking to {trader.Name}";
+        var walkLabel = $"Walking to {trader.Name}";
+        Status = walkLabel;
         await MoveTo(trader.TerritoryId, trader.Position,
             MovementConfig.Everything.WithTolerance(4f),
             allowTeleportIfFaster: false,
-            stopCondition: null,
+            stopCondition: () => { Status = walkLabel; return false; },
             onStopReached: null,
             allowAethernetWithinTerritory: true);
 
@@ -68,7 +69,7 @@ public sealed class AutoTrade(uint targetItemId, uint originTerritoryId, Expansi
             "Could not open the gemstone exchange shop. Target item may not be sold by this trader.");
 
         var wallet = GemstoneCount();
-        var qty = ComputeBuyQuantity(wallet, item.CostPerOne);
+        var qty = GemstoneCatalog.ComputeBuyQuantity(wallet, item.CostPerOne);
         ErrorIf(qty <= 0,
             $"Reserve ({Plugin.Cfg.KeepGemstonesReserve}g) and spend mode leave no budget for {item.ItemName} ({item.CostPerOne}g each); wallet={wallet}.");
 
@@ -154,23 +155,6 @@ public sealed class AutoTrade(uint targetItemId, uint originTerritoryId, Expansi
             if (d < bestDist) { best = obj; bestDist = d; }
         }
         return best;
-    }
-
-    private static int ComputeBuyQuantity(int wallet, uint costPerOne)
-    {
-        var cost = (int)costPerOne;
-        if (cost <= 0) return 0;
-
-        var spendable = Math.Max(0, wallet - Plugin.Cfg.KeepGemstonesReserve);
-        var affordable = spendable / cost;
-
-        return Plugin.Cfg.SpendMode switch
-        {
-            GemstoneSpendMode.SpendAll    => affordable,
-            GemstoneSpendMode.SpendGems   => Math.Min(affordable, Plugin.Cfg.SpendGemsAmount / cost),
-            GemstoneSpendMode.BuyQuantity => Math.Min(affordable, Plugin.Cfg.BuyQuantityAmount),
-            _ => affordable,
-        };
     }
 
     private static unsafe int GemstoneCount()

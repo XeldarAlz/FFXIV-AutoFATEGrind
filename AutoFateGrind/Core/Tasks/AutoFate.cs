@@ -1,5 +1,6 @@
 using AutoFateGrind.Core.Game;
 using AutoFateGrind.Core.Ipc;
+using AutoFateGrind.Core.Trading;
 using AutoFateGrind.Core.Zones;
 using clib.Extensions;
 using clib.TaskSystem;
@@ -37,6 +38,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
 
     private uint? lastStuckFateId;
     private int consecutiveStuckRetries;
+    private uint? lastTeleportedFateId;
 
     private static readonly Random rng = new();
 
@@ -81,6 +83,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
             sessionStuckFateIds.Clear();
             lastStuckFateId = null;
             consecutiveStuckRetries = 0;
+            lastTeleportedFateId = null;
             return true;
         }
         return false;
@@ -169,11 +172,24 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
             }
 
             idleScans = 0;
-            Status = $"Moving to {fate.Level} {fate.Name}";
+            Status = $"Moving to {fate.Name}";
             Diag($"Picked FATE {fate.Id} ({fate.Name}) at {fate.Position}");
 
             var moveResult = await MoveToFate(fate);
             if (CancelToken.IsCancellationRequested) return;
+
+            // If we already burned a teleport recovery on this FATE and still can't reach it,
+            // the nearest aetheryte doesn't help — blacklist instead of re-entering the
+            // teleport→stuck→teleport loop at the same aetheryte.
+            if (lastTeleportedFateId == fate.Id && moveResult != MoveStopReason.None)
+            {
+                Diag($"Still stuck after teleport recovery for FATE {fate.Id} ({fate.Name}); blacklisting for this session");
+                sessionStuckFateIds.Add(fate.Id);
+                lastTeleportedFateId = null;
+                lastStuckFateId = null;
+                consecutiveStuckRetries = 0;
+                continue;
+            }
 
             // Ladder: first stuck → retry; second stuck on same FATE → teleport; third → blacklist.
             if (moveResult == MoveStopReason.StuckRetry)
@@ -197,12 +213,14 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
             {
                 if (await TryTeleportToFate(fate))
                 {
+                    lastTeleportedFateId = fate.Id;
                     lastStuckFateId = null;
                     consecutiveStuckRetries = 0;
                     continue;
                 }
 
                 sessionStuckFateIds.Add(fate.Id);
+                lastTeleportedFateId = null;
                 lastStuckFateId = null;
                 consecutiveStuckRetries = 0;
                 Diag($"Teleport recovery failed for FATE {fate.Id}; blacklisting for this session");
@@ -210,6 +228,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
             }
 
             if (lastStuckFateId == fate.Id) { lastStuckFateId = null; consecutiveStuckRetries = 0; }
+            if (lastTeleportedFateId == fate.Id) lastTeleportedFateId = null;
 
             if (await HandleKoIfNeeded()) continue;
 
@@ -242,13 +261,17 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
             // briefly so the scanner picks the new one up before we wander off.
             await WatchForFollowUp(fate.Id);
 
-            if (Plugin.Cfg.TradeOnCap
-                && Plugin.Cfg.TargetTradeItemId != 0
-                && session.GemstoneCurrent >= Plugin.Cfg.TradeThreshold)
+            if (Plugin.Cfg.TradeOnCap && session.GemstoneCurrent >= Plugin.Cfg.TradeThreshold)
             {
-                Diag($"Gemstone threshold {Plugin.Cfg.TradeThreshold} reached, queueing auto-trade.");
-                session.PendingTradeFromZone = zone;
-                return;
+                var targetId = GemstoneCatalog.EnsurePersistedTarget();
+                var target = targetId == 0 ? null : GemstoneCatalog.FindById(targetId);
+                if (target is not null
+                    && GemstoneCatalog.ComputeBuyQuantity(session.GemstoneCurrent, target.CostPerOne) > 0)
+                {
+                    Diag($"Gemstone threshold {Plugin.Cfg.TradeThreshold} reached, queueing auto-trade for {target.ItemName}.");
+                    session.PendingTradeFromZone = zone;
+                    return;
+                }
             }
         }
     }
@@ -329,10 +352,15 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
 
         try
         {
+            var activateLabel = $"Activating {fate.Name}";
             await MoveTo(zone.TerritoryId, npc.Position,
                 MovementConfig.InteractRange,
                 allowTeleportIfFaster: false,
-                stopCondition: () => fate.State == FateState.Running,
+                stopCondition: () =>
+                {
+                    Status = activateLabel;
+                    return fate.State == FateState.Running;
+                },
                 onStopReached: null,
                 allowAethernetWithinTerritory: false);
 
@@ -439,25 +467,27 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
 
         var config = MovementConfig.Everything.WithTolerance(3f);
         var stuck = new StuckTracker();
+        var label = $"Moving to {fate.Name}";
 
         await MoveTo(zone.TerritoryId, dest, config,
             allowTeleportIfFaster: !PlayerHasTwistOfFate(),
-            stopCondition: () => fate.State != FateState.Running
-                              || NearFate(fate)
-                              || stuck.Check() != MoveStopReason.None,
+            stopCondition: () =>
+            {
+                Status = label;
+                return fate.State != FateState.Running
+                    || stuck.Check() != MoveStopReason.None;
+            },
             onStopReached: null,
             allowAethernetWithinTerritory: true);
 
-        if (NearFate(fate))
-        {
-            if (Svc.Condition[ConditionFlag.Mounted]) await Dismount();
-            return MoveStopReason.None;
-        }
+        if (stuck.Reason != MoveStopReason.None)
+            return stuck.Reason;
 
         if (fate.State != FateState.Running)
             return MoveStopReason.None;
 
-        return stuck.Reason;
+        if (Svc.Condition[ConditionFlag.Mounted]) await Dismount();
+        return MoveStopReason.None;
     }
 
     // Recover via same-zone teleport to the nearest aetheryte, then aethernet-shard.
@@ -662,13 +692,6 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         if (mgr->CurrentFate->FateId != fateId) return;
         if (mgr->SyncedFateId == fateId) return;
         mgr->LevelSync();
-    }
-
-    private static bool NearFate(PublicEvent fate)
-    {
-        var player = Svc.Objects.LocalPlayer;
-        if (player is null) return false;
-        return Vector3.Distance(player.Position, fate.Position) <= fate.Radius;
     }
 
     private static bool PlayerHasTwistOfFate()

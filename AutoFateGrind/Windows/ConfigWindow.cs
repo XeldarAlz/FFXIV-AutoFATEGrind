@@ -155,7 +155,8 @@ public sealed class ConfigWindow : Window, IDisposable
                     ImGui.TextUnformatted("No gem-shop items found.");
                 return;
             }
-            var idx = Array.FindIndex(catalog, i => i.ItemId == cfg.TargetTradeItemId);
+            var effectiveId = GemstoneCatalog.EnsurePersistedTarget();
+            var idx = Array.FindIndex(catalog, i => i.ItemId == effectiveId);
             if (idx < 0) idx = 0;
             var labels = catalog.Select(i => $"{i.ItemName}  ({i.CostPerOne}g)").ToArray();
             ImGui.SetNextItemWidth(420);
@@ -224,15 +225,7 @@ public sealed class ConfigWindow : Window, IDisposable
         var item = GemstoneCatalog.FindById(cfg.TargetTradeItemId);
         if (item is null) return;
 
-        var spendable = Math.Max(0, cfg.TradeThreshold - cfg.KeepGemstonesReserve);
-        var affordable = (int)(spendable / item.CostPerOne);
-        var qty = cfg.SpendMode switch
-        {
-            GemstoneSpendMode.SpendAll    => affordable,
-            GemstoneSpendMode.SpendGems   => Math.Min(affordable, (int)(cfg.SpendGemsAmount / item.CostPerOne)),
-            GemstoneSpendMode.BuyQuantity => Math.Min(affordable, cfg.BuyQuantityAmount),
-            _ => affordable,
-        };
+        var qty = GemstoneCatalog.ComputeBuyQuantity(cfg.TradeThreshold, item.CostPerOne);
 
         var color = qty <= 0 ? Styling.AccentRose : Styling.TextMuted;
         using (ImRaii.PushColor(ImGuiCol.Text, color))
