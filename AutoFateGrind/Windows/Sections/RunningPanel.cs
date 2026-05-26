@@ -16,6 +16,7 @@ internal static class RunningPanel
 {
     public static void Draw(Configuration cfg, AutoFateController controller)
     {
+        DrawHeaderStrip();
         DrawStatusCard(controller);
         ImGui.Spacing();
 
@@ -27,6 +28,14 @@ internal static class RunningPanel
         DrawQueue(cfg);
         ImGui.Spacing();
         DrawFooter(cfg);
+    }
+
+    private static void DrawHeaderStrip()
+    {
+        ImGui.AlignTextToFramePadding();
+        using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
+            ImGui.TextUnformatted("STATUS");
+        TopToolbar.DrawIconsInline(Plugin.Instance);
     }
 
     private static void DrawStatusCard(AutoFateController controller)

@@ -14,12 +14,15 @@ internal static class ZonePicker
     {
         var scopedToShared = IsSharedScoped(cfg.Mode) && !cfg.ShowAllZonesOverride;
 
-        // Eager refresh so the header's completed-count covers collapsed groups too.
+        // Eager refresh so the tab badges' completed-count covers collapsed expansions too.
         if (cfg.Mode == GrindMode.MaxFates)
             foreach (var z in ZoneRegistry.Zones)
                 if (z.AchievementId != 0) ZoneStateReader.Refresh(z);
 
-        DrawHeader(cfg, scopedToShared);
+        using var tabBar = ImRaii.TabBar("##afg_main_tabs", ImGuiTabBarFlags.NoTooltip | ImGuiTabBarFlags.FittingPolicyScroll);
+        if (!tabBar) return;
+
+        DrawQueueTab(cfg, controller);
 
         foreach (var exp in Enum.GetValues<ExpansionKind>().Reverse())
         {
@@ -28,83 +31,101 @@ internal static class ZonePicker
             var zones = ZoneRegistry.ByExpansion(exp).ToArray();
             if (zones.Length == 0) continue;
 
-            DrawGroup(exp, zones, cfg, controller);
+            DrawExpansionTab(exp, zones, cfg, controller);
         }
     }
 
-    private static void DrawHeader(Configuration cfg, bool scopedToShared)
+    private static void DrawQueueTab(Configuration cfg, AutoFateController controller)
     {
-        var label = scopedToShared
-            ? "Zones  (Shared FATE only: ShB / EW / DT)"
-            : "Zones  (all expansions)";
-        Styling.SectionLabel(label);
+        var byId = ZoneRegistry.Zones.ToDictionary(z => z.TerritoryId);
+        var queueCount = cfg.SelectedZones.Count(byId.ContainsKey);
+        var label = queueCount > 0 ? $"Queue  {queueCount}###tab_queue" : "Queue###tab_queue";
 
-        if (IsSharedScoped(cfg.Mode))
-        {
-            ImGui.SameLine();
-            var btnLabel = cfg.ShowAllZonesOverride
-                ? "Hide non-Shared FATE zones"
-                : "Show all zones manually";
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentVioletSoft))
-                if (ImGui.SmallButton($"  {btnLabel}  "))
-                {
-                    cfg.ShowAllZonesOverride = !cfg.ShowAllZonesOverride;
-                    cfg.SaveDebounced();
-                }
-        }
+        using var tab = ImRaii.TabItem(label);
+        if (!tab) return;
 
-        if (cfg.Mode == GrindMode.MaxFates)
-        {
-            var doneCount = ZoneRegistry.Zones.Count(z => z.AchievementDone);
-            if (doneCount > 0)
-            {
-                ImGui.SameLine();
-                var t = cfg.ShowCompletedZones
-                    ? $"Hide {doneCount} completed"
-                    : $"Show {doneCount} completed";
-                using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentMint))
-                    if (ImGui.SmallButton($"  {t}  "))
-                    {
-                        cfg.ShowCompletedZones = !cfg.ShowCompletedZones;
-                        cfg.SaveDebounced();
-                    }
-            }
-        }
         ImGui.Spacing();
+        SelectionOrder.Draw(cfg, controller);
     }
 
-    private static void DrawGroup(ExpansionKind exp, ZoneInfo[] zones, Configuration cfg, AutoFateController controller)
+    private static void DrawExpansionTab(ExpansionKind exp, ZoneInfo[] zones, Configuration cfg, AutoFateController controller)
     {
+        var territoryIds = zones.Select(z => z.TerritoryId).ToHashSet();
+        var selected = cfg.SelectedZones.Count(territoryIds.Contains);
+
+        var label = $"{exp.ShortName()}  {selected}/{zones.Length}###tab_{exp}";
+
+        using var tab = ImRaii.TabItem(label);
+        if (!tab) return;
+
+        ImGui.Spacing();
+        DrawExpansionToolbar(exp, zones, territoryIds, selected, cfg, controller);
+        ImGui.Spacing();
+
         var hideCompleted = cfg.Mode == GrindMode.MaxFates && !cfg.ShowCompletedZones;
         var visible = hideCompleted ? zones.Where(z => !z.AchievementDone).ToArray() : zones;
 
-        if (hideCompleted && visible.Length == 0) return;
-
-        var territoryIds = zones.Select(z => z.TerritoryId).ToHashSet();
-        var selected = cfg.SelectedZones.Count(territoryIds.Contains);
-        var allSelected = selected == zones.Length;
-
-        var header = $"{exp.DisplayName()}  ({selected}/{zones.Length})###grp_{exp}";
-        var open = ImGui.CollapsingHeader(header, ImGuiTreeNodeFlags.DefaultOpen);
-
-        ImGui.SameLine(ImGui.GetContentRegionAvail().X + ImGui.GetCursorPosX() - 56f * ImGuiHelpers.GlobalScale);
-        using (ImRaii.Disabled(controller.Running))
-            if (ImGui.SmallButton($"{(allSelected ? "Clear" : "All")}##sel_{exp}"))
-            {
-                if (allSelected) cfg.SelectedZones.RemoveAll(territoryIds.Contains);
-                else foreach (var id in territoryIds)
-                    if (!cfg.SelectedZones.Contains(id)) cfg.SelectedZones.Add(id);
-                cfg.SaveDebounced();
-            }
-
-        if (!open) return;
+        if (visible.Length == 0)
+        {
+            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
+                ImGui.TextUnformatted(hideCompleted
+                    ? "All zones in this expansion are complete."
+                    : "No zones available.");
+            return;
+        }
 
         foreach (var zone in visible)
         {
             ZoneStateReader.Refresh(zone);
             DrawRow(zone, cfg, controller);
         }
-        ImGui.Spacing();
+    }
+
+    private static void DrawExpansionToolbar(
+        ExpansionKind exp, ZoneInfo[] zones, HashSet<uint> territoryIds, int selected,
+        Configuration cfg, AutoFateController controller)
+    {
+        var allSelected = selected == zones.Length;
+        var noneSelected = selected == 0;
+
+        using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
+            ImGui.TextUnformatted($"{selected} of {zones.Length} selected");
+
+        var spacingX = ImGui.GetStyle().ItemSpacing.X;
+        var rightLabel = allSelected ? "Clear all" : "Select all";
+        var rightWidth = ImGui.CalcTextSize(rightLabel).X + ImGui.GetStyle().FramePadding.X * 2;
+
+        // "Hide completed" appears only on the Shared-FATE expansions during MaxFates.
+        var canHideCompleted = cfg.Mode == GrindMode.MaxFates && zones.Any(z => z.AchievementDone);
+        string? toggleLabel = canHideCompleted
+            ? (cfg.ShowCompletedZones ? "Hide done" : "Show done")
+            : null;
+        var toggleWidth = toggleLabel is null
+            ? 0
+            : ImGui.CalcTextSize(toggleLabel).X + ImGui.GetStyle().FramePadding.X * 2 + spacingX;
+
+        ImGui.SameLine(ImGui.GetContentRegionAvail().X + ImGui.GetCursorPosX() - rightWidth - toggleWidth);
+
+        if (toggleLabel is not null)
+        {
+            using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentMint))
+                if (ImGui.SmallButton($"{toggleLabel}##done_{exp}"))
+                {
+                    cfg.ShowCompletedZones = !cfg.ShowCompletedZones;
+                    cfg.SaveDebounced();
+                }
+            ImGui.SameLine();
+        }
+
+        using (ImRaii.Disabled(controller.Running))
+        using (ImRaii.PushColor(ImGuiCol.Text, allSelected ? Styling.AccentRose : Styling.AccentVioletSoft))
+            if (ImGui.SmallButton($"{rightLabel}##sel_{exp}"))
+            {
+                if (allSelected) cfg.SelectedZones.RemoveAll(territoryIds.Contains);
+                else foreach (var id in territoryIds)
+                    if (!cfg.SelectedZones.Contains(id)) cfg.SelectedZones.Add(id);
+                cfg.SaveDebounced();
+            }
     }
 
     private static void DrawRow(ZoneInfo zone, Configuration cfg, AutoFateController controller)
@@ -113,7 +134,7 @@ internal static class ZonePicker
         var achievementBlocks = cfg.Mode == GrindMode.MaxFates && zone.AchievementDone;
         var disabled = controller.Running || !zone.Unlocked || achievementBlocks;
 
-        ImGui.Indent(8f);
+        ImGui.Indent(6f);
 
         using (ImRaii.Disabled(disabled))
         {
@@ -154,7 +175,7 @@ internal static class ZonePicker
                 ImGui.TextUnformatted(pill);
         }
 
-        ImGui.Unindent(8f);
+        ImGui.Unindent(6f);
     }
 
     private static bool IsSharedScoped(GrindMode mode)

@@ -32,6 +32,8 @@ internal static class GoalSummary
                 ImGui.TextUnformatted("FATEs");
         }
 
+        DrawScopeToggle(cfg);
+
         ImGui.Spacing();
 
         var byId = ZoneRegistry.Zones.ToDictionary(z => z.TerritoryId);
@@ -48,12 +50,28 @@ internal static class GoalSummary
 
     private static unsafe string SummaryFor(Configuration cfg) => cfg.Mode switch
     {
-        GrindMode.MaxGemstones => $"Stops at {cfg.TradeThreshold} Bicolor Gemstones (you have {GemstoneCount()}).",
-        GrindMode.MaxFates     => "Stops when every selected zone's 'Free Market Friend' achievement (60 Shared FATEs) is complete.",
+        GrindMode.MaxGemstones => $"Stops at {cfg.TradeThreshold} gems (have {GemstoneCount()}).",
+        GrindMode.MaxFates     => "Stops when every selected zone hits 60 Shared FATEs.",
         GrindMode.RunCount     => "Stops after",
-        GrindMode.Endless      => "Runs forever until you press Stop. Rotates between selected zones.",
+        GrindMode.Endless      => "Rotates selected zones until you press Stop.",
         _ => "",
     };
+
+    private static void DrawScopeToggle(Configuration cfg)
+    {
+        if (cfg.Mode is not (GrindMode.MaxGemstones or GrindMode.MaxFates)) return;
+
+        ImGui.SameLine();
+        var label = cfg.ShowAllZonesOverride ? "Hide ARR/HW/SB" : "Show ARR/HW/SB";
+        using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentVioletSoft))
+            if (ImGui.SmallButton($"  {label}  "))
+            {
+                cfg.ShowAllZonesOverride = !cfg.ShowAllZonesOverride;
+                cfg.SaveDebounced();
+            }
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("Shared FATE achievements only exist in ShB, EW, and DT. Earlier expansions are hidden by default in this mode.");
+    }
 
     private static unsafe int GemstoneCount()
     {

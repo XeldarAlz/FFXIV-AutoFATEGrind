@@ -23,6 +23,17 @@ public static class ExpansionKindExtensions
         _ => exp.ToString(),
     };
 
+    public static string ShortName(this ExpansionKind exp) => exp switch
+    {
+        ExpansionKind.ARR => "A Realm Reborn",
+        ExpansionKind.HW  => "Heavensward",
+        ExpansionKind.SB  => "Stormblood",
+        ExpansionKind.ShB => "Shadowbringers",
+        ExpansionKind.EW  => "Endwalker",
+        ExpansionKind.DT  => "Dawntrail",
+        _ => exp.ToString(),
+    };
+
     public static ExpansionKind FromExVersion(uint exVersion) => exVersion switch
     {
         0 => ExpansionKind.ARR,

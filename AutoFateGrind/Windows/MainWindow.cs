@@ -14,10 +14,10 @@ public sealed class MainWindow : Window, IDisposable
         this.plugin = plugin;
         SizeConstraints = new WindowSizeConstraints
         {
-            MinimumSize = new Vector2(640, 480),
+            MinimumSize = new Vector2(640, 520),
             MaximumSize = new Vector2(float.MaxValue, float.MaxValue),
         };
-        Size = new Vector2(780, 600);
+        Size = new Vector2(780, 640);
         SizeCondition = ImGuiCond.FirstUseEver;
         Flags = ImGuiWindowFlags.NoCollapse;
     }
@@ -31,10 +31,6 @@ public sealed class MainWindow : Window, IDisposable
 
         using var style = Styling.PushWindowStyle();
 
-        ImGui.Dummy(new Vector2(0, 0));
-        TopToolbar.Draw(plugin);
-        ImGui.Spacing();
-
         DependencyBanner.Draw(plugin);
 
         if (ctrl.Running) RunningPanel.Draw(cfg, ctrl);
@@ -43,21 +39,12 @@ public sealed class MainWindow : Window, IDisposable
         Footer.Draw();
     }
 
-    private static void DrawIdle(Configuration cfg, Core.Tasks.AutoFateController ctrl)
+    private void DrawIdle(Configuration cfg, Core.Tasks.AutoFateController ctrl)
     {
-        GoalGrid.Draw(cfg);
-        ImGui.Spacing();
+        GoalGrid.Draw(cfg, plugin);
         GoalSummary.Draw(cfg, ctrl);
 
         ImGui.Spacing();
-        ImGui.Separator();
-        ImGui.Spacing();
-
-        SelectionOrder.Draw(cfg, ctrl);
-        ImGui.Spacing();
-        ImGui.Separator();
-        ImGui.Spacing();
-
         ZonePicker.Draw(cfg, ctrl);
     }
 }

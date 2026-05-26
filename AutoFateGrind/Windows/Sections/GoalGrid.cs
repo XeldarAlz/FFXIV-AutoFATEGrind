@@ -22,10 +22,9 @@ internal static class GoalGrid
             "Runs forever, rotating between selected zones, until you press Stop."),
     ];
 
-    public static void Draw(Configuration cfg)
+    public static void Draw(Configuration cfg, Plugin plugin)
     {
-        Styling.SectionLabel("What do you want to do?");
-        ImGui.Spacing();
+        DrawHeaderRow(plugin);
 
         var avail = ImGui.GetContentRegionAvail().X;
         var gap = Layout.GoalCardGap * ImGuiHelpers.GlobalScale;
@@ -44,5 +43,12 @@ internal static class GoalGrid
                 cfg.SaveDebounced();
             }
         }
+    }
+
+    private static void DrawHeaderRow(Plugin plugin)
+    {
+        // Zero-width placeholder so the inline icon strip has a line to attach to.
+        ImGui.Dummy(new Vector2(0, ImGui.GetFrameHeight()));
+        TopToolbar.DrawIconsInline(plugin);
     }
 }

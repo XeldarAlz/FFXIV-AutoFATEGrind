@@ -18,23 +18,24 @@ internal static class SelectionOrder
         if (ids.Count == 0)
         {
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
-                ImGui.TextUnformatted("No zones selected yet. Pick zones below.");
+                ImGui.TextUnformatted("No zones selected. Pick zones from the expansion tabs above.");
             return;
         }
-
-        Styling.SectionLabel($"Run order  ({ids.Count} zone{(ids.Count == 1 ? "" : "s")})");
-        using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
-            ImGui.TextUnformatted("The plugin rotates between zones in this order.");
-        ImGui.Spacing();
 
         // Defer mutations so the for-loop doesn't trip over self-mutation.
         int? moveUp = null, moveDown = null, remove = null;
 
-        var arrowWidth = 22f * ImGuiHelpers.GlobalScale;
+        // Square icon buttons. We pass explicit spacing to SameLine and add a hard
+        // right margin so the row can't clip regardless of GlobalScale or tab insets.
+        var btnSize = ImGui.GetFrameHeight();
+        var spacingX = 4f * ImGuiHelpers.GlobalScale;
+        var rightMargin = 8f * ImGuiHelpers.GlobalScale;
+        var rowRightWidth = btnSize * 3 + spacingX * 2 + rightMargin;
+
         for (var i = 0; i < ids.Count; i++)
         {
             var z = byId[ids[i]];
-            DrawRow(i, ids.Count, z, controller.Running, arrowWidth,
+            DrawRow(i, ids.Count, z, controller.Running, btnSize, spacingX, rowRightWidth,
                 onUp: () => moveUp = i,
                 onDown: () => moveDown = i,
                 onRemove: () => remove = i);
@@ -57,36 +58,40 @@ internal static class SelectionOrder
         }
     }
 
-    private static void DrawRow(int index, int total, ZoneInfo zone, bool running, float arrowWidth,
+    private static void DrawRow(
+        int index, int total, ZoneInfo zone, bool running,
+        float btnSize, float spacingX, float rowRightWidth,
         Action onUp, Action onDown, Action onRemove)
     {
         using (ImRaii.Disabled(running))
         {
+            ImGui.AlignTextToFramePadding();
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
                 ImGui.TextUnformatted($"{index + 1}.");
             ImGui.SameLine();
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextStrong))
                 ImGui.TextUnformatted(zone.Name);
 
-            ImGui.SameLine(ImGui.GetContentRegionAvail().X + ImGui.GetCursorPosX() - arrowWidth * 3 - 8f);
+            var rightStart = ImGui.GetContentRegionAvail().X + ImGui.GetCursorPosX() - rowRightWidth;
+            ImGui.SameLine(rightStart);
 
             using (ImRaii.Disabled(index == 0))
-                if (DrawIconBtn(FontAwesomeIcon.ArrowUp, $"##up{index}_{zone.TerritoryId}"))
+                if (DrawIconBtn(FontAwesomeIcon.ArrowUp, $"##up{index}_{zone.TerritoryId}", btnSize))
                     onUp();
-            ImGui.SameLine();
+            ImGui.SameLine(0, spacingX);
             using (ImRaii.Disabled(index == total - 1))
-                if (DrawIconBtn(FontAwesomeIcon.ArrowDown, $"##dn{index}_{zone.TerritoryId}"))
+                if (DrawIconBtn(FontAwesomeIcon.ArrowDown, $"##dn{index}_{zone.TerritoryId}", btnSize))
                     onDown();
-            ImGui.SameLine();
+            ImGui.SameLine(0, spacingX);
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentRose))
-                if (DrawIconBtn(FontAwesomeIcon.Times, $"##rm{index}_{zone.TerritoryId}"))
+                if (DrawIconBtn(FontAwesomeIcon.Times, $"##rm{index}_{zone.TerritoryId}", btnSize))
                     onRemove();
         }
     }
 
-    private static bool DrawIconBtn(FontAwesomeIcon icon, string id)
+    private static bool DrawIconBtn(FontAwesomeIcon icon, string id, float size)
     {
         using (ImRaii.PushFont(UiBuilder.IconFont))
-            return ImGui.Button(icon.ToIconString() + id);
+            return ImGui.Button(icon.ToIconString() + id, new Vector2(size, size));
     }
 }
