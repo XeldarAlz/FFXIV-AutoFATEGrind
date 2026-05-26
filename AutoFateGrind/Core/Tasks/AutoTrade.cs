@@ -26,19 +26,20 @@ public sealed class AutoTrade(uint targetItemId, uint originTerritoryId, Expansi
 
         if (Svc.ClientState.TerritoryType != trader.TerritoryId)
         {
-            Status = $"Teleporting to {trader.Name}";
-            await TeleportTo(trader.TerritoryId, trader.Position, allowSameZoneTeleport: false);
-            await WaitUntilTerritory(trader.TerritoryId);
+            await RunWithStatusPinned($"Teleporting to {trader.Name}", async () =>
+            {
+                await TeleportTo(trader.TerritoryId, trader.Position, allowSameZoneTeleport: false);
+                await WaitUntilTerritory(trader.TerritoryId);
+            });
         }
 
-        var walkLabel = $"Walking to {trader.Name}";
-        Status = walkLabel;
-        await MoveTo(trader.TerritoryId, trader.Position,
-            MovementConfig.Everything.WithTolerance(4f),
-            allowTeleportIfFaster: false,
-            stopCondition: () => { Status = walkLabel; return false; },
-            onStopReached: null,
-            allowAethernetWithinTerritory: true);
+        await RunWithStatusPinned($"Walking to {trader.Name}", () =>
+            MoveTo(trader.TerritoryId, trader.Position,
+                MovementConfig.Everything.WithTolerance(4f),
+                allowTeleportIfFaster: false,
+                stopCondition: null,
+                onStopReached: null,
+                allowAethernetWithinTerritory: true));
 
         var npc = FindTraderObject(trader.EnpcBaseId);
         ErrorIf(npc is null, $"Could not find {trader.Name} (ENpcBase {trader.EnpcBaseId}) near {trader.Position}.");
