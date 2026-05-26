@@ -23,9 +23,10 @@ internal static class GoalGrid
         DrawHeaderRow(plugin);
 
         var modes = FateGrindModes.All;
+        var cardCount = modes.Count + 1; // trailing "coming soon" placeholder
         var avail = ImGui.GetContentRegionAvail().X;
         var gap = Layout.GoalCardGap * ImGuiHelpers.GlobalScale;
-        var cardWidth = (avail - gap * (modes.Count - 1)) / modes.Count;
+        var cardWidth = (avail - gap * (cardCount - 1)) / cardCount;
         var cardHeight = Layout.GoalCardHeight * ImGuiHelpers.GlobalScale;
         var size = new Vector2(cardWidth, cardHeight);
 
@@ -46,6 +47,11 @@ internal static class GoalGrid
                 cfg.SaveDebounced();
             }
         }
+
+        ImGui.SameLine(0, gap);
+        GoalCard.Draw("##goal_coming_soon", "Field Operations", FontAwesomeIcon.Hammer,
+            Styling.AccentVioletSoft, false, size,
+            tooltip: "Eureka, Bozja and Occult is in progress.\nComing soon, stay tuned!", disabled: true);
     }
 
     private static void DrawHeaderRow(Plugin plugin)
