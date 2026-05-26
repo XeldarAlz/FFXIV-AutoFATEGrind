@@ -31,11 +31,13 @@ public static class ExternalPlugins
             Required: true),
         [ExternalPlugin.BossMod] = new(
             InternalName: "BossMod",
-            DisplayName: "BossMod / BossMod Reborn",
+            DisplayName: "BossMod",
             RepoUrl: "https://puni.sh/api/repository/veyn",
             Purpose: "Auto-rotation, targeting, and dodging during FATE combat.",
-            Required: true,
-            Aliases: ["BossModReborn"]),
+            Required: true),
+            // BossMod Reborn (community fork) support disabled for now; re-enable later.
+            // DisplayName: "BossMod / BossMod Reborn",
+            // Aliases: ["BossModReborn"]),
         [ExternalPlugin.TextAdvance] = new(
             InternalName: "TextAdvance",
             DisplayName: "TextAdvance",

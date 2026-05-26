@@ -95,7 +95,10 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
     protected override async Task Execute()
     {
         ErrorIf(zones.Count == 0, "No zones to grind.");
-        ErrorIf(!BossModIPC.Instance.IsAvailable, "BossMod (or BossMod Reborn) not installed or not loaded.");
+        // Reborn exposes the same BossMod.* gates, so also require stock BossMod loaded by name.
+        ErrorIf(
+            !BossModIPC.Instance.IsAvailable || !ExternalPlugins.IsInstalled(ExternalPlugin.BossMod),
+            "BossMod not installed or not loaded.");
 
         if (Plugin.Cfg.ActiveMode.RotatesSharedFateZones && zone.AchievementDone)
             AdvanceZone();
