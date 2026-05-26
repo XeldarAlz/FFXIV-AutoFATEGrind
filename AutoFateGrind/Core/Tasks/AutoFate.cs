@@ -1,5 +1,7 @@
+using AutoFateGrind.Core.External;
 using AutoFateGrind.Core.Game;
 using AutoFateGrind.Core.Ipc;
+using AutoFateGrind.Core.Modes;
 using AutoFateGrind.Core.Trading;
 using AutoFateGrind.Core.Zones;
 using clib.Extensions;
@@ -8,6 +10,7 @@ using clib.Utils;
 using Dalamud.Game.ClientState.Conditions;
 using ECommons.Automation;
 using ECommons.DalamudServices;
+using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Fate;
 using System.Numerics;
 using System.Threading.Tasks;
@@ -15,6 +18,9 @@ using CSFateManager = FFXIVClientStructs.FFXIV.Client.Game.Fate.FateManager;
 
 namespace AutoFateGrind.Core.Tasks;
 
+// State-machine refactor. Each tick computes the desired state from game + run-local fields, then
+// dispatches a bounded handler. Every wait has a wall-clock timeout, so no single condition can
+// park the run indefinitely — if a handler returns early, the next ComputeState recovers.
 public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession session, int startIndex = 0) : AutoCommon
 {
     private readonly IReadOnlyList<ZoneInfo> zones = zones;
@@ -22,59 +28,255 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
     private int zoneIndex = zones.Count == 0 ? 0 : Math.Clamp(startIndex, 0, zones.Count - 1);
     private ZoneInfo zone => zones[zoneIndex];
 
-    // Session-scoped so transient blockers get a fresh attempt next run.
     private readonly HashSet<uint> sessionStuckFateIds = new();
-
-    // Known-bad terrain for BossMod's obstacle map generator.
     private static readonly HashSet<uint> obstacleMapBlacklist = new() { 1831, 1832, 1914, 1915 };
 
     private const float StuckMoveThresholdMeters = 1.5f;
-    private const int StuckMoveTimeoutMs = 2_000;
-    private const int FollowUpWatchMs = 15_000;
-    private const int VnavIdleTimeoutMs = 1_500;
+    private const int   StuckMoveTimeoutMs = 2_000;
+    private const int   VnavIdleTimeoutMs = 1_500;
     private const float TeleportRetryProgressMeters = 3.0f;
-    private const int MoveToFateWatchdogMs = 120_000;
-    private const int MoveToUnwindGraceMs = 5_000;
+    private const int   MoveToFateWatchdogMs = 120_000;
+    private const int   MoveToUnwindGraceMs = 5_000;
+    private const int   FollowUpWatchMs = 15_000;
+    private const int   NpcSpawnTimeoutMs = 30_000;
+    private const int   CollectExpiryTimeoutMs = 90_000;
+    private const int   EngageStallTimeoutMs = 60_000;
+    private const int   EngageOutOfCombatGraceMs = 30_000;
+    private const int   RaiseWaitMs = 30_000;
+    private const int   ReleaseTransitionWaitMs = 60_000;
+    private const int   IdleScansBeforeSwap = 30;
+    private const int   MidPathRetargetIntervalMs = 1_500;
 
     private uint? lastStuckFateId;
     private int consecutiveStuckRetries;
     private uint? lastTeleportedFateId;
 
+    // Re-engage tracking.
+    private uint? returnToFateId;          // FATE we died in; honor even if normal eligibility fails.
+    private uint? followUpFateId;          // Parent FATE id whose follow-up we're holding for.
+    private long  followUpWatchUntilMs;
+    private uint? waitForExpiryFateId;     // Collect FATE done; hold zone until row disappears.
+    private long  waitForExpiryStartedAtMs;
+    private int   idleScans;
+
     private static readonly Random rng = new();
+    private bool presetEnsured;
+
+    // Game-side revive command IDs (resolved via GameMain.Instance()->ExecuteCommand).
+    private const uint ReviveCommandId = 0x115;
+    private const int  ReviveParamReturn = 0;
+    private const int  ReviveParamAccept = 5;
+
+    private enum GrindState
+    {
+        Idle,                 // Transient; player object not available, etc.
+        WrongZone,            // Not in target territory.
+        SwapZone,             // Rotate to next eligible zone (MaxFates or empty-current).
+        AllDone,              // Stop condition met; return cleanly.
+        Unconscious,          // Player KO'd, run revive.
+        WaitingForFollowUp,   // Just finished a chain parent; hold briefly for sequel.
+        WaitingForExpiry,     // Collect FATE complete; hold zone until row clears for rewards.
+        BetweenFates,         // Have a target FATE; move (or activate prep NPC) and arrive.
+        Engaging,             // CurrentFate is set; fight until it ends or we KO.
+        WaitingForFates,      // No eligible FATE; idle-scan with optional zone swap.
+    }
+
+    private GrindState lastObservedState = GrindState.Idle;
+    private long lastStateChangedAtMs;
 
     protected override async Task Execute()
     {
         ErrorIf(zones.Count == 0, "No zones to grind.");
+        ErrorIf(!BossModIPC.Instance.IsAvailable, "BossMod (or BossMod Reborn) not installed or not loaded.");
 
-        if (Plugin.Cfg.Mode == GrindMode.MaxFates && zone.AchievementDone)
+        if (Plugin.Cfg.ActiveMode.RotatesSharedFateZones && zone.AchievementDone)
             AdvanceZone();
 
         Svc.Chat.Print($"[AFG] Starting {zone.Name}...");
+        lastStateChangedAtMs = Environment.TickCount64;
+
         try
         {
-            await ExecuteInner();
+            await RunStateMachine();
             Svc.Chat.Print($"[AFG] {zone.Name}: zone done.");
         }
         catch (Exception ex)
         {
+            DisableTextAdvance();
             var msg = ex.Message;
             var lastBracket = msg.LastIndexOf("] ");
             if (lastBracket >= 0) msg = msg[(lastBracket + 2)..];
             Svc.Chat.PrintError($"[AFG] {zone.Name} stopped: {msg}");
             throw;
         }
+        finally
+        {
+            DisableTextAdvance();
+        }
+    }
+
+    private async Task RunStateMachine()
+    {
+        while (!CancelToken.IsCancellationRequested)
+        {
+            var state = ComputeState();
+
+            if (state != lastObservedState)
+            {
+                Diag($"State {lastObservedState} -> {state}");
+                lastObservedState = state;
+                lastStateChangedAtMs = Environment.TickCount64;
+            }
+
+            switch (state)
+            {
+                case GrindState.AllDone:
+                    Status = "Stop condition met";
+                    Diag("Stop condition met; exiting");
+                    return;
+
+                case GrindState.Unconscious:
+                    await Revive();
+                    break;
+
+                case GrindState.WrongZone:
+                    await GoToZone();
+                    break;
+
+                case GrindState.SwapZone:
+                    if (!AdvanceZone())
+                    {
+                        Status = "All achievements done";
+                        Diag("All selected zones finished, exiting");
+                        return;
+                    }
+                    idleScans = 0;
+                    break;
+
+                case GrindState.WaitingForFollowUp:
+                    await TickFollowUpWait();
+                    break;
+
+                case GrindState.WaitingForExpiry:
+                    await TickExpiryWait();
+                    break;
+
+                case GrindState.BetweenFates:
+                    if (await MoveAndArrive() is ExitReason.Quit) return;
+                    break;
+
+                case GrindState.Engaging:
+                    if (await EngageCurrentFate() is ExitReason.Quit) return;
+                    break;
+
+                case GrindState.WaitingForFates:
+                    await TickIdleScan();
+                    break;
+
+                case GrindState.Idle:
+                default:
+                    await NextFrame(30);
+                    break;
+            }
+        }
+    }
+
+    private GrindState ComputeState()
+    {
+        // Sweep stale wait-for-expiry id (row vanished or stuck longer than the cap).
+        if (waitForExpiryFateId is { } wid)
+        {
+            if (PublicEvent.GetFateById(wid) is null
+             || Environment.TickCount64 - waitForExpiryStartedAtMs > CollectExpiryTimeoutMs)
+            {
+                if (Environment.TickCount64 - waitForExpiryStartedAtMs > CollectExpiryTimeoutMs)
+                    Diag($"Collect expiry watch timed out for {wid}");
+                waitForExpiryFateId = null;
+            }
+        }
+
+        if (IsPlayerKO())
+        {
+            if (PublicEvent.CurrentFate is { Progress: < 100, Id: var dyingId })
+                returnToFateId = dyingId;
+            followUpFateId = null;
+            return GrindState.Unconscious;
+        }
+
+        if (StopConditionMet())
+            return GrindState.AllDone;
+
+        if (Svc.ClientState.TerritoryType != zone.TerritoryId)
+            return GrindState.WrongZone;
+
+        if (Plugin.Cfg.ActiveMode.RotatesSharedFateZones && zone.AchievementDone)
+            return GrindState.SwapZone;
+
+        if (PublicEvent.CurrentFate is { } current)
+        {
+            // Collect at 100% — capture id for expiry hold, but stay Engaging until we're out of combat
+            // so a non-FATE mob can't keep us stuck mid-deactivation.
+            if (current is { Rule: PublicEvent.FateRule.Collect, Progress: >= 100, Id: var cid })
+            {
+                if (waitForExpiryFateId != cid)
+                {
+                    waitForExpiryFateId = cid;
+                    waitForExpiryStartedAtMs = Environment.TickCount64;
+                }
+                if (!Svc.Condition[ConditionFlag.InCombat])
+                    return GrindState.WaitingForExpiry;
+            }
+            if (current.Progress >= 100)
+                StartFollowUpWatch(current.Id);
+            else if (followUpFateId == current.Id)
+                followUpFateId = null;
+            return GrindState.Engaging;
+        }
+
+        if (waitForExpiryFateId is not null)
+            return GrindState.WaitingForExpiry;
+
+        if (ShouldWaitForFollowUp())
+            return GrindState.WaitingForFollowUp;
+
+        if (returnToFateId is { } retId)
+        {
+            if (PublicEvent.GetFateById(retId) is { Progress: < 100 })
+                return GrindState.BetweenFates;
+            returnToFateId = null;
+        }
+
+        var player = Svc.Objects.LocalPlayer;
+        if (player is null) return GrindState.Idle;
+
+        if (FateScanner.PickNext(Plugin.Cfg, player.Position, sessionStuckFateIds, returnToFateId) is not null)
+            return GrindState.BetweenFates;
+
+        if (Plugin.Cfg.SwapZonesWhenEmpty && zones.Count > 1 && idleScans >= IdleScansBeforeSwap)
+            return GrindState.SwapZone;
+
+        return GrindState.WaitingForFates;
+    }
+
+    private enum ExitReason { Continue, Quit }
+
+    private async Task GoToZone()
+    {
+        Status = $"Teleporting to {zone.Name}";
+        Diag($"Off-zone (in {Svc.ClientState.TerritoryType}), teleporting to {zone.TerritoryId}");
+        await TeleportTo(zone.TerritoryId, zone.CentralLanding, allowSameZoneTeleport: false);
+        await WaitUntilTerritory(zone.TerritoryId);
     }
 
     private bool AdvanceZone()
     {
         if (zones.Count <= 1)
-        {
-            return Plugin.Cfg.Mode != GrindMode.MaxFates || !zone.AchievementDone;
-        }
+            return !Plugin.Cfg.ActiveMode.RotatesSharedFateZones || !zone.AchievementDone;
+
         for (var step = 1; step <= zones.Count; step++)
         {
             var candidate = (zoneIndex + step) % zones.Count;
-            if (Plugin.Cfg.Mode == GrindMode.MaxFates && zones[candidate].AchievementDone) continue;
+            if (Plugin.Cfg.ActiveMode.RotatesSharedFateZones && zones[candidate].AchievementDone) continue;
             zoneIndex = candidate;
             sessionStuckFateIds.Clear();
             lastStuckFateId = null;
@@ -85,177 +287,203 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         return false;
     }
 
-    private async Task ExecuteInner()
+    private async Task TickIdleScan()
     {
-        ErrorIf(!BossModIPC.Instance.IsAvailable, "BossMod (or BossMod Reborn) not installed or not loaded.");
+        idleScans++;
+        Status = $"Waiting for FATEs in {zone.Name} ({idleScans}/{IdleScansBeforeSwap})";
+        await NextFrame(60);
+    }
 
-        var idleScans = 0;
-        const int idleScanLimitNoFates = 30;
+    private async Task TickFollowUpWait()
+    {
+        var remaining = Math.Max(0L, followUpWatchUntilMs - Environment.TickCount64);
+        Status = $"Watching for follow-up FATE ({remaining / 1000 + 1}s)";
+        await NextFrame(100);
+    }
 
-        while (!CancelToken.IsCancellationRequested)
+    private async Task TickExpiryWait()
+    {
+        Status = "Waiting for Collect rewards";
+        await NextFrame(60);
+    }
+
+    private async Task<ExitReason> MoveAndArrive()
+    {
+        var player = Svc.Objects.LocalPlayer;
+        if (player is null) { await NextFrame(); return ExitReason.Continue; }
+
+        var fate = FateScanner.PickNext(Plugin.Cfg, player.Position, sessionStuckFateIds, returnToFateId);
+        if (fate is null) return ExitReason.Continue;
+
+        idleScans = 0;
+        Status = $"Moving to {fate.Name}";
+        Diag($"Picked FATE {fate.Id} ({fate.Name}) at {fate.Position}");
+
+        var moveResult = await MoveToFate(fate);
+        if (CancelToken.IsCancellationRequested) return ExitReason.Quit;
+
+        if (moveResult is MoveStopReason.HigherPriority or MoveStopReason.NpcSpawned)
         {
-            // Run before any in-zone work — released-to-home is recovered by the territory check below.
-            if (await HandleKoIfNeeded()) continue;
+            // Let the loop re-pick / re-evaluate.
+            return ExitReason.Continue;
+        }
 
-            if (Svc.ClientState.TerritoryType != zone.TerritoryId)
+        if (lastTeleportedFateId == fate.Id && moveResult != MoveStopReason.None)
+        {
+            Diag($"Still stuck after teleport recovery for FATE {fate.Id} ({fate.Name}); blacklisting for this session");
+            sessionStuckFateIds.Add(fate.Id);
+            lastTeleportedFateId = null;
+            lastStuckFateId = null;
+            consecutiveStuckRetries = 0;
+            return ExitReason.Continue;
+        }
+
+        if (moveResult == MoveStopReason.StuckRetry)
+        {
+            if (lastStuckFateId == fate.Id) consecutiveStuckRetries++;
+            else { lastStuckFateId = fate.Id; consecutiveStuckRetries = 1; }
+
+            if (consecutiveStuckRetries >= 2)
             {
-                Status = $"Teleporting to {zone.Name}";
-                Diag($"Off-zone (in {Svc.ClientState.TerritoryType}), teleporting to {zone.TerritoryId}");
-                await TeleportTo(zone.TerritoryId, zone.CentralLanding, allowSameZoneTeleport: false);
-                await WaitUntilTerritory(zone.TerritoryId);
-                continue;
+                Diag($"Repeated stuck on FATE {fate.Id} ({fate.Name}); escalating to teleport");
+                moveResult = MoveStopReason.StuckTeleport;
             }
-
-            if (StopConditionMet())
+            else
             {
-                Status = "Stop condition met";
-                Diag("Global stop condition tripped, exiting zone");
-                return;
+                Diag($"Stuck en route to FATE {fate.Id} ({fate.Name}); retrying from current position");
+                return ExitReason.Continue;
             }
+        }
 
-            // Rotate to the next unfinished zone; only exit when none remain.
-            if (Plugin.Cfg.Mode == GrindMode.MaxFates && zone.AchievementDone)
+        if (moveResult == MoveStopReason.StuckTeleport)
+        {
+            if (await TryTeleportToFate(fate))
             {
-                Diag($"{zone.Name} achievement done");
-                if (!AdvanceZone())
+                lastTeleportedFateId = fate.Id;
+                lastStuckFateId = null;
+                consecutiveStuckRetries = 0;
+                return ExitReason.Continue;
+            }
+            sessionStuckFateIds.Add(fate.Id);
+            lastTeleportedFateId = null;
+            lastStuckFateId = null;
+            consecutiveStuckRetries = 0;
+            Diag($"Teleport recovery failed for FATE {fate.Id}; blacklisting for this session");
+            return ExitReason.Continue;
+        }
+
+        if (lastStuckFateId == fate.Id) { lastStuckFateId = null; consecutiveStuckRetries = 0; }
+        if (lastTeleportedFateId == fate.Id) lastTeleportedFateId = null;
+
+        // Arrived. Boss FATEs need NPC chat before Running; ActivateFate handles its own timeouts.
+        if (fate.State == FateState.Preparing && fate.MotivationNpcId != 0xE0000000)
+            await ActivateFate(fate);
+
+        // Successful return-to-FATE — clear the latch.
+        if (returnToFateId == fate.Id && fate.State == FateState.Running)
+            returnToFateId = null;
+
+        return ExitReason.Continue;
+    }
+
+    private async Task<ExitReason> EngageCurrentFate()
+    {
+        var fate = PublicEvent.CurrentFate;
+        if (fate is null) return ExitReason.Continue;
+        var fateId = fate.Id;
+
+        var preset = Plugin.Cfg.CombatPresetName;
+        EnsureCombatPreset(preset);
+        SyncToFate(fateId);
+        AssertPresetActive(preset);
+
+        Status = $"Engaging {fate.Name}";
+
+        var lastProgress = fate.Progress;
+        var lastProgressAtMs = Environment.TickCount64;
+        var lastInCombatAtMs = Environment.TickCount64;
+        var collectTextAdvanceArmed = false;
+        // Guards against double-counting: only the entry that actually fought the FATE while it was
+        // Running may book the completion. A re-entry during the 100%-but-lingering frame won't.
+        var sawRunning = false;
+
+        try
+        {
+            while (!CancelToken.IsCancellationRequested)
+            {
+                var refreshed = PublicEvent.GetFateById(fateId);
+                if (refreshed is null || refreshed.State != FateState.Running) break;
+                if (IsPlayerKO()) break;
+                fate = refreshed;
+                sawRunning = true;
+
+                if (Svc.Condition[ConditionFlag.InCombat])
+                    lastInCombatAtMs = Environment.TickCount64;
+
+                if (fate.Progress != lastProgress)
                 {
-                    Status = "All achievements done";
-                    Diag("All selected zones finished, exiting");
-                    return;
+                    lastProgress = fate.Progress;
+                    lastProgressAtMs = Environment.TickCount64;
                 }
-                idleScans = 0;
-                continue;
-            }
-
-            var player = Svc.Objects.LocalPlayer;
-            if (player is null)
-            {
-                await NextFrame();
-                continue;
-            }
-
-            var fate = FateScanner.PickNext(Plugin.Cfg, player.Position, sessionStuckFateIds);
-            if (fate is null)
-            {
-                idleScans++;
-                if (Plugin.Cfg.SwapZonesWhenEmpty && zones.Count > 1)
+                else if (Environment.TickCount64 - lastProgressAtMs > EngageStallTimeoutMs
+                      && Environment.TickCount64 - lastInCombatAtMs > EngageOutOfCombatGraceMs)
                 {
-                    Status = $"No eligible FATEs ({idleScans}/{idleScanLimitNoFates})";
-                    if (idleScans >= idleScanLimitNoFates)
-                    {
-                        if (!AdvanceZone())
-                        {
-                            Status = "All achievements done";
-                            Diag("No eligible FATEs in any selected zone, exiting");
-                            return;
-                        }
-                        Status = $"Swapping to {zone.Name}";
-                        Diag($"Swapping to {zone.Name}");
-                        idleScans = 0;
-                        continue;
-                    }
+                    Diag($"EngageFate stalled: no progress in {EngageStallTimeoutMs/1000}s and out of combat {EngageOutOfCombatGraceMs/1000}s on FATE {fateId}; bailing");
+                    break;
+                }
+
+                if (Svc.Condition[ConditionFlag.Mounted])
+                {
+                    BossModIPC.Instance.ClearActive();
+                    await Dismount();
+                    AssertPresetActive(preset);
                 }
                 else
                 {
-                    Status = $"Waiting for FATEs in {zone.Name}";
+                    AssertPresetActive(preset);
                 }
-                await NextFrame(60);
-                continue;
-            }
 
-            idleScans = 0;
-            Status = $"Moving to {fate.Name}";
-            Diag($"Picked FATE {fate.Id} ({fate.Name}) at {fate.Position}");
+                SyncToFate(fateId);
 
-            var moveResult = await MoveToFate(fate);
-            if (CancelToken.IsCancellationRequested) return;
-
-            // Already teleported once and still stuck — blacklist to break the teleport→stuck loop.
-            if (lastTeleportedFateId == fate.Id && moveResult != MoveStopReason.None)
-            {
-                Diag($"Still stuck after teleport recovery for FATE {fate.Id} ({fate.Name}); blacklisting for this session");
-                sessionStuckFateIds.Add(fate.Id);
-                lastTeleportedFateId = null;
-                lastStuckFateId = null;
-                consecutiveStuckRetries = 0;
-                continue;
-            }
-
-            // Ladder: first stuck → retry; second stuck on same FATE → teleport; third → blacklist.
-            if (moveResult == MoveStopReason.StuckRetry)
-            {
-                if (lastStuckFateId == fate.Id) consecutiveStuckRetries++;
-                else { lastStuckFateId = fate.Id; consecutiveStuckRetries = 1; }
-
-                if (consecutiveStuckRetries >= 2)
+                if (fate.Rule == PublicEvent.FateRule.Collect && !collectTextAdvanceArmed)
                 {
-                    Diag($"Repeated stuck on FATE {fate.Id} ({fate.Name}); escalating to teleport");
-                    moveResult = MoveStopReason.StuckTeleport;
+                    EnableTextAdvanceForCollect();
+                    collectTextAdvanceArmed = true;
                 }
-                else
-                {
-                    Diag($"Stuck en route to FATE {fate.Id} ({fate.Name}); retrying from current position");
-                    continue;
-                }
+
+                await NextFrame(30);
             }
+        }
+        finally
+        {
+            BossModIPC.Instance.ClearActive();
+            if (collectTextAdvanceArmed) DisableTextAdvance();
+        }
 
-            if (moveResult == MoveStopReason.StuckTeleport)
-            {
-                if (await TryTeleportToFate(fate))
-                {
-                    lastTeleportedFateId = fate.Id;
-                    lastStuckFateId = null;
-                    consecutiveStuckRetries = 0;
-                    continue;
-                }
-
-                sessionStuckFateIds.Add(fate.Id);
-                lastTeleportedFateId = null;
-                lastStuckFateId = null;
-                consecutiveStuckRetries = 0;
-                Diag($"Teleport recovery failed for FATE {fate.Id}; blacklisting for this session");
-                continue;
-            }
-
-            if (lastStuckFateId == fate.Id) { lastStuckFateId = null; consecutiveStuckRetries = 0; }
-            if (lastTeleportedFateId == fate.Id) lastTeleportedFateId = null;
-
-            if (await HandleKoIfNeeded()) continue;
-
-            // Boss FATEs need the issuing NPC talked to before Running. 0xE0000000 = no NPC.
-            if (fate.State == FateState.Preparing && fate.MotivationNpcId != 0xE0000000)
-                await ActivateFate(fate);
-            if (CancelToken.IsCancellationRequested) return;
-            if (await HandleKoIfNeeded()) continue;
-
-            await EngageFate(fate);
-            if (CancelToken.IsCancellationRequested) return;
-            if (await HandleKoIfNeeded()) continue;
-
-            // Collect FATEs award rewards on row-expiry, not Progress==100.
-            if (fate.Rule == PublicEvent.FateRule.Collect)
-                await WaitForFateExpiry(fate.Id);
-
+        // Completion bookkeeping — only count when we actually fought it to its end, not on bail
+        // and not on a re-entry during the lingering 100% frame.
+        var finalProgress = PublicEvent.GetFateById(fateId)?.Progress ?? lastProgress;
+        var ended = sawRunning && (PublicEvent.GetFateById(fateId) is null || finalProgress >= 100);
+        if (ended)
+        {
             session.CompletedCount++;
             zone.CompletedThisRun++;
             session.GemstoneCurrent = GemstoneCatalog.CurrentWalletCount();
-            // Force re-fetch so AchievementCurrent is fresh before StopConditionMet().
             AchievementProgress.Request(zone.AchievementId, force: true);
-            Diag($"FATE {fate.Id} done (session total: {session.CompletedCount}, wallet {session.GemstoneCurrent}g)");
+            Diag($"FATE {fateId} done (session total: {session.CompletedCount}, wallet {session.GemstoneCurrent}g)");
+            StartFollowUpWatch(fateId);
 
-            // Some FATEs spawn a chained sequel at the same Location within ~15s.
-            await WatchForFollowUp(fate.Id);
-
-            if (AdvanceClassQueueIfCapHit()) return;
+            if (AdvanceClassQueueIfCapHit()) return ExitReason.Quit;
 
             if (Plugin.Cfg.TradeOnCap && session.GemstoneCurrent >= Plugin.Cfg.TradeThreshold)
             {
-                if (TryQueueTrade()) return;
+                if (TryQueueTrade()) return ExitReason.Quit;
             }
         }
+
+        return ExitReason.Continue;
     }
 
-    // Names every skip path so the user can see *why* trade-on-cap didn't fire instead of guessing.
     private bool TryQueueTrade()
     {
         var targetId = GemstoneCatalog.EnsurePersistedTarget();
@@ -291,73 +519,184 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         return true;
     }
 
-    private async Task<bool> HandleKoIfNeeded()
+    private async Task Revive()
     {
-        if (!IsPlayerKO()) return false;
-
-        Status = "KO — waiting for raise";
-        Diag("Player KO detected, waiting up to 30s for a raise");
-
+        DisableTextAdvance();
         try { BossModIPC.Instance.ClearActive(); } catch { /* best-effort */ }
 
-        const int raiseWaitMs = 30_000;
-        var raiseDeadline = Environment.TickCount64 + raiseWaitMs;
-        while (Environment.TickCount64 < raiseDeadline)
+        var startZoneId = Svc.ClientState.TerritoryType;
+        var startPos = Svc.Objects.LocalPlayer?.Position;
+
+        var soloWait = Svc.Party.Length == 0;
+        Status = soloWait ? "KO — releasing" : "KO — waiting for raise";
+        Diag(soloWait ? "Solo KO: returning home." : "Party KO: waiting up to 30s for a raise.");
+
+        if (soloWait)
         {
-            if (CancelToken.IsCancellationRequested) return true;
-            if (!IsPlayerKO())
+            await TriggerReturnHome();
+        }
+        else
+        {
+            var raiseDeadline = Environment.TickCount64 + RaiseWaitMs;
+            var accepted = false;
+            while (Environment.TickCount64 < raiseDeadline)
             {
-                Status = "Raised, resuming";
-                Diag("Raised by another player, resuming loop");
-                // Settle so weakness/transcendent statuses register before the next move.
-                await NextFrame(60);
-                return true;
+                if (CancelToken.IsCancellationRequested) return;
+                if (!IsPlayerKO())
+                {
+                    Diag("Raised by another player.");
+                    accepted = true;
+                    break;
+                }
+                if (TryAcceptRaisePrompt())
+                {
+                    Diag("Accepted raise prompt programmatically.");
+                    accepted = true;
+                    break;
+                }
+                await NextFrame(30);
             }
-            await NextFrame(30);
+
+            if (!accepted)
+            {
+                Diag("No raise within window; falling back to return-home.");
+                await TriggerReturnHome();
+            }
         }
 
-        Status = "No raise — releasing to home point";
-        Diag("No raise within 30s, sending /release");
-        try { Chat.SendMessage("/release"); }
-        catch (Exception ex) { Diag($"/release send failed: {ex.Message}"); }
+        await WaitForReviveOrTransition();
 
-        // 60s cap in case the release prompt is intercepted (party offer, etc.).
-        var teleportDeadline = Environment.TickCount64 + 60_000;
-        while (Environment.TickCount64 < teleportDeadline)
+        if (returnToFateId is { } retId
+            && PublicEvent.GetFateById(retId) is { Progress: < 100 } retFate
+            && Svc.ClientState.TerritoryType == zone.TerritoryId)
         {
-            if (CancelToken.IsCancellationRequested) return true;
+            Status = "Returning to FATE";
+            Diag($"Re-engaging FATE {retId} after revive.");
+            try
+            {
+                await TeleportTo(zone.TerritoryId, retFate.Position, allowSameZoneTeleport: true);
+                await UseAethernet(zone.TerritoryId, retFate.Position);
+            }
+            catch (Exception ex)
+            {
+                Diag($"Return-to-FATE teleport threw: {ex.Message}");
+            }
+        }
+        else if (Svc.ClientState.TerritoryType != startZoneId && startPos is not null)
+        {
+            // Drifted to a different territory (e.g. instance swap). Outer loop's WrongZone state recovers.
+            Diag($"Revived in {Svc.ClientState.TerritoryType}, expected {startZoneId}; outer loop will retarget.");
+        }
+    }
+
+    private async Task TriggerReturnHome()
+    {
+        if (!TryExecuteReviveCommand(ReviveParamReturn))
+        {
+            try { Chat.SendMessage("/release"); }
+            catch (Exception ex) { Diag($"/release send failed: {ex.Message}"); }
+        }
+    }
+
+    private static bool TryExecuteReviveCommand(int param)
+    {
+        try
+        {
+            GameMain.ExecuteCommand((int)ReviveCommandId, param, 0, 0, 0);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Svc.Log.Warning(ex, "[AFG] GameMain.ExecuteCommand revive failed");
+            return false;
+        }
+    }
+
+    private static bool TryAcceptRaisePrompt()
+    {
+        // No reliable raise-prompt addon check that's API-stable across patches; accept-attempt is a no-op
+        // unless the prompt is showing, so we can spam it without side effects.
+        return TryExecuteReviveCommand(ReviveParamAccept);
+    }
+
+    private async Task WaitForReviveOrTransition()
+    {
+        var deadline = Environment.TickCount64 + ReleaseTransitionWaitMs;
+        while (Environment.TickCount64 < deadline)
+        {
+            if (CancelToken.IsCancellationRequested) return;
             var stillKO = IsPlayerKO();
             var transitioning = Svc.Condition[ConditionFlag.BetweenAreas]
                              || Svc.Condition[ConditionFlag.BetweenAreas51];
             if (!stillKO && !transitioning)
             {
-                Diag($"Released, now in territory {Svc.ClientState.TerritoryType}");
-                await NextFrame(60);
-                return true;
+                await NextFrame(60); // settle so weakness statuses register
+                return;
             }
             await NextFrame(30);
         }
-
-        Diag("Release timed out, falling through; outer loop will retry");
-        return true;
+        Diag("Revive transition timed out; outer loop will retry.");
     }
 
     private static bool IsPlayerKO() => Svc.Condition[ConditionFlag.Unconscious];
+
+    private void StartFollowUpWatch(uint parentFateId)
+    {
+        var sheet = Svc.Data.GetExcelSheet<Lumina.Excel.Sheets.Fate>();
+        var parent = sheet?.GetRowOrDefault(parentFateId);
+        if (parent?.HasFollowUp != true) return;
+        if (followUpFateId != parentFateId)
+            Diag($"Watching for follow-up to FATE {parentFateId} for {FollowUpWatchMs/1000}s");
+        followUpFateId = parentFateId;
+        followUpWatchUntilMs = Environment.TickCount64 + FollowUpWatchMs;
+    }
+
+    private bool ShouldWaitForFollowUp()
+    {
+        if (followUpFateId is not { } fateId) return false;
+        var sheet = Svc.Data.GetExcelSheet<Lumina.Excel.Sheets.Fate>();
+        var row = sheet?.GetRowOrDefault(fateId);
+        if (row is null) { followUpFateId = null; return false; }
+
+        var locationId = row.Value.Location;
+        if (locationId != 0 && PublicEvent.Fates is { } fates &&
+            fates.Any(f => f.Id > fateId && sheet?.GetRowOrDefault(f.Id)?.Location == locationId))
+        {
+            Diag($"Follow-up FATE detected for parent {fateId}; resuming");
+            followUpFateId = null;
+            return false;
+        }
+
+        if (Environment.TickCount64 >= followUpWatchUntilMs)
+        {
+            followUpFateId = null;
+            return false;
+        }
+        return true;
+    }
 
     private async Task ActivateFate(PublicEvent fate)
     {
         Status = $"Activating {fate.Name}";
         Diag($"FATE {fate.Id} in Preparation, walking to MotivationNpc {fate.MotivationNpcId:X}");
 
-        await WaitUntil(
-            condition: () => (fate.MotivationNpc?.IsTargetable ?? false) || fate.State == FateState.Running,
-            scopeName: "wait-npc-spawn",
-            checkFrequency: 30,
-            logContinuously: false);
+        var npcDeadline = Environment.TickCount64 + NpcSpawnTimeoutMs;
+        while (Environment.TickCount64 < npcDeadline)
+        {
+            if (CancelToken.IsCancellationRequested) return;
+            if (fate.State == FateState.Running) return;
+            if (fate.MotivationNpc?.IsTargetable == true) break;
+            await NextFrame(30);
+        }
 
         if (fate.State == FateState.Running) return;
         var npc = fate.MotivationNpc;
-        if (npc is null || !npc.IsTargetable) return;
+        if (npc is null || !npc.IsTargetable)
+        {
+            Diag($"NPC for FATE {fate.Id} never spawned within {NpcSpawnTimeoutMs/1000}s; blacklisting for session");
+            sessionStuckFateIds.Add(fate.Id);
+            return;
+        }
 
         try
         {
@@ -387,51 +726,12 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         }
     }
 
-    private async Task WaitForFateExpiry(uint fateId)
-    {
-        Status = "Waiting for Collect rewards";
-        Diag($"Collect FATE {fateId} done, holding in zone until row expires");
-        await WaitUntil(
-            condition: () => PublicEvent.GetFateById(fateId) is null,
-            scopeName: $"wait-collect-expiry:{fateId}",
-            checkFrequency: 60,
-            logContinuously: false);
-    }
+    private enum MoveStopReason { None, StuckRetry, StuckTeleport, HigherPriority, NpcSpawned, FateInvalid }
 
-    private async Task WatchForFollowUp(uint parentFateId)
-    {
-        var sheet = Svc.Data.GetExcelSheet<Lumina.Excel.Sheets.Fate>();
-        var parent = sheet?.GetRowOrDefault(parentFateId);
-        if (parent?.HasFollowUp != true) return;
-
-        var locationId = parent.Value.Location;
-        if (locationId == 0) return;
-
-        Status = "Watching for follow-up FATE";
-        var deadline = Environment.TickCount64 + FollowUpWatchMs;
-        while (Environment.TickCount64 < deadline)
-        {
-            if (CancelToken.IsCancellationRequested) return;
-            var matched = PublicEvent.Fates?.Any(f =>
-                f.Id > parentFateId
-                && sheet?.GetRowOrDefault(f.Id)?.Location == locationId) ?? false;
-            if (matched)
-            {
-                Diag($"Follow-up FATE detected for parent {parentFateId}; resuming");
-                return;
-            }
-            var remaining = (deadline - Environment.TickCount64) / 1000 + 1;
-            Status = $"Watching for follow-up ({remaining}s)";
-            await NextFrame(100);
-        }
-    }
-
-    private enum MoveStopReason { None, StuckRetry, StuckTeleport }
-
-    // Anchor at nearest reachable point so terrain-blocked centers still get a usable map.
     private async Task GenerateObstacleMap(PublicEvent fate)
     {
         if (obstacleMapBlacklist.Contains(fate.Id)) return;
+        if (Plugin.Cfg.RuntimeBadObstacleMaps.Contains(fate.Id)) return;
         if (!BossModIPC.Instance.IsAvailable) return;
 
         var safe = NavmeshIPC.Instance.NearestPointReachable(fate.Position, 5f, 5f);
@@ -451,7 +751,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
             if (CancelToken.IsCancellationRequested) return;
             var status = BossModIPC.Instance.GetObstacleMapStatus();
             if (status is null) return;
-            if (status == TaskStatus.RanToCompletion) return;
+            if (status == TaskStatus.RanToCompletion) break;
             if (status == TaskStatus.Faulted || status == TaskStatus.Canceled)
             {
                 Diag($"Obstacle map generation {status} for FATE {fate.Id}");
@@ -459,14 +759,19 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
             }
             await NextFrame();
         }
-        Diag($"Obstacle map generation timed out for FATE {fate.Id}");
+
+        if (BossModIPC.Instance.EvaluateTempMapQualityIsBad())
+        {
+            Diag($"Obstacle map quality too poor for FATE {fate.Id}; clearing and adding to runtime blacklist");
+            Plugin.Cfg.RuntimeBadObstacleMaps.Add(fate.Id);
+            BossModIPC.Instance.ClearTempObstacleMap();
+        }
     }
 
     private async Task<MoveStopReason> MoveToFate(PublicEvent fate)
     {
         await GenerateObstacleMap(fate);
 
-        // Snap to navmesh — raw FATE-center Y is often inside terrain in vertical zones.
         var rnd = RandomPointInsideRadius(fate.Position, fate.Radius * 0.5f);
         var dest = rnd.OnMesh();
         if (dest == rnd)
@@ -476,23 +781,76 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         var stuck = new StuckTracker();
         var label = $"Moving to {fate.Name}";
         var deadline = Environment.TickCount64 + MoveToFateWatchdogMs;
-        var watchdogFired = false;
+        var lastRetargetAtMs = Environment.TickCount64;
+        var stopReason = MoveStopReason.None;
+
+        // Initial target id captured locally so retarget detection is unambiguous.
+        var targetId = fate.Id;
 
         var moveTask = MoveTo(zone.TerritoryId, dest, config,
-            allowTeleportIfFaster: !PlayerHasTwistOfFate(),
+            allowTeleportIfFaster: !FateScanner.PlayerHasTwistOfFate(),
             stopCondition: () =>
             {
                 Status = label;
-                if (Environment.TickCount64 >= deadline) watchdogFired = true;
-                return watchdogFired
-                    || fate.State != FateState.Running
-                    || stuck.Check() != MoveStopReason.None;
+
+                if (Environment.TickCount64 >= deadline)
+                {
+                    stopReason = MoveStopReason.StuckTeleport;
+                    return true;
+                }
+
+                if (stopReason != MoveStopReason.None) return true;
+
+                // Target FATE went away or became ineligible.
+                var refreshed = PublicEvent.GetFateById(targetId);
+                if (refreshed is null)
+                {
+                    stopReason = MoveStopReason.FateInvalid;
+                    return true;
+                }
+                if (refreshed.State != FateState.Running)
+                {
+                    // Preparing → NPC may have just spawned; bail so ActivateFate runs.
+                    if (refreshed.State == FateState.Preparing && refreshed.MotivationNpc?.IsTargetable == true)
+                    {
+                        stopReason = MoveStopReason.NpcSpawned;
+                        return true;
+                    }
+                    stopReason = MoveStopReason.FateInvalid;
+                    return true;
+                }
+
+                // Mid-path retargeting (skip when we're heading back to a FATE we died in).
+                if (returnToFateId != targetId
+                 && Environment.TickCount64 - lastRetargetAtMs >= MidPathRetargetIntervalMs)
+                {
+                    lastRetargetAtMs = Environment.TickCount64;
+                    var player = Svc.Objects.LocalPlayer;
+                    if (player is not null)
+                    {
+                        var better = FateScanner.PickNext(Plugin.Cfg, player.Position, sessionStuckFateIds, null);
+                        if (better is not null && better.Id != targetId)
+                        {
+                            Diag($"Mid-path retarget: {targetId} -> {better.Id} ({better.Name})");
+                            stopReason = MoveStopReason.HigherPriority;
+                            return true;
+                        }
+                    }
+                }
+
+                var stuckReason = stuck.Check();
+                if (stuckReason != MoveStopReason.None)
+                {
+                    stopReason = stuckReason;
+                    return true;
+                }
+                return false;
             },
             onStopReached: null,
             allowAethernetWithinTerritory: true);
 
-        // Wall-clock backstop: if clib parks inside its UseAethernet/TeleportTo sub-flow
-        // and never polls stopCondition, the watchdog Stop() forces the path task to bail.
+        // Wall-clock backstop: if clib parks inside a sub-flow without polling stopCondition,
+        // the watchdog forces a stop here.
         while (!moveTask.IsCompleted && Environment.TickCount64 < deadline)
         {
             if (CancelToken.IsCancellationRequested) break;
@@ -501,8 +859,8 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
 
         if (!moveTask.IsCompleted)
         {
-            watchdogFired = true;
-            Diag($"MoveTo watchdog: no completion after {MoveToFateWatchdogMs / 1000}s for FATE {fate.Id} ({fate.Name}); forcing vnav stop and escalating");
+            stopReason = MoveStopReason.StuckTeleport;
+            Diag($"MoveTo watchdog: no completion after {MoveToFateWatchdogMs/1000}s for FATE {targetId} ({fate.Name}); forcing vnav stop and escalating");
             try { NavmeshIPC.Instance.Stop(); } catch { /* best-effort */ }
 
             var graceDeadline = Environment.TickCount64 + MoveToUnwindGraceMs;
@@ -510,7 +868,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
                 await NextFrame(120);
 
             if (!moveTask.IsCompleted)
-                Diag($"MoveTo did not unwind within {MoveToUnwindGraceMs / 1000}s of NavmeshIPC.Stop; continuing without await — task may leak");
+                Diag($"MoveTo did not unwind within {MoveToUnwindGraceMs/1000}s of NavmeshIPC.Stop; continuing without await — task may leak");
             else
                 await moveTask;
 
@@ -519,11 +877,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
 
         await moveTask;
 
-        if (stuck.Reason != MoveStopReason.None)
-            return stuck.Reason;
-
-        if (fate.State != FateState.Running)
-            return MoveStopReason.None;
+        if (stopReason != MoveStopReason.None) return stopReason;
 
         if (Svc.Condition[ConditionFlag.Mounted]) await Dismount();
         return MoveStopReason.None;
@@ -558,7 +912,6 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         return true;
     }
 
-    // Distinguishes vnav-gave-up (fast fail) from player-not-moving (slow fail); pauses for cutscenes/casts.
     private sealed class StuckTracker
     {
         private Vector3? lastProgressPos;
@@ -567,12 +920,9 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         private Vector3? retryPos;
         private bool retriedOnce;
         private bool wasRunning;
-        public MoveStopReason Reason { get; private set; } = MoveStopReason.None;
 
         public MoveStopReason Check()
         {
-            if (Reason != MoveStopReason.None) return Reason;
-
             var player = Svc.Objects.LocalPlayer;
             if (player is null) return MoveStopReason.None;
 
@@ -604,10 +954,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
                 lastProgressAtMs = now;
 
                 if (!isPathfinding && now - lastPathActivityAtMs >= VnavIdleTimeoutMs)
-                {
-                    Reason = EscalateOrRetry(pos);
-                    return Reason;
-                }
+                    return EscalateOrRetry(pos);
                 return MoveStopReason.None;
             }
 
@@ -630,8 +977,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
             if (now - lastProgressAtMs < StuckMoveTimeoutMs)
                 return MoveStopReason.None;
 
-            Reason = EscalateOrRetry(pos);
-            return Reason;
+            return EscalateOrRetry(pos);
         }
 
         private MoveStopReason EscalateOrRetry(Vector3 currentPos)
@@ -645,48 +991,6 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
             return MoveStopReason.StuckRetry;
         }
     }
-
-    private async Task EngageFate(PublicEvent fate)
-    {
-        var preset = Plugin.Cfg.CombatPresetName;
-        Status = $"Engaging {fate.Name}";
-
-        EnsureCombatPreset(preset);
-        SyncToFate(fate.Id);
-        AssertPresetActive(preset);
-
-        try
-        {
-            // Per-tick re-assert covers transient deactivation (death, /vbm clear, BossMod reload).
-            while (!CancelToken.IsCancellationRequested)
-            {
-                if (fate.State != FateState.Running) break;
-                if (IsPlayerKO()) break;
-
-                if (Svc.Condition[ConditionFlag.Mounted])
-                {
-                    BossModIPC.Instance.ClearActive();
-                    await Dismount();
-                    AssertPresetActive(preset);
-                }
-                else
-                {
-                    AssertPresetActive(preset);
-                }
-
-                // Re-sync covers mid-fight level bumps and death+revive sync drops.
-                SyncToFate(fate.Id);
-
-                await NextFrame(30);
-            }
-        }
-        finally
-        {
-            BossModIPC.Instance.ClearActive();
-        }
-    }
-
-    private bool presetEnsured;
 
     private void EnsureCombatPreset(string preset)
     {
@@ -714,7 +1018,6 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         BossModIPC.Instance.AddTransientStrategy(preset, "BossMod.Autorotation.MiscAI.AutoTarget", "MaxTargets", PullSize().ToString());
     }
 
-    // Direct call mirrors the FATE-icon button so we don't depend on "Allow level sync down" setting.
     private static unsafe void SyncToFate(uint fateId)
     {
         var mgr = CSFateManager.Instance();
@@ -725,17 +1028,6 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         mgr->LevelSync();
     }
 
-    private static bool PlayerHasTwistOfFate()
-    {
-        var player = Svc.Objects.LocalPlayer;
-        if (player is null) return false;
-        const uint twistOfFateStatusId = 1288;
-        foreach (var s in player.StatusList)
-            if (s.StatusId == twistOfFateStatusId) return true;
-        return false;
-    }
-
-    // MaxTargets by role: tank unlimited, healer 5, DPS / other 3.
     private static int PullSize()
     {
         var player = Svc.Objects.LocalPlayer;
@@ -759,17 +1051,9 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
             center.Z + (float)Math.Sin(angle) * r);
     }
 
-    private bool StopConditionMet() => Plugin.Cfg.Mode switch
-    {
-        GrindMode.Endless      => false,
-        // Per-zone case is handled by the rotation check at the top of the loop.
-        GrindMode.MaxFates     => zones.All(z => z.AchievementDone),
-        GrindMode.MaxGemstones => GemstoneCatalog.CurrentWalletCount() >= Plugin.Cfg.TargetGemstoneCount,
-        GrindMode.RunCount     => session.CompletedCount >= Plugin.Cfg.TargetFateCount,
-        _ => false,
-    };
+    private bool StopConditionMet()
+        => Plugin.Cfg.ActiveMode.IsComplete(new ModeContext { CompletedCount = session.CompletedCount, Zones = zones });
 
-    // Class swap is fire-and-forget; returns true when the caller should bail out of the FATE loop.
     private bool AdvanceClassQueueIfCapHit()
     {
         var cfg = Plugin.Cfg;
@@ -798,6 +1082,31 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         return false;
     }
 
+    private static bool textAdvanceArmed;
+    private const string TextAdvanceScope = "AutoFateGrind";
+
+    private static void EnableTextAdvanceForCollect()
+    {
+        if (textAdvanceArmed) return;
+        if (!ExternalPlugins.IsInstalled(ExternalPlugin.TextAdvance)) return;
+        try
+        {
+            TextAdvanceIPC.EnableExternalControl(TextAdvanceScope, talkSkip: true, requestFill: true, requestHandin: true);
+            textAdvanceArmed = true;
+        }
+        catch (Exception ex)
+        {
+            Svc.Log.Warning(ex, "[AFG] TextAdvance enable failed");
+        }
+    }
+
+    private static void DisableTextAdvance()
+    {
+        if (!textAdvanceArmed) return;
+        try { TextAdvanceIPC.DisableExternalControl(TextAdvanceScope); }
+        catch (Exception ex) { Svc.Log.Warning(ex, "[AFG] TextAdvance disable failed"); }
+        textAdvanceArmed = false;
+    }
 }
 
 public sealed class AutoFateSession

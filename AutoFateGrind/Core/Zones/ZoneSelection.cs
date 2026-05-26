@@ -2,7 +2,7 @@ namespace AutoFateGrind.Core.Zones;
 
 internal static class ZoneSelection
 {
-    public static bool IsAutoSelected(Configuration cfg) => cfg.Mode == GrindMode.MaxFates;
+    public static bool IsAutoSelected(Configuration cfg) => cfg.ActiveMode.RotatesSharedFateZones;
 
     // Shared-FATE achievements only exist for ShB / EW / DT.
     public static IEnumerable<ZoneInfo> SharedFateCandidates() =>

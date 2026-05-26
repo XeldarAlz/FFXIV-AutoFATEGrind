@@ -17,7 +17,8 @@ internal static class GoalSummary
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextSecondary))
             ImGui.TextUnformatted(summary);
 
-        if (cfg.Mode == GrindMode.RunCount)
+        var modeId = cfg.ActiveMode.Id;
+        if (modeId == "runcount")
         {
             ImGui.SameLine();
             ImGui.SetNextItemWidth(80);
@@ -31,7 +32,7 @@ internal static class GoalSummary
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
                 ImGui.TextUnformatted("FATEs");
         }
-        else if (cfg.Mode == GrindMode.MaxGemstones)
+        else if (modeId == "maxgemstones")
         {
             ImGui.SameLine();
             ImGui.SetNextItemWidth(90);
@@ -62,13 +63,13 @@ internal static class GoalSummary
                 : "Pick at least one zone below.");
     }
 
-    private static unsafe string SummaryFor(Configuration cfg) => cfg.Mode switch
+    private static string SummaryFor(Configuration cfg) => cfg.ActiveMode.Id switch
     {
-        GrindMode.MaxGemstones => "Stops at",
-        GrindMode.MaxFates     => "Auto-rotates ShB / EW / DT zones until every Shared FATE achievement is complete.",
-        GrindMode.RunCount     => "Stops after",
-        GrindMode.Endless      => "Rotates selected zones until you press Stop.",
-        _ => "",
+        "maxgemstones" => "Stops at",
+        "maxfates"     => "Auto-rotates ShB / EW / DT zones until every Shared FATE achievement is complete.",
+        "runcount"     => "Stops after",
+        "endless"      => "Rotates selected zones until you press Stop.",
+        _              => cfg.ActiveMode.Description,
     };
 
     private static unsafe int GemstoneCount()

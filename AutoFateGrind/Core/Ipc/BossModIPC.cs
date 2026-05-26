@@ -20,6 +20,7 @@ internal sealed class BossModIPC
     private readonly ICallGateSubscriber<TaskStatus>                 obstacleGetStatus;
     private readonly ICallGateSubscriber<bool>                       obstacleHasTempMap;
     private readonly ICallGateSubscriber<bool>                       obstacleClearTempMap;
+    private readonly ICallGateSubscriber<object?>                    obstacleEvaluateQuality;
 
     private BossModIPC()
     {
@@ -33,6 +34,7 @@ internal sealed class BossModIPC
         obstacleGetStatus    = Svc.PluginInterface.GetIpcSubscriber<TaskStatus>("BossMod.ObstacleMap.GetGenerationStatus");
         obstacleHasTempMap   = Svc.PluginInterface.GetIpcSubscriber<bool>("BossMod.ObstacleMap.HasTempMap");
         obstacleClearTempMap = Svc.PluginInterface.GetIpcSubscriber<bool>("BossMod.ObstacleMap.ClearTempMap");
+        obstacleEvaluateQuality = Svc.PluginInterface.GetIpcSubscriber<object?>("BossMod.ObstacleMap.EvaluateTempMapQuality");
     }
 
     public bool IsAvailable => setActive.HasFunction;
@@ -105,5 +107,26 @@ internal sealed class BossModIPC
         if (!obstacleClearTempMap.HasFunction) return false;
         try { return obstacleClearTempMap.InvokeFunc(); }
         catch (Exception ex) { Svc.Log.Warning(ex, "[BossModIPC] ClearTempObstacleMap failed"); return false; }
+    }
+
+    // BossMod returns a quality record with an IsBad property; we read it by reflection so changes
+    // to the underlying struct shape don't break us — if the IPC or the property is missing, we
+    // conservatively say "not bad" so existing behavior continues.
+    public bool EvaluateTempMapQualityIsBad()
+    {
+        if (!obstacleEvaluateQuality.HasFunction) return false;
+        try
+        {
+            var result = obstacleEvaluateQuality.InvokeFunc();
+            if (result is null) return false;
+            var prop = result.GetType().GetProperty("IsBad");
+            if (prop is null) return false;
+            return prop.GetValue(result) is bool b && b;
+        }
+        catch (Exception ex)
+        {
+            Svc.Log.Warning(ex, "[BossModIPC] EvaluateTempMapQuality failed");
+            return false;
+        }
     }
 }

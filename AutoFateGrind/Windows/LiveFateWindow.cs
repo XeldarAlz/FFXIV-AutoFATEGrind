@@ -98,7 +98,7 @@ public sealed class LiveFateWindow : Window, IDisposable
 
         var fates = (PublicEvent.Fates ?? Enumerable.Empty<PublicEvent>())
             .Where(f => f.State == FateState.Running)
-            .Where(f => !cfg.BlacklistedFateIds.Contains(f.Id))
+            .Where(f => !Core.Game.FateBlacklist.Contains(cfg, f))
             .OrderByDescending(f => f.HasBonus)
             .ThenBy(f => f.TimeRemaining)
             .ThenBy(f => Vector3.DistanceSquared(f.Position, player.Position))
@@ -130,11 +130,21 @@ public sealed class LiveFateWindow : Window, IDisposable
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextSecondary))
             ImGui.TextUnformatted($"L{fate.Level} {fate.Name}");
 
+        var banSize = ImGui.GetFrameHeight();
         var right = $"{fate.Progress}%  {FormatTime(fate.TimeRemaining)}";
         var rightSize = ImGui.CalcTextSize(right);
-        ImGui.SameLine(ImGui.GetContentRegionAvail().X + ImGui.GetCursorPosX() - rightSize.X);
+        var pad = 8f * ImGuiHelpers.GlobalScale;
+        ImGui.SameLine(ImGui.GetContentRegionAvail().X + ImGui.GetCursorPosX() - rightSize.X - banSize - pad);
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
             ImGui.TextUnformatted(right);
+
+        ImGui.SameLine(0, pad);
+        using (ImRaii.PushFont(UiBuilder.IconFont))
+        using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentRose))
+            if (ImGui.SmallButton(FontAwesomeIcon.Ban.ToIconString() + $"##ban_{fate.Id}"))
+                Core.Game.FateBlacklist.ToggleId(Plugin.Cfg, fate);
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("Blacklist this FATE for this character (skips it while grinding).");
     }
 
     private static void DrawSession(AutoFateController controller)

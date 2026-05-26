@@ -14,10 +14,10 @@ internal static class ZonePicker
     public static void Draw(Configuration cfg, AutoFateController controller)
     {
         var autoSelected = ZoneSelection.IsAutoSelected(cfg);
-        var scopedToShared = IsSharedScoped(cfg.Mode);
+        var scopedToShared = cfg.ActiveMode.RotatesSharedFateZones;
 
         // Eager refresh so tab badges cover collapsed expansions too.
-        if (cfg.Mode == GrindMode.MaxFates)
+        if (cfg.ActiveMode.RotatesSharedFateZones)
             foreach (var z in ZoneRegistry.Zones)
                 if (z.AchievementId != 0) ZoneStateReader.Refresh(z);
 
@@ -205,7 +205,7 @@ internal static class ZonePicker
             ImGui.Spacing();
         }
 
-        var hideCompleted = cfg.Mode == GrindMode.MaxFates && (autoSelected || !cfg.ShowCompletedZones);
+        var hideCompleted = cfg.ActiveMode.RotatesSharedFateZones && (autoSelected || !cfg.ShowCompletedZones);
         var visible = hideCompleted ? zones.Where(z => !z.AchievementDone).ToArray() : zones;
 
         if (visible.Length == 0)
@@ -239,7 +239,7 @@ internal static class ZonePicker
         var rightLabel = allSelected ? "Clear all" : "Select all";
         var rightWidth = ImGui.CalcTextSize(rightLabel).X + ImGui.GetStyle().FramePadding.X * 2;
 
-        var canHideCompleted = cfg.Mode == GrindMode.MaxFates && zones.Any(z => z.AchievementDone);
+        var canHideCompleted = cfg.ActiveMode.RotatesSharedFateZones && zones.Any(z => z.AchievementDone);
         string? toggleLabel = canHideCompleted
             ? (cfg.ShowCompletedZones ? "Hide done" : "Show done")
             : null;
@@ -274,7 +274,7 @@ internal static class ZonePicker
     private static void DrawRow(ZoneInfo zone, Configuration cfg, AutoFateController controller)
     {
         var sel = cfg.SelectedZones.Contains(zone.TerritoryId);
-        var achievementBlocks = cfg.Mode == GrindMode.MaxFates && zone.AchievementDone;
+        var achievementBlocks = cfg.ActiveMode.RotatesSharedFateZones && zone.AchievementDone;
         var disabled = controller.Running || !zone.Unlocked || achievementBlocks;
 
         ImGui.Indent(6f);
@@ -358,9 +358,6 @@ internal static class ZonePicker
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentAmber))
             ImGui.TextUnformatted(pill);
     }
-
-    private static bool IsSharedScoped(GrindMode mode)
-        => mode is GrindMode.MaxFates;
 
     private static string DisabledReason(bool running, bool unlocked, bool achievementBlocks)
     {

@@ -1,3 +1,4 @@
+using AutoFateGrind.Core.Modes;
 using Dalamud.Configuration;
 using ECommons.Throttlers;
 
@@ -16,7 +17,23 @@ public sealed class Configuration : IPluginConfiguration
     // unknown / stale ids are ignored at read time.
     public List<uint> SharedFateOrder { get; set; } = [];
 
+    // Legacy enum kept for migration from pre-mode-registry saves; ModeId is the source of truth now.
     public GrindMode Mode { get; set; } = GrindMode.MaxGemstones;
+
+    // Stable id into FateGrindModes. Empty means "not yet migrated" — resolved from Mode on first access.
+    public string ModeId { get; set; } = "";
+
+    [Newtonsoft.Json.JsonIgnore]
+    public IFateGrindMode ActiveMode
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(ModeId))
+                ModeId = FateGrindModes.IdForLegacy(Mode);
+            return FateGrindModes.GetById(ModeId) ?? FateGrindModes.Default;
+        }
+    }
+
     public int TargetFateCount { get; set; } = 30;
     public int TargetGemstoneCount { get; set; } = 1500;
 
@@ -35,11 +52,24 @@ public sealed class Configuration : IPluginConfiguration
     public bool SwapZonesWhenEmpty { get; set; } = true;
     public bool ShowLivePopout { get; set; } = false;
 
-    // FATEs with broken obstacle maps that pathfinding fails on.
+    // Flat blacklist for FATEs with broken obstacle maps that pathfinding always fails on.
     public HashSet<uint> BlacklistedFateIds { get; set; } = [1831, 1832, 1914, 1915];
+
+    // Per-FateType blacklist (key is (int)PublicEvent.FateType for serialization stability).
+    // Lets the user say "block this specific kill FATE" without affecting other FATEs of the same type,
+    // and groups the UI rows by type. Augments BlacklistedFateIds rather than replacing it.
+    public Dictionary<int, HashSet<uint>> BlacklistedTypeIds { get; set; } = [];
 
     // Stored as int so saved configs survive clib's FateRule enum reordering.
     public HashSet<int> SkippedFateRules { get; set; } = [];
+
+    // Reorderable sort criteria. Empty list falls back to the default order baked into FateScanner.
+    public List<FateSortEntry> FateSortOrder { get; set; } = [];
+
+    // Runtime-only — never persists; FATEs whose obstacle map evaluated as bad mid-run, so the next
+    // attempt won't re-generate and stall again. Cleared when the plugin reloads.
+    [Newtonsoft.Json.JsonIgnore]
+    public HashSet<uint> RuntimeBadObstacleMaps { get; set; } = [];
 
     public uint TargetTradeItemId { get; set; } = 0;
     public bool TradeOnCap { get; set; } = true;
@@ -101,6 +131,25 @@ public enum AfterClassQueueDone
 {
     KeepGrindingOnLast,
     StopRun,
+}
+
+public enum FateSortCriterion
+{
+    HasBonusWithTwist,
+    Progress,
+    HasBonus,
+    TimeRemainingUrgent,
+    Distance,
+    TimeRemaining,
+    Level,
+    Name,
+}
+
+[Serializable]
+public sealed class FateSortEntry
+{
+    public FateSortCriterion Criterion { get; set; }
+    public bool Descending { get; set; }
 }
 
 [Serializable]

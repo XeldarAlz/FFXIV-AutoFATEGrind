@@ -34,7 +34,7 @@ internal sealed class AutoFateController
             GemstoneCurrent = startWallet,
         };
         session = s;
-        Diag($"Run starting: {activeZones.Count} zone(s), mode {Plugin.Cfg.Mode}, wallet {startWallet}g, threshold {Plugin.Cfg.TradeThreshold}g, trade-on-cap {(Plugin.Cfg.TradeOnCap ? "on" : "off")}.");
+        Diag($"Run starting: {activeZones.Count} zone(s), mode {Plugin.Cfg.ActiveMode.DisplayName}, wallet {startWallet}g, threshold {Plugin.Cfg.TradeThreshold}g, trade-on-cap {(Plugin.Cfg.TradeOnCap ? "on" : "off")}.");
 
         ApplyStartingClass();
         StartFateGrind(0, s);
