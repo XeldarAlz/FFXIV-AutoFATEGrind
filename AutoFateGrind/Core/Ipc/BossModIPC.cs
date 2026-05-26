@@ -109,9 +109,8 @@ internal sealed class BossModIPC
         catch (Exception ex) { Svc.Log.Warning(ex, "[BossModIPC] ClearTempObstacleMap failed"); return false; }
     }
 
-    // BossMod returns a quality record with an IsBad property; we read it by reflection so changes
-    // to the underlying struct shape don't break us — if the IPC or the property is missing, we
-    // conservatively say "not bad" so existing behavior continues.
+    // Read IsBad by reflection so a change to BossMod's quality struct can't break us; missing IPC
+    // or property is treated as "not bad" to preserve existing behavior.
     public bool EvaluateTempMapQualityIsBad()
     {
         if (!obstacleEvaluateQuality.HasFunction) return false;

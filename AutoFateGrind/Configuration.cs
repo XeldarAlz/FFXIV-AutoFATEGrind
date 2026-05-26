@@ -55,9 +55,8 @@ public sealed class Configuration : IPluginConfiguration
     // Flat blacklist for FATEs with broken obstacle maps that pathfinding always fails on.
     public HashSet<uint> BlacklistedFateIds { get; set; } = [1831, 1832, 1914, 1915];
 
-    // Per-FateType blacklist (key is (int)PublicEvent.FateType for serialization stability).
-    // Lets the user say "block this specific kill FATE" without affecting other FATEs of the same type,
-    // and groups the UI rows by type. Augments BlacklistedFateIds rather than replacing it.
+    // Per-FateType blacklist (key is (int)FateType for serialization stability). Augments, not replaces,
+    // BlacklistedFateIds.
     public Dictionary<int, HashSet<uint>> BlacklistedTypeIds { get; set; } = [];
 
     // Stored as int so saved configs survive clib's FateRule enum reordering.

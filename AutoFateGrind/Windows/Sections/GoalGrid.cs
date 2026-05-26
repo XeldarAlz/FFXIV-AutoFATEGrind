@@ -9,8 +9,7 @@ namespace AutoFateGrind.Windows.Sections;
 
 internal static class GoalGrid
 {
-    // Presentation only, keyed by mode id so the registry stays UI-agnostic. Modes without an entry
-    // fall back to a neutral icon/accent, so newly-registered modes still render.
+    // Keyed by mode id so the registry stays UI-agnostic; unknown ids fall back to a neutral visual.
     private static readonly Dictionary<string, (FontAwesomeIcon Icon, Vector4 Accent)> visuals = new()
     {
         ["maxgemstones"] = (FontAwesomeIcon.Gem,      Styling.AccentViolet),

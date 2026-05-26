@@ -13,7 +13,6 @@ public abstract class AutoCommon : TaskBase
         Svc.Log.Info($"[AFG] {message}");
     }
 
-    // Verbose breadcrumb — shows up at Debug log level for deep tracing without spamming Info.
     protected void Trace(string message)
     {
         Svc.Log.Debug($"[AFG] {message}");
@@ -29,10 +28,9 @@ public abstract class AutoCommon : TaskBase
         finally { Svc.Framework.Update -= Pin; }
     }
 
-    // Await a clib sub-task but never block longer than timeoutMs. Stays on the framework thread by
-    // polling IsCompleted between frames (mixing Task.Delay would risk resuming off-thread). On
-    // timeout we stop vnav, allow a short unwind grace, then return false so the caller can recover.
-    // Genuine faults propagate (an intentional ErrorIf abort must still stop the run).
+    // Await a clib sub-task with a wall-clock cap. Polls between frames rather than racing Task.Delay,
+    // which would risk resuming off the framework thread. On timeout: stop vnav, brief unwind grace,
+    // return false so the caller recovers. Faults still propagate (an ErrorIf abort must stop the run).
     protected async Task<bool> AwaitWatchdog(Task work, int timeoutMs, string label, bool stopNavOnTimeout = true)
     {
         var deadline = Environment.TickCount64 + timeoutMs;
@@ -67,8 +65,6 @@ public abstract class AutoCommon : TaskBase
         return false;
     }
 
-    // Poll a condition with a hard deadline. Returns true if met, false on timeout/cancel. Logs the
-    // timeout so a stuck shop/teleport leaves a trail in /xllog instead of hanging silently.
     protected async Task<bool> WaitUntilTimed(Func<bool> condition, int timeoutMs, string scope, int checkMs = 30)
     {
         var deadline = Environment.TickCount64 + timeoutMs;

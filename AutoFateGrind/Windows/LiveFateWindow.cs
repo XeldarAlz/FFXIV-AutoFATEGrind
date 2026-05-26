@@ -96,20 +96,19 @@ public sealed class LiveFateWindow : Window, IDisposable
         var player = Svc.Objects.LocalPlayer;
         if (player is null) return;
 
+        var current = PublicEvent.CurrentFate;
         var fates = (PublicEvent.Fates ?? Enumerable.Empty<PublicEvent>())
-            .Where(f => f.State == FateState.Running)
-            .Where(f => !Core.Game.FateBlacklist.Contains(cfg, f))
+            .Where(f => current is null || f.Id != current.Id)
+            .Where(f => Core.Game.FateScanner.IsEligible(f, cfg, null))
             .OrderByDescending(f => f.HasBonus)
             .ThenBy(f => f.TimeRemaining)
             .ThenBy(f => Vector3.DistanceSquared(f.Position, player.Position))
             .Take(3)
             .ToArray();
 
-        var current = PublicEvent.CurrentFate;
         var any = false;
         foreach (var f in fates)
         {
-            if (current is not null && f.Id == current.Id) continue;
             any = true;
             DrawCompactRow(f);
         }

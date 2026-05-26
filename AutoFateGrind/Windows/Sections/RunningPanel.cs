@@ -1,3 +1,4 @@
+using AutoFateGrind.Core.Game;
 using AutoFateGrind.Core.Tasks;
 using AutoFateGrind.Core.Zones;
 using AutoFateGrind.Windows.Components;
@@ -134,21 +135,20 @@ internal static class RunningPanel
             EmptyHint("Player not loaded.");
             return;
         }
+        var current = PublicEvent.CurrentFate;
         var fates = (PublicEvent.Fates ?? Enumerable.Empty<PublicEvent>())
-            .Where(f => f.State == FateState.Running)
-            .Where(f => !cfg.BlacklistedFateIds.Contains(f.Id))
+            .Where(f => current is null || f.Id != current.Id)
+            .Where(f => FateScanner.IsEligible(f, cfg, null))
             .OrderByDescending(f => f.HasBonus)
             .ThenByDescending(f => f.Progress)
             .ThenBy(f => Vector3.DistanceSquared(f.Position, player.Position))
             .ThenBy(f => f.TimeRemaining)
             .Take(5)
             .ToArray();
-        if (fates.Length == 0) { EmptyHint("No other active FATEs in this zone."); return; }
+        if (fates.Length == 0) { EmptyHint("No other eligible FATEs in this zone."); return; }
 
-        var current = PublicEvent.CurrentFate;
         foreach (var f in fates)
         {
-            if (current is not null && f.Id == current.Id) continue;
             DrawQueueRow(f, player.Position);
             ImGui.Spacing();
         }

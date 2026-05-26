@@ -7,14 +7,11 @@ namespace AutoFateGrind.Core.Game;
 
 internal static class FateScanner
 {
-    // Below this, TimeRemainingUrgent kicks in to prioritize about-to-expire FATEs.
     private const int UrgentTimeThresholdSec = 240;
-    // Twist of Fate status from a previous bonus FATE — we avoid burning a second bonus while it's up.
     private const uint TwistOfFateStatusId = 1288;
 
-    // forcedReturnId: if set and the FATE still exists with Progress < 100, return it unconditionally.
-    // Used after a KO so we re-engage the FATE we died in even if it now fails normal eligibility
-    // (e.g. low TimeRemaining). Honors player blacklist/session-stuck so genuinely-broken FATEs still skip.
+    // forcedReturnId (set after a KO) returns the FATE we died in unconditionally, bypassing normal
+    // eligibility like low TimeRemaining — but still respects the blacklists so broken FATEs skip.
     public static PublicEvent? PickNext(
         Configuration cfg,
         Vector3 playerPos,
@@ -80,11 +77,10 @@ internal static class FateScanner
         FateSortCriterion.HasBonusWithTwist => f => f.HasBonus && !PlayerHasTwistOfFate(),
         FateSortCriterion.Progress          => f => f.Progress,
         FateSortCriterion.HasBonus          => f => f.HasBonus,
-        // Negative TimeRemaining = unactivated; treat as non-urgent.
         FateSortCriterion.TimeRemainingUrgent => f => f.TimeRemaining is >= 0 and < UrgentTimeThresholdSec,
         FateSortCriterion.Distance          => f => Vector3.DistanceSquared(f.Position, playerPos),
-        // Bucket: urgent FATEs sort by their actual remaining time; non-urgent tie at the threshold so
-        // later criteria (distance, bonus) can break ties.
+        // Urgent FATEs sort by actual remaining time; non-urgent ones tie at the threshold so later
+        // criteria break the tie.
         FateSortCriterion.TimeRemaining     => f => f.TimeRemaining is >= 0 and < UrgentTimeThresholdSec
             ? f.TimeRemaining
             : UrgentTimeThresholdSec,

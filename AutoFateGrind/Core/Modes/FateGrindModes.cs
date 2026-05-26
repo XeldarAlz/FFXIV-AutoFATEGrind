@@ -1,7 +1,6 @@
 namespace AutoFateGrind.Core.Modes;
 
-// Registry of grind goals. Built-ins are listed in UI display order; Register() lets future
-// modes (relics, Yo-kai) bolt on without touching the enum or the UI grid wiring.
+// Built-ins are listed in UI display order; Register() lets future modes bolt on without UI churn.
 public static class FateGrindModes
 {
     private static readonly List<IFateGrindMode> registered =
@@ -25,7 +24,6 @@ public static class FateGrindModes
         registered.Add(mode);
     }
 
-    // Migration from the legacy GrindMode enum to a stable string id.
     public static string IdForLegacy(GrindMode legacy) => legacy switch
     {
         GrindMode.MaxGemstones => "maxgemstones",

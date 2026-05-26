@@ -18,9 +18,8 @@ using CSFateManager = FFXIVClientStructs.FFXIV.Client.Game.Fate.FateManager;
 
 namespace AutoFateGrind.Core.Tasks;
 
-// State-machine refactor. Each tick computes the desired state from game + run-local fields, then
-// dispatches a bounded handler. Every wait has a wall-clock timeout, so no single condition can
-// park the run indefinitely — if a handler returns early, the next ComputeState recovers.
+// Each tick computes the desired state, then dispatches a bounded handler. Every wait has a
+// wall-clock timeout so no single condition can park the run — an early return self-recovers.
 public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession session, int startIndex = 0) : AutoCommon
 {
     private readonly IReadOnlyList<ZoneInfo> zones = zones;
@@ -56,11 +55,10 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
     private int consecutiveStuckRetries;
     private uint? lastTeleportedFateId;
 
-    // Re-engage tracking.
     private uint? returnToFateId;          // FATE we died in; honor even if normal eligibility fails.
-    private uint? followUpFateId;          // Parent FATE id whose follow-up we're holding for.
+    private uint? followUpFateId;
     private long  followUpWatchUntilMs;
-    private uint? waitForExpiryFateId;     // Collect FATE done; hold zone until row disappears.
+    private uint? waitForExpiryFateId;
     private long  waitForExpiryStartedAtMs;
     private int   idleScans;
 
@@ -198,7 +196,6 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         }
     }
 
-    // Periodic snapshot for /xllog — the single most useful artifact when diagnosing a stuck run.
     private void LogHeartbeat(GrindState state)
     {
         var player = Svc.Objects.LocalPlayer;
@@ -212,14 +209,12 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         Diag($"HEARTBEAT state={state} ({inState}s) terr={Svc.ClientState.TerritoryType} zone={zone.Name} pos={posStr} fate={fateStr} {navStr} " +
              $"done={session.CompletedCount} ret={returnToFateId?.ToString() ?? "-"} followUp={followUpFateId?.ToString() ?? "-"} stuckBL={sessionStuckFateIds.Count}");
 
-        // A non-combat state that never moves is the classic "stuck" signature; flag it loudly.
         if (state is not GrindState.Engaging and not GrindState.WaitingForFates && inState >= 180)
             Diag($"STALL WARNING: state {state} held {inState}s — see prior heartbeats for context.");
     }
 
     private GrindState ComputeState()
     {
-        // Sweep stale wait-for-expiry id (row vanished or stuck longer than the cap).
         if (waitForExpiryFateId is { } wid)
         {
             if (PublicEvent.GetFateById(wid) is null
@@ -248,13 +243,11 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         if (Plugin.Cfg.ActiveMode.RotatesSharedFateZones && zone.AchievementDone)
             return GrindState.SwapZone;
 
-        // Only a *Running* CurrentFate means "fight it". After completion the row lingers non-Running
-        // for a frame or two; routing that to Engaging while EngageCurrentFate returns instantly would
-        // spin the framework thread and freeze the game. Let it fall through to follow-up / pick-next.
+        // Only a Running CurrentFate means "fight it". A completed fate lingers non-Running for a
+        // frame; routing that to Engaging (which returns instantly) would spin and freeze the game.
         if (PublicEvent.CurrentFate is { State: FateState.Running } current)
         {
-            // Collect at 100% — capture id for expiry hold, but stay Engaging until we're out of combat
-            // so a non-FATE mob can't keep us stuck mid-deactivation.
+            // Hold a completed Collect until out of combat so a stray mob can't trap us mid-deactivation.
             if (current is { Rule: PublicEvent.FateRule.Collect, Progress: >= 100, Id: var cid })
             {
                 if (waitForExpiryFateId != cid)
@@ -366,10 +359,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         if (CancelToken.IsCancellationRequested) return ExitReason.Quit;
 
         if (moveResult is MoveStopReason.HigherPriority or MoveStopReason.NpcSpawned)
-        {
-            // Let the loop re-pick / re-evaluate.
             return ExitReason.Continue;
-        }
 
         if (lastTeleportedFateId == fate.Id && moveResult != MoveStopReason.None)
         {
@@ -418,11 +408,10 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         if (lastStuckFateId == fate.Id) { lastStuckFateId = null; consecutiveStuckRetries = 0; }
         if (lastTeleportedFateId == fate.Id) lastTeleportedFateId = null;
 
-        // Arrived. Boss FATEs need NPC chat before Running; ActivateFate handles its own timeouts.
+        // Boss/event FATEs must be activated via their NPC before they go Running. 0xE0000000 = no NPC.
         if (fate.State == FateState.Preparing && fate.MotivationNpcId != 0xE0000000)
             await ActivateFate(fate);
 
-        // Successful return-to-FATE — clear the latch.
         if (returnToFateId == fate.Id && fate.State == FateState.Running)
             returnToFateId = null;
 
@@ -446,8 +435,8 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         var lastProgressAtMs = Environment.TickCount64;
         var lastInCombatAtMs = Environment.TickCount64;
         var collectTextAdvanceArmed = false;
-        // Guards against double-counting: only the entry that actually fought the FATE while it was
-        // Running may book the completion. A re-entry during the 100%-but-lingering frame won't.
+        // Only an entry that fought the fate while Running may book the completion — guards against
+        // a re-entry during the lingering 100% frame double-counting.
         var sawRunning = false;
 
         try
@@ -503,8 +492,6 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
             if (collectTextAdvanceArmed) DisableTextAdvance();
         }
 
-        // Completion bookkeeping — only count when we actually fought it to its end, not on bail
-        // and not on a re-entry during the lingering 100% frame.
         var finalProgress = PublicEvent.GetFateById(fateId)?.Progress ?? lastProgress;
         var ended = sawRunning && (PublicEvent.GetFateById(fateId) is null || finalProgress >= 100);
         if (ended)
@@ -627,7 +614,6 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         }
         else if (Svc.ClientState.TerritoryType != startZoneId && startPos is not null)
         {
-            // Drifted to a different territory (e.g. instance swap). Outer loop's WrongZone state recovers.
             Diag($"Revived in {Svc.ClientState.TerritoryType}, expected {startZoneId}; outer loop will retarget.");
         }
     }
@@ -828,8 +814,6 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         var deadline = Environment.TickCount64 + MoveToFateWatchdogMs;
         var lastRetargetAtMs = Environment.TickCount64;
         var stopReason = MoveStopReason.None;
-
-        // Initial target id captured locally so retarget detection is unambiguous.
         var targetId = fate.Id;
 
         var moveTask = MoveTo(zone.TerritoryId, dest, config,
@@ -846,7 +830,6 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
 
                 if (stopReason != MoveStopReason.None) return true;
 
-                // Target FATE went away or became ineligible.
                 var refreshed = PublicEvent.GetFateById(targetId);
                 if (refreshed is null)
                 {

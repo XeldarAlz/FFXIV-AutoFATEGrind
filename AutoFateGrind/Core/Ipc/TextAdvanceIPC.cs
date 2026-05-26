@@ -3,9 +3,8 @@ using ECommons.DalamudServices;
 
 namespace AutoFateGrind.Core.Ipc;
 
-// Structural copy of TextAdvance's config type — the author's documented contract is "copy
-// ExternalTerritoryConfig to your plugin". Null fields keep the user's own setting; true/false
-// force a feature on/off for the duration of external control.
+// Structural copy of TextAdvance's config type — its documented contract is "copy
+// ExternalTerritoryConfig to your plugin". Null fields keep the user's setting; true/false force it.
 public enum RequestFillQualityPreference
 {
     NQ = 0,
@@ -66,7 +65,6 @@ internal static class TextAdvanceIPC
         catch (Exception ex) { Svc.Log.Warning(ex, "[TextAdvanceIPC] IsInExternalControl failed"); return false; }
     }
 
-    // Scoped enable: only the named flags are forced on; everything else stays at the user's config.
     public static bool EnableExternalControl(string callerName, bool talkSkip, bool requestFill, bool requestHandin)
     {
         EnsureInit();
