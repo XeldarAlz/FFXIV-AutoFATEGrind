@@ -36,11 +36,14 @@ public sealed class AutoTrade(uint targetItemId, uint originTerritoryId, Expansi
 
         if (Svc.ClientState.TerritoryType != trader.TerritoryId)
         {
+            var traderPos = trader.Position;
+            var traderTerr = trader.TerritoryId;
             await RunWithStatusPinned($"Teleporting to {trader.Name}", async () =>
             {
-                if (!await AwaitWatchdog(TeleportTo(trader.TerritoryId, trader.Position, allowSameZoneTeleport: false), TeleportWatchdogMs, "trade-teleport"))
+                var tp = new MoveOp(o => o.Teleport(traderTerr, traderPos, allowSameZoneTeleport: false));
+                if (!await RunCancellable(tp, TeleportWatchdogMs, "trade-teleport"))
                     return;
-                await AwaitWatchdog(WaitUntilTerritory(trader.TerritoryId), TerritoryWaitMs, "trade-wait-territory");
+                await WaitUntilTimed(() => Svc.ClientState.TerritoryType == traderTerr, TerritoryWaitMs, "trade-wait-territory", 60);
             });
             ErrorIf(Svc.ClientState.TerritoryType != trader.TerritoryId,
                 $"Could not reach {trader.Name}'s zone (still in {Svc.ClientState.TerritoryType}); aborting trade.");
@@ -48,13 +51,14 @@ public sealed class AutoTrade(uint targetItemId, uint originTerritoryId, Expansi
 
         await RunWithStatusPinned($"Walking to {trader.Name}", async () =>
         {
-            var moveTask = MoveTo(trader.TerritoryId, trader.Position,
+            var traderPos = trader.Position;
+            var traderTerr = trader.TerritoryId;
+            var move = new MoveOp(o => o.Move(traderTerr, traderPos,
                 MovementConfig.Everything.WithTolerance(4f),
                 allowTeleportIfFaster: false,
                 stopCondition: null,
-                onStopReached: null,
-                allowAethernetWithinTerritory: true);
-            await AwaitWatchdog(moveTask, MoveWatchdogMs, "trade-walk");
+                allowAethernetWithinTerritory: true));
+            await RunCancellable(move, MoveWatchdogMs, "trade-walk");
         });
 
         var npc = FindTraderObject(trader.EnpcBaseId);
@@ -62,9 +66,8 @@ public sealed class AutoTrade(uint targetItemId, uint originTerritoryId, Expansi
 
         Status = $"Talking to {trader.Name}";
         Diag($"Interacting with {trader.Name} (BaseId={npc!.BaseId})");
-        await AwaitWatchdog(
-            InteractWith(npc, waitUntil: null, selectStringIndex: null, skip: UiSkipOptions.YesNo),
-            InteractWaitMs, "trade-interact", stopNavOnTimeout: false);
+        var interact = new MoveOp(o => o.Interact(npc, waitUntil: null, skip: UiSkipOptions.YesNo));
+        await RunCancellable(interact, InteractWaitMs, "trade-interact");
 
         ErrorIf(!await WaitUntilTimed(
                 () => ShopInteraction.ShopExchangeCurrencyOpen() || ShopInteraction.SelectIconStringOpen(),

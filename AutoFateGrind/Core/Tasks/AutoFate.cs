@@ -31,12 +31,20 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
 
     private const float StuckMoveThresholdMeters = 1.5f;
     private const int   HardStuckTimeoutMs = 3_000;
+    // Idle = no movement while NOTHING legitimate is happening (no vnav, no pathfind, no cast/mount/zone
+    // transition). That is a wedged pre-pathfind phase — typically a clib teleport that was issued but
+    // never started casting. Longer than the vnav wedge so the ~1-2s gap before a real teleport's cast
+    // begins (and brief aetheryte-menu frames) can't trip it, but far below the hard watchdog.
+    private const int   IdleStallTimeoutMs = 8_000;
     private const int   InFightStuckTimeoutMs = 2_500;
     private const float InFightTargetReachMeters = 6.0f;
     private const int   InFightJumpCooldownMs = 1_500;
     private const float TeleportRetryProgressMeters = 3.0f;
     private const int   MoveToFateWatchdogMs = 60_000;
-    private const int   MoveToUnwindGraceMs = 5_000;
+    // Slack on top of the in-move deadline so clib's own graceful 60s exit wins over the hard cancel
+    // when it is following a path; the hard cancel only catches a wedge in a non-polling phase.
+    private const int   MoveOpUnwindSlackMs = 10_000;
+    private const int   DismountWatchdogMs = 30_000;
     private const int   MoveProgressLogMs = 15_000;
     private const int   FollowUpWatchMs = 15_000;
     private const int   NpcSpawnTimeoutMs = 30_000;
@@ -302,12 +310,15 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
     {
         Status = $"Teleporting to {zone.Name}";
         Diag($"Off-zone (in {Svc.ClientState.TerritoryType}), teleporting to {zone.TerritoryId}");
-        if (!await AwaitWatchdog(TeleportTo(zone.TerritoryId, zone.CentralLanding, allowSameZoneTeleport: false), TeleportWatchdogMs, "teleport-to-zone"))
+        var landing = zone.CentralLanding;
+        var tp = new MoveOp(o => o.Teleport(zone.TerritoryId, landing, allowSameZoneTeleport: false));
+        if (!await RunCancellable(tp, TeleportWatchdogMs, "teleport-to-zone"))
         {
             await NextFrame(60);
             return;
         }
-        await AwaitWatchdog(WaitUntilTerritory(zone.TerritoryId), TerritoryWaitMs, "wait-territory-zone");
+        // A pure wait on our own frame loop — no clib task to leak, so the local timed wait is enough.
+        await WaitUntilTimed(() => Svc.ClientState.TerritoryType == zone.TerritoryId, TerritoryWaitMs, "wait-territory-zone", 60);
     }
 
     private bool AdvanceZone()
@@ -482,7 +493,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
                 if (Svc.Condition[ConditionFlag.Mounted])
                 {
                     BossModIPC.Instance.ClearActive();
-                    await Dismount();
+                    await DismountViaOp($"dismount-engage-{fateId}");
                     AssertPresetActive(preset);
                 }
                 else
@@ -632,14 +643,12 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         {
             Status = "Returning to FATE";
             Diag($"Re-engaging FATE {retId} after revive.");
-            try
+            var retPos = retFate.Position;
+            var tp = new MoveOp(o => o.Teleport(zone.TerritoryId, retPos, allowSameZoneTeleport: true));
+            if (await RunCancellable(tp, TeleportWatchdogMs, $"revive-return-tp-{retId}"))
             {
-                if (await AwaitWatchdog(TeleportTo(zone.TerritoryId, retFate.Position, allowSameZoneTeleport: true), TeleportWatchdogMs, $"revive-return-tp-{retId}"))
-                    await AwaitWatchdog(UseAethernet(zone.TerritoryId, retFate.Position), AethernetWatchdogMs, $"revive-return-aethernet-{retId}");
-            }
-            catch (Exception ex)
-            {
-                Diag($"Return-to-FATE teleport threw: {ex.Message}");
+                var aeth = new MoveOp(o => o.Aethernet(zone.TerritoryId, retPos));
+                await RunCancellable(aeth, AethernetWatchdogMs, $"revive-return-aethernet-{retId}");
             }
         }
         else if (Svc.ClientState.TerritoryType != startZoneId && startPos is not null)
@@ -765,26 +774,21 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         try
         {
             var activateLabel = $"Activating {fate.Name}";
-            var moveTask = MoveTo(zone.TerritoryId, npc.Position,
+            var npcPos = npc.Position;
+            var move = new MoveOp(o => o.Move(zone.TerritoryId, npcPos,
                 MovementConfig.InteractRange,
                 allowTeleportIfFaster: false,
-                stopCondition: () =>
-                {
-                    Status = activateLabel;
-                    return fate.State == FateState.Running;
-                },
-                onStopReached: null,
-                allowAethernetWithinTerritory: false);
-            await AwaitWatchdog(moveTask, ActivateMoveWatchdogMs, $"activate-move-{fate.Id}");
+                stopCondition: () => { Status = activateLabel; return fate.State == FateState.Running; },
+                allowAethernetWithinTerritory: false));
+            await RunCancellable(move, ActivateMoveWatchdogMs, $"activate-move-{fate.Id}");
 
             if (fate.State == FateState.Running) return;
-            if (Svc.Condition[ConditionFlag.Mounted]) await Dismount();
+            if (Svc.Condition[ConditionFlag.Mounted]) await DismountViaOp($"dismount-activate-{fate.Id}");
 
-            var interactTask = InteractWith(npc,
+            var interact = new MoveOp(o => o.Interact(npc,
                 waitUntil: () => fate.State == FateState.Running,
-                selectStringIndex: null,
-                skip: UiSkipOptions.Talk | UiSkipOptions.YesNo);
-            await AwaitWatchdog(interactTask, NpcSpawnTimeoutMs, $"activate-interact-{fate.Id}", stopNavOnTimeout: false);
+                skip: UiSkipOptions.Talk | UiSkipOptions.YesNo));
+            await RunCancellable(interact, NpcSpawnTimeoutMs, $"activate-interact-{fate.Id}");
         }
         catch (Exception ex)
         {
@@ -929,164 +933,131 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
             Diag($"OnMesh did not project FATE {fate.Id} dest {rnd}; vnav may struggle");
 
         var config = MovementConfig.Everything.WithTolerance(3f);
-        var stuck = new StuckTracker();
         var label = $"Moving to {fate.Name}";
         var deadline = Environment.TickCount64 + MoveToFateWatchdogMs;
         var lastRetargetAtMs = Environment.TickCount64;
+        var nextProgressLogMs = Environment.TickCount64 + MoveProgressLogMs;
         var stopReason = MoveStopReason.None;
         var targetId = fate.Id;
 
-        var moveTask = MoveTo(zone.TerritoryId, dest, config,
-            allowTeleportIfFaster: !FateScanner.PlayerHasTwistOfFate(),
-            stopCondition: () =>
+        // Graceful exits clib can observe while it is actively following a path: a deadline backstop,
+        // the FATE vanishing/finishing, its prep NPC spawning, or a closer FATE appearing. Returning
+        // true here lets clib's MoveTo stop vnav and unwind on its own. Physical "stuck" is handled by
+        // the abort tracker below, not here, so the two never race.
+        bool StopCondition()
+        {
+            Status = label;
+
+            if (Environment.TickCount64 >= deadline) { stopReason = MoveStopReason.StuckTeleport; return true; }
+            if (stopReason != MoveStopReason.None) return true;
+
+            var refreshed = PublicEvent.GetFateById(targetId);
+            if (refreshed is null) { stopReason = MoveStopReason.FateInvalid; return true; }
+            if (refreshed.State != FateState.Running)
             {
-                Status = label;
-
-                if (Environment.TickCount64 >= deadline)
-                {
-                    stopReason = MoveStopReason.StuckTeleport;
-                    return true;
-                }
-
-                if (stopReason != MoveStopReason.None) return true;
-
-                var refreshed = PublicEvent.GetFateById(targetId);
-                if (refreshed is null)
-                {
+                // Preparing → NPC may have just spawned; bail so ActivateFate runs.
+                if (refreshed.State == FateState.Preparing && refreshed.MotivationNpc?.IsTargetable == true)
+                    stopReason = MoveStopReason.NpcSpawned;
+                else
                     stopReason = MoveStopReason.FateInvalid;
-                    return true;
-                }
-                if (refreshed.State != FateState.Running)
-                {
-                    // Preparing → NPC may have just spawned; bail so ActivateFate runs.
-                    if (refreshed.State == FateState.Preparing && refreshed.MotivationNpc?.IsTargetable == true)
-                    {
-                        stopReason = MoveStopReason.NpcSpawned;
-                        return true;
-                    }
-                    stopReason = MoveStopReason.FateInvalid;
-                    return true;
-                }
+                return true;
+            }
 
-                // Mid-path retargeting (skip when we're heading back to a FATE we died in).
-                if (returnToFateId != targetId
-                 && Environment.TickCount64 - lastRetargetAtMs >= MidPathRetargetIntervalMs)
+            // Mid-path retargeting (skip when we're heading back to a FATE we died in).
+            if (returnToFateId != targetId
+             && Environment.TickCount64 - lastRetargetAtMs >= MidPathRetargetIntervalMs)
+            {
+                lastRetargetAtMs = Environment.TickCount64;
+                var player = Svc.Objects.LocalPlayer;
+                if (player is not null)
                 {
-                    lastRetargetAtMs = Environment.TickCount64;
-                    var player = Svc.Objects.LocalPlayer;
-                    if (player is not null)
+                    var distToCurrent = Vector3.Distance(player.Position, refreshed.Position);
+                    // Once we've basically reached the target, finish the trip rather than re-path.
+                    if (distToCurrent > RetargetNearArrivalLockMeters)
                     {
-                        var distToCurrent = Vector3.Distance(player.Position, refreshed.Position);
-                        // Once we've basically reached the target, finish the trip rather than re-path.
-                        if (distToCurrent > RetargetNearArrivalLockMeters)
+                        var better = FateScanner.PickNext(Plugin.Cfg, player.Position, sessionStuckFateIds, null);
+                        if (better is not null && better.Id != targetId
+                         && Vector3.Distance(player.Position, better.Position) + RetargetDistanceMarginMeters < distToCurrent)
                         {
-                            var better = FateScanner.PickNext(Plugin.Cfg, player.Position, sessionStuckFateIds, null);
-                            if (better is not null && better.Id != targetId
-                             && Vector3.Distance(player.Position, better.Position) + RetargetDistanceMarginMeters < distToCurrent)
-                            {
-                                Diag($"Mid-path retarget: {targetId} -> {better.Id} ({better.Name}) (closer by >{RetargetDistanceMarginMeters:F0}m)");
-                                stopReason = MoveStopReason.HigherPriority;
-                                return true;
-                            }
+                            Diag($"Mid-path retarget: {targetId} -> {better.Id} ({better.Name}) (closer by >{RetargetDistanceMarginMeters:F0}m)");
+                            stopReason = MoveStopReason.HigherPriority;
+                            return true;
                         }
                     }
                 }
-
-                var stuckReason = stuck.Check();
-                if (stuckReason != MoveStopReason.None)
-                {
-                    stopReason = stuckReason;
-                    return true;
-                }
-                return false;
-            },
-            onStopReached: null,
-            allowAethernetWithinTerritory: true);
-
-        var nextProgressLogMs = Environment.TickCount64 + MoveProgressLogMs;
-        // Wall-clock backstop for when clib parks without polling stopCondition (so the StuckTracker
-        // can't see it): catch the physical freeze in ~8s instead of waiting out the 60s watchdog.
-        Vector3? wallclockLastPos = Svc.Objects.LocalPlayer?.Position;
-        var wallclockLastMoveAtMs = Environment.TickCount64;
-        var wallclockStall = MoveStopReason.None;
-        while (!moveTask.IsCompleted && Environment.TickCount64 < deadline)
-        {
-            if (CancelToken.IsCancellationRequested) break;
-
-            var nowPos = Svc.Objects.LocalPlayer?.Position;
-            if (nowPos is { } np)
-            {
-                // Only a vnav-driven freeze is recoverable by stopping nav. During clib's sequential
-                // teleport/aethernet/mount phases vnav isn't busy and standing still is legitimate;
-                // counting it as a wedge spuriously escalated to teleport during mount-up and on
-                // arrival (and stacked teleports against clib's own loop). Gate on IsBusy.
-                if (!NavmeshIPC.Instance.IsBusy()
-                 || wallclockLastPos is null
-                 || Vector3.Distance(wallclockLastPos.Value, np) > StuckMoveThresholdMeters)
-                {
-                    wallclockLastPos = np;
-                    wallclockLastMoveAtMs = Environment.TickCount64;
-                }
-                else if (Environment.TickCount64 - wallclockLastMoveAtMs >= HardStuckTimeoutMs
-                      && !IsPositionFrozenLegit())
-                {
-                    // Teleport is blocked in combat, so fight free first; otherwise escalate to teleport.
-                    wallclockStall = Svc.Condition[ConditionFlag.InCombat]
-                        ? MoveStopReason.StuckInCombat
-                        : MoveStopReason.StuckTeleport;
-                    break;
-                }
             }
+            return false;
+        }
+
+        // Progress-or-recover: poll every frame across ALL of clib's phases (teleport, aethernet, mount,
+        // pathfind, follow) and abort the move the moment forward progress stalls in a way that isn't a
+        // legitimate wait. The tracker distinguishes a vnav terrain wedge from a fully-idle pre-pathfind
+        // wedge (e.g. a teleport that never started casting) so neither phase is blind.
+        var stuck = new TravelStuckTracker();
+        bool AbortIfFrozen()
+        {
+            if (stopReason != MoveStopReason.None) return false;
 
             if (Environment.TickCount64 >= nextProgressLogMs)
             {
                 nextProgressLogMs = Environment.TickCount64 + MoveProgressLogMs;
-                var p = Svc.Objects.LocalPlayer?.Position;
-                var pStr = p is { } v ? $"({v.X:F0},{v.Y:F0},{v.Z:F0})" : "?";
-                Diag($"Still moving to FATE {targetId}: pos={pStr} navRun={NavmeshIPC.Instance.IsRunning()} inCombat={Svc.Condition[ConditionFlag.InCombat]}");
+                var pp = Svc.Objects.LocalPlayer?.Position;
+                var pStr = pp is { } v ? $"({v.X:F0},{v.Y:F0},{v.Z:F0})" : "?";
+                Diag($"Still moving to FATE {targetId}: pos={pStr} navRun={NavmeshIPC.Instance.IsRunning()} busy={NavmeshIPC.Instance.IsBusy()} inCombat={Svc.Condition[ConditionFlag.InCombat]}");
             }
-            await NextFrame(120);
+
+            var kind = stuck.Check();
+            if (kind == StallKind.None) return false;
+
+            stopReason = Svc.Condition[ConditionFlag.InCombat] ? MoveStopReason.StuckInCombat : MoveStopReason.StuckRetry;
+            Diag(Svc.Condition[ConditionFlag.InCombat]
+                ? $"Move to FATE {targetId} ({fate.Name}) stalled in combat ({kind}); cancelling to clear aggro (teleport is blocked in combat)"
+                : kind == StallKind.NavWedge
+                    ? $"Move to FATE {targetId} ({fate.Name}) wedged: vnav following but no progress in {HardStuckTimeoutMs/1000}s; cancelling to retry"
+                    : $"Move to FATE {targetId} ({fate.Name}) idle: no nav/cast/mount progress in {IdleStallTimeoutMs/1000}s (clib teleport likely never started); cancelling to retry");
+            return true;
         }
 
-        // Any path where the move didn't finish cleanly must tear moveTask down before we hand off: a
-        // still-running MoveTo keeps driving vnav and fights whatever runs next. (This was the combat
-        // break — the old combat-stall returned without unwinding, leaving a zombie that re-pathed
-        // under ClearBlockingCombat and wedged the run.) Set stopReason so the closure unwinds if clib
-        // still polls it, stop vnav, grace-wait, and abandon (observed) only if it refuses to die.
-        if (wallclockStall != MoveStopReason.None || !moveTask.IsCompleted)
+        var op = new MoveOp(o => o.Move(zone.TerritoryId, dest, config,
+            allowTeleportIfFaster: !FateScanner.PlayerHasTwistOfFate(),
+            stopCondition: StopCondition,
+            allowAethernetWithinTerritory: true));
+
+        var completed = await RunCancellable(op, MoveToFateWatchdogMs + MoveOpUnwindSlackMs, label, AbortIfFrozen);
+        if (CancelToken.IsCancellationRequested) return MoveStopReason.None;
+
+        // Cancelled by the hard timeout while wedged in a phase clib wasn't polling (e.g. a mount loop):
+        // treat as a teleport-worthy stuck.
+        if (!completed && stopReason == MoveStopReason.None)
+            stopReason = MoveStopReason.StuckTeleport;
+
+        // A clib fault (pathfind/teleport failure) completes the op without arriving; don't mistake it for
+        // a clean arrival. Retry from here — MoveAndArrive escalates to a teleport if it recurs.
+        if (stopReason == MoveStopReason.None && op.Fault is { } fault)
         {
-            if (stopReason == MoveStopReason.None)
-                stopReason = wallclockStall != MoveStopReason.None ? wallclockStall : MoveStopReason.StuckTeleport;
-
-            Diag(wallclockStall == MoveStopReason.StuckInCombat
-                ? $"MoveTo combat-stall: stationary in combat {HardStuckTimeoutMs/1000}s with no nav completion for FATE {targetId} ({fate.Name}); stopping vnav and clearing aggro (teleport is blocked in combat)"
-                : wallclockStall == MoveStopReason.StuckTeleport
-                    ? $"MoveTo froze: no physical progress in {HardStuckTimeoutMs/1000}s and not in a frozen-legit state for FATE {targetId} ({fate.Name}); forcing vnav stop and escalating"
-                    : $"MoveTo watchdog: no completion after {MoveToFateWatchdogMs/1000}s for FATE {targetId} ({fate.Name}); forcing vnav stop and escalating");
-            try { NavmeshIPC.Instance.Stop(); } catch { /* best-effort */ }
-
-            var graceDeadline = Environment.TickCount64 + MoveToUnwindGraceMs;
-            while (!moveTask.IsCompleted && Environment.TickCount64 < graceDeadline)
-                await NextFrame(120);
-
-            if (!moveTask.IsCompleted)
-            {
-                Diag($"MoveTo did not unwind within {MoveToUnwindGraceMs/1000}s of NavmeshIPC.Stop; abandoning task (fault observed)");
-                ObserveLeak(moveTask);
-            }
-            else
-                await moveTask;
-
-            return stopReason;
+            Diag($"Move to FATE {targetId} ({fate.Name}) faulted: {fault.Message}; retrying");
+            stopReason = MoveStopReason.StuckRetry;
         }
-
-        await moveTask;
 
         if (stopReason != MoveStopReason.None) return stopReason;
 
-        if (Svc.Condition[ConditionFlag.Mounted]) await Dismount();
+        // Clean arrival. clib only dismounts when it lands inside tolerance; a flying mount routinely
+        // stops a few metres ABOVE the point (the Y gap), so it would otherwise enter the FATE still
+        // mounted. Dismount explicitly — clib's Dismount descends to a reachable point first when in
+        // flight — as its own cancellable op so a failed landing can't park the run.
+        if (Svc.Condition[ConditionFlag.Mounted])
+        {
+            var dismount = new MoveOp(o => o.DismountNow());
+            await RunCancellable(dismount, DismountWatchdogMs, $"dismount-{targetId}");
+        }
         return MoveStopReason.None;
     }
+
+    // Every clib movement primitive — including dismount in combat/engage — goes through a cancellable
+    // MoveOp so a wedged op (e.g. clib can't find a landing point in flight) can never park the parent
+    // loop. The parent never awaits a raw clib MoveTo/Teleport/Dismount directly.
+    private Task DismountViaOp(string label)
+        => RunCancellable(new MoveOp(o => o.DismountNow()), DismountWatchdogMs, label);
 
     private async Task<bool> TryTeleportToFate(PublicEvent fate)
     {
@@ -1094,17 +1065,12 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         Status = $"Teleporting to {fate.Name}";
         Diag($"Teleport recovery to FATE {fate.Id} ({fate.Position})");
 
-        try
-        {
-            if (!await AwaitWatchdog(TeleportTo(zone.TerritoryId, fate.Position, allowSameZoneTeleport: true), TeleportWatchdogMs, $"teleport-recovery-{fate.Id}"))
-                return false;
-            await AwaitWatchdog(UseAethernet(zone.TerritoryId, fate.Position), AethernetWatchdogMs, $"aethernet-recovery-{fate.Id}");
-        }
-        catch (Exception ex)
-        {
-            Diag($"Teleport recovery threw: {ex.Message}");
+        var fatePos = fate.Position;
+        var tp = new MoveOp(o => o.Teleport(zone.TerritoryId, fatePos, allowSameZoneTeleport: true));
+        if (!await RunCancellable(tp, TeleportWatchdogMs, $"teleport-recovery-{fate.Id}"))
             return false;
-        }
+        var aeth = new MoveOp(o => o.Aethernet(zone.TerritoryId, fatePos));
+        await RunCancellable(aeth, AethernetWatchdogMs, $"aethernet-recovery-{fate.Id}");
 
         var after = Svc.Objects.LocalPlayer?.Position;
         if (before is null || after is null) return false;
@@ -1129,7 +1095,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
 
         var preset = Plugin.Cfg.CombatPresetName;
         EnsureCombatPreset(preset);
-        if (Svc.Condition[ConditionFlag.Mounted]) await Dismount();
+        if (Svc.Condition[ConditionFlag.Mounted]) await DismountViaOp("dismount-clearcombat");
         AssertPresetActive(preset);
 
         var deadline = Environment.TickCount64 + CombatClearTimeoutMs;
@@ -1142,7 +1108,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
                 if (IsPlayerKO()) break;
                 // A real FATE may have started on top of us; let the state machine take over.
                 if (PublicEvent.CurrentFate is { State: FateState.Running }) break;
-                if (Svc.Condition[ConditionFlag.Mounted]) { BossModIPC.Instance.ClearActive(); await Dismount(); }
+                if (Svc.Condition[ConditionFlag.Mounted]) { BossModIPC.Instance.ClearActive(); await DismountViaOp("dismount-clearcombat"); }
                 AssertPresetActive(preset);
                 await NextFrame(30);
             }
@@ -1156,73 +1122,71 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
             Diag($"Still in combat after {CombatClearTimeoutMs / 1000}s of fighting; will retry travel");
     }
 
-    // Excludes Mounted: a mount stuck on terrain is a real freeze.
+    // Excludes Mounted (a mount stuck on terrain is a real freeze) but includes Mounting: summoning a
+    // mount holds the character still for ~1-2s and must not count as a wedge.
     private static bool IsPositionFrozenLegit()
         => Svc.Condition[ConditionFlag.Casting]
         || Svc.Condition[ConditionFlag.Casting87]
+        || Svc.Condition[ConditionFlag.Mounting]
+        || Svc.Condition[ConditionFlag.Mounting71]
         || Svc.Condition[ConditionFlag.BetweenAreas]
         || Svc.Condition[ConditionFlag.BetweenAreas51]
         || Svc.Condition[ConditionFlag.OccupiedInCutSceneEvent]
         || Svc.Condition[ConditionFlag.WatchingCutscene]
         || Svc.Condition[ConditionFlag.WatchingCutscene78];
 
-    // Observe an abandoned MoveTo's eventual fault so it can't reach the finalizer as an unobserved
-    // exception. Must not touch nav — a later firing could stop the next FATE's navigation.
-    private static void ObserveLeak(Task leaked)
-        => leaked.ContinueWith(static t => { _ = t.Exception; }, TaskScheduler.Default);
+    internal enum StallKind { None, NavWedge, Idle }
 
-    private sealed class StuckTracker
+    // Watches a single move for lack of forward progress. It partitions every non-progress case a clib
+    // MoveTo can land in, so no phase is blind (the IsRunning-only gate used to miss the teleport phase):
+    //   • NavWedge — vnav is actively following a path yet the character hasn't moved (terrain snag).
+    //   • Idle     — no movement while NOTHING legitimate is happening: not following, not pathfinding,
+    //                not casting/mounting/zone-transitioning. That is a wedged pre-pathfind phase, almost
+    //                always a clib teleport that was issued but never started casting.
+    // Anything legitimate (movement, vnav busy, or a frozen-legit state like a teleport cast) resets the
+    // matching timer, so neither false-fires. Both surface as StuckRetry/StuckInCombat; the caller
+    // escalates to a teleport-recovery only if the same FATE stalls again, so a transient block is given
+    // a chance to clear on retry before we resort to teleporting.
+    private sealed class TravelStuckTracker
     {
-        private Vector3? lastPhysicalPos;
-        private long lastPhysicalMoveAtMs = Environment.TickCount64;
-        private Vector3? retryPos;
-        private bool retriedOnce;
+        private Vector3? lastPos;
+        private long navWedgeSinceMs = Environment.TickCount64;
+        private long idleSinceMs = Environment.TickCount64;
 
-        // Wedged = no physical movement for HardStuckTimeoutMs outside a legit frozen state. Teleport
-        // is blocked in combat, so signal clear-aggro there; otherwise retry-then-teleport.
-        public MoveStopReason Check()
+        public StallKind Check()
         {
             var player = Svc.Objects.LocalPlayer;
-            if (player is null) return MoveStopReason.None;
+            if (player is null) return StallKind.None;
 
             var now = Environment.TickCount64;
             var pos = player.Position;
 
-            // Stillness is only a wedge while vnav is actively driving us. A mob rooting us mid-path
-            // keeps vnav running (IsBusy true), so combat recovery still triggers; clib's own
-            // teleport/aethernet/mount phases leave vnav idle, where standing still is expected.
-            if (!NavmeshIPC.Instance.IsBusy() || IsPositionFrozenLegit())
+            // lastPos is a PERSISTENT anchor, advanced only once we've actually displaced past the
+            // threshold — NOT every poll. (Resetting it each poll made steady travel look stationary,
+            // because <1.5m moves between 67ms polls never cleared the threshold, false-firing the wedge
+            // timer mid-flight.) Real displacement resets both timers; "stuck" is measured from the
+            // anchor.
+            if (lastPos is null || Vector3.Distance(lastPos.Value, pos) > StuckMoveThresholdMeters)
             {
-                lastPhysicalPos = pos;
-                lastPhysicalMoveAtMs = now;
-                return MoveStopReason.None;
+                lastPos = pos;
+                navWedgeSinceMs = now;
+                idleSinceMs = now;
+                return StallKind.None;
             }
 
-            if (lastPhysicalPos is null
-             || Vector3.Distance(lastPhysicalPos.Value, pos) > StuckMoveThresholdMeters)
-            {
-                lastPhysicalPos = pos;
-                lastPhysicalMoveAtMs = now;
-                return MoveStopReason.None;
-            }
+            var legitFrozen = IsPositionFrozenLegit();
+            var navRunning = NavmeshIPC.Instance.IsRunning();
+            var navBusy = NavmeshIPC.Instance.IsBusy(); // running OR pathfind-in-progress
 
-            if (now - lastPhysicalMoveAtMs < HardStuckTimeoutMs)
-                return MoveStopReason.None;
+            // vnav following but no displacement from the anchor → terrain snag.
+            if (legitFrozen || !navRunning) navWedgeSinceMs = now;
+            else if (now - navWedgeSinceMs >= HardStuckTimeoutMs) return StallKind.NavWedge;
 
-            return Svc.Condition[ConditionFlag.InCombat]
-                ? MoveStopReason.StuckInCombat
-                : EscalateOrRetry(pos);
-        }
+            // No displacement and nothing legitimate in progress → wedged pre-pathfind phase.
+            if (legitFrozen || navBusy) idleSinceMs = now;
+            else if (now - idleSinceMs >= IdleStallTimeoutMs) return StallKind.Idle;
 
-        private MoveStopReason EscalateOrRetry(Vector3 currentPos)
-        {
-            if (retriedOnce && retryPos.HasValue
-                && Vector3.Distance(currentPos, retryPos.Value) <= 3f)
-                return MoveStopReason.StuckTeleport;
-
-            retryPos = currentPos;
-            retriedOnce = true;
-            return MoveStopReason.StuckRetry;
+            return StallKind.None;
         }
     }
 
