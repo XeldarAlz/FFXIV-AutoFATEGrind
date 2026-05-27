@@ -16,9 +16,6 @@ public interface IFateGrindMode
     string DisplayName { get; }
     string Description { get; }
 
-    // True for goals that rotate the ShB+ Shared-FATE achievement zones and drive auto zone-selection.
-    bool RotatesSharedFateZones => false;
-
     bool IsComplete(ModeContext ctx);
 
     string? GetRemainingDisplay(ModeContext ctx) => null;

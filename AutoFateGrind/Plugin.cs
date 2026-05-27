@@ -43,7 +43,6 @@ public sealed class Plugin : IDalamudPlugin
 
         ECommonsMain.Init(PluginInterface, this);
         CLibMain.Init(PluginInterface, this, CLibModule.Automation);
-        AchievementProgress.Initialize();
 
         unobservedTaskHandler = OnUnobservedTaskException;
         TaskScheduler.UnobservedTaskException += unobservedTaskHandler;
@@ -110,7 +109,6 @@ public sealed class Plugin : IDalamudPlugin
         CommandManager.RemoveHandler(AfgConstants.PrimaryCommand);
         CommandManager.RemoveHandler(AfgConstants.AliasCommand);
 
-        AchievementProgress.Shutdown();
         CLibMain.Dispose();
         ECommonsMain.Dispose();
     }

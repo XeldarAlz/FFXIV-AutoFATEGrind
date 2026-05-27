@@ -12,11 +12,7 @@ public static class ZoneRegistry
     public static IEnumerable<ZoneInfo> ByExpansion(ExpansionKind exp) =>
         Zones.Where(z => z.Expansion == exp);
 
-    public static void Invalidate()
-    {
-        cached = null;
-        ZoneAchievementResolver.Invalidate();
-    }
+    public static void Invalidate() => cached = null;
 
     private static ZoneInfo[] LoadFromLumina()
     {
@@ -33,11 +29,10 @@ public static class ZoneRegistry
 
             result.Add(new ZoneInfo
             {
-                TerritoryId   = t.RowId,
-                Name          = name,
-                Expansion     = ExpansionKindExtensions.FromExVersion(t.ExVersion.RowId),
-                MinLevel      = 1,
-                AchievementId = ZoneAchievementResolver.Resolve(name),
+                TerritoryId = t.RowId,
+                Name        = name,
+                Expansion   = ExpansionKindExtensions.FromExVersion(t.ExVersion.RowId),
+                MinLevel    = 1,
             });
         }
 

@@ -1,4 +1,3 @@
-using AutoFateGrind.Core.Game;
 using ECommons.DalamudServices;
 
 namespace AutoFateGrind.Core.Zones;
@@ -15,22 +14,6 @@ internal static class ZoneStateReader
         zone.ActiveFateCount = Svc.ClientState.TerritoryType == zone.TerritoryId
             ? CountActiveFatesInCurrentZone()
             : 0;
-        RefreshAchievement(zone);
-    }
-
-    private static void RefreshAchievement(ZoneInfo zone)
-    {
-        if (zone.AchievementId == 0) return;
-
-        if (AchievementProgress.TryGet(zone.AchievementId, out var current, out var max))
-        {
-            zone.AchievementCurrent = (int)current;
-            zone.AchievementMax = (int)max;
-        }
-        else
-        {
-            AchievementProgress.Request(zone.AchievementId);
-        }
     }
 
     public static void InvalidateUnlockedCache() => unlockedTerritoryCache = null;

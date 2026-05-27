@@ -83,7 +83,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
     {
         Idle,                 // Transient; player object not available, etc.
         WrongZone,            // Not in target territory.
-        SwapZone,             // Rotate to next eligible zone (MaxFates or empty-current).
+        SwapZone,             // Rotate to next selected zone when the current one stays empty.
         AllDone,              // Stop condition met; return cleanly.
         Unconscious,          // Player KO'd, run revive.
         WaitingForFollowUp,   // Just finished a chain parent; hold briefly for sequel.
@@ -104,9 +104,6 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         ErrorIf(
             !BossModIPC.Instance.IsAvailable || !ExternalPlugins.IsInstalled(ExternalPlugin.BossMod),
             "BossMod not installed or not loaded.");
-
-        if (Plugin.Cfg.ActiveMode.RotatesSharedFateZones && zone.AchievementDone)
-            AdvanceZone();
 
         Svc.Chat.Print($"[AFG] Starting {zone.Name}...");
         lastStateChangedAtMs = Environment.TickCount64;
@@ -168,8 +165,8 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
                 case GrindState.SwapZone:
                     if (!AdvanceZone())
                     {
-                        Status = "All achievements done";
-                        Diag("All selected zones finished, exiting");
+                        Status = "No other zone to rotate to";
+                        Diag("Only one zone selected; nothing to rotate to");
                         return;
                     }
                     idleScans = 0;
@@ -252,9 +249,6 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         if (Svc.ClientState.TerritoryType != zone.TerritoryId)
             return GrindState.WrongZone;
 
-        if (Plugin.Cfg.ActiveMode.RotatesSharedFateZones && zone.AchievementDone)
-            return GrindState.SwapZone;
-
         // Only a Running CurrentFate means "fight it". A completed fate lingers non-Running for a
         // frame; routing that to Engaging (which returns instantly) would spin and freeze the game.
         if (PublicEvent.CurrentFate is { State: FateState.Running } current)
@@ -318,21 +312,14 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
 
     private bool AdvanceZone()
     {
-        if (zones.Count <= 1)
-            return !Plugin.Cfg.ActiveMode.RotatesSharedFateZones || !zone.AchievementDone;
+        if (zones.Count <= 1) return false;
 
-        for (var step = 1; step <= zones.Count; step++)
-        {
-            var candidate = (zoneIndex + step) % zones.Count;
-            if (Plugin.Cfg.ActiveMode.RotatesSharedFateZones && zones[candidate].AchievementDone) continue;
-            zoneIndex = candidate;
-            sessionStuckFateIds.Clear();
-            lastStuckFateId = null;
-            consecutiveStuckRetries = 0;
-            lastTeleportedFateId = null;
-            return true;
-        }
-        return false;
+        zoneIndex = (zoneIndex + 1) % zones.Count;
+        sessionStuckFateIds.Clear();
+        lastStuckFateId = null;
+        consecutiveStuckRetries = 0;
+        lastTeleportedFateId = null;
+        return true;
     }
 
     private async Task TickIdleScan()
@@ -533,7 +520,6 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
             session.CompletedCount++;
             zone.CompletedThisRun++;
             session.GemstoneCurrent = GemstoneCatalog.CurrentWalletCount();
-            AchievementProgress.Request(zone.AchievementId, force: true);
             Diag($"FATE {fateId} done (session total: {session.CompletedCount}, wallet {session.GemstoneCurrent}g)");
             StartFollowUpWatch(fateId);
 
@@ -1030,7 +1016,13 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
             var nowPos = Svc.Objects.LocalPlayer?.Position;
             if (nowPos is { } np)
             {
-                if (wallclockLastPos is null || Vector3.Distance(wallclockLastPos.Value, np) > StuckMoveThresholdMeters)
+                // Only a vnav-driven freeze is recoverable by stopping nav. During clib's sequential
+                // teleport/aethernet/mount phases vnav isn't busy and standing still is legitimate;
+                // counting it as a wedge spuriously escalated to teleport during mount-up and on
+                // arrival (and stacked teleports against clib's own loop). Gate on IsBusy.
+                if (!NavmeshIPC.Instance.IsBusy()
+                 || wallclockLastPos is null
+                 || Vector3.Distance(wallclockLastPos.Value, np) > StuckMoveThresholdMeters)
                 {
                     wallclockLastPos = np;
                     wallclockLastMoveAtMs = Environment.TickCount64;
@@ -1196,7 +1188,10 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
             var now = Environment.TickCount64;
             var pos = player.Position;
 
-            if (IsPositionFrozenLegit())
+            // Stillness is only a wedge while vnav is actively driving us. A mob rooting us mid-path
+            // keeps vnav running (IsBusy true), so combat recovery still triggers; clib's own
+            // teleport/aethernet/mount phases leave vnav idle, where standing still is expected.
+            if (!NavmeshIPC.Instance.IsBusy() || IsPositionFrozenLegit())
             {
                 lastPhysicalPos = pos;
                 lastPhysicalMoveAtMs = now;

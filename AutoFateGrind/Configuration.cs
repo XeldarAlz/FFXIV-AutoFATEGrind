@@ -13,10 +13,6 @@ public sealed class Configuration : IPluginConfiguration
 
     public List<uint> SelectedZones { get; set; } = [];
 
-    // User-defined order for Max Shared FATEs auto-queue. Stores TerritoryIds of currently-eligible zones;
-    // unknown / stale ids are ignored at read time.
-    public List<uint> SharedFateOrder { get; set; } = [];
-
     // Legacy enum kept for migration from pre-mode-registry saves; ModeId is the source of truth now.
     public GrindMode Mode { get; set; } = GrindMode.MaxGemstones;
 
@@ -37,9 +33,8 @@ public sealed class Configuration : IPluginConfiguration
     public int TargetFateCount { get; set; } = 30;
     public int TargetGemstoneCount { get; set; } = 1500;
 
-    // Kept so old saved configs deserialize; MaxFates now always scopes to ShB+.
+    // Kept so old saved configs deserialize.
     public bool ShowAllZonesOverride { get; set; } = false;
-    public bool ShowCompletedZones { get; set; } = false;
 
     // Kept so old saved configs deserialize.
     public ExpansionFilter RegionFilter { get; set; } = ExpansionFilter.All;

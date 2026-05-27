@@ -11,23 +11,6 @@ public sealed class EndlessMode : IFateGrindMode
     public string? GetRemainingDisplay(ModeContext ctx) => null;
 }
 
-public sealed class MaxFatesMode : IFateGrindMode
-{
-    public string Id => "maxfates";
-    public string DisplayName => "Max Shared FATEs";
-    public string Description =>
-        "Stops when every selected zone's 'Free Market Friend' achievement (60 Shared FATEs) is complete. " +
-        "ShB / EW / DT only — no equivalent exists in earlier expansions.";
-    public bool RotatesSharedFateZones => true;
-    public bool IsComplete(ModeContext ctx) => ctx.Zones.All(z => z.AchievementDone);
-
-    public string? GetRemainingDisplay(ModeContext ctx)
-    {
-        var remaining = ctx.Zones.Count(z => !z.AchievementDone);
-        return remaining > 0 ? $"{remaining} zone{(remaining == 1 ? "" : "s")} left" : null;
-    }
-}
-
 public sealed class MaxGemstonesMode : IFateGrindMode
 {
     public string Id => "maxgemstones";

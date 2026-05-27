@@ -58,15 +58,12 @@ internal static class GoalSummary
             controller.RunAll(startList);
 
         if (!canStart && runnable == 0)
-            Tooltip.For(ZoneSelection.IsAutoSelected(cfg)
-                ? "All Shared FATE achievements are already complete."
-                : "Pick at least one zone below.");
+            Tooltip.For("Pick at least one zone below.");
     }
 
     private static string SummaryFor(Configuration cfg) => cfg.ActiveMode.Id switch
     {
         "maxgemstones" => "Stops at",
-        "maxfates"     => "Auto-rotates ShB / EW / DT zones until every Shared FATE achievement is complete.",
         "runcount"     => "Stops after",
         "endless"      => "Rotates selected zones until you press Stop.",
         _              => cfg.ActiveMode.Description,

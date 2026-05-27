@@ -13,7 +13,6 @@ internal static class GoalGrid
     private static readonly Dictionary<string, (FontAwesomeIcon Icon, Vector4 Accent)> visuals = new()
     {
         ["maxgemstones"] = (FontAwesomeIcon.Gem,      Styling.AccentViolet),
-        ["maxfates"]     = (FontAwesomeIcon.Trophy,   Styling.AccentAmber),
         ["runcount"]     = (FontAwesomeIcon.ListOl,   Styling.AccentVioletSoft),
         ["endless"]      = (FontAwesomeIcon.Infinity, Styling.AccentPink),
     };

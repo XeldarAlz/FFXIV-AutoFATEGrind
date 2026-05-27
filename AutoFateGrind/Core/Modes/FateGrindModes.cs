@@ -6,7 +6,6 @@ public static class FateGrindModes
     private static readonly List<IFateGrindMode> registered =
     [
         new MaxGemstonesMode(),
-        new MaxFatesMode(),
         new RunCountMode(),
         new EndlessMode(),
     ];
@@ -27,7 +26,6 @@ public static class FateGrindModes
     public static string IdForLegacy(GrindMode legacy) => legacy switch
     {
         GrindMode.MaxGemstones => "maxgemstones",
-        GrindMode.MaxFates     => "maxfates",
         GrindMode.RunCount     => "runcount",
         GrindMode.Endless      => "endless",
         _                      => "maxgemstones",
