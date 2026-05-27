@@ -30,9 +30,6 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
     private static readonly HashSet<uint> obstacleMapBlacklist = new() { 1831, 1832, 1914, 1915 };
 
     private const int   HardStuckTimeoutMs = 3_000;
-    private const int   InFightStuckTimeoutMs = 2_500;
-    private const float InFightTargetReachMeters = 6.0f;
-    private const int   InFightJumpCooldownMs = 1_500;
     private const float TeleportRetryProgressMeters = 3.0f;
     private const int   MoveToFateWatchdogMs = 60_000;
     // Slack on top of the in-move deadline so clib's own graceful 60s exit wins over the hard cancel
@@ -445,7 +442,6 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         var lastProgress = fate.Progress;
         var lastProgressAtMs = Environment.TickCount64;
         var lastInCombatAtMs = Environment.TickCount64;
-        var inFightStuck = new InFightStuckTracker();
         var collectTextAdvanceArmed = false;
         // Only an entry that fought the fate while Running may book the completion — guards against
         // a re-entry during the lingering 100% frame double-counting.
@@ -488,12 +484,6 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
                 }
 
                 SyncToFate(fateId);
-
-                if (inFightStuck.ShouldJump())
-                {
-                    Diag($"In-fight stuck on FATE {fateId}: target out of reach with no movement for {InFightStuckTimeoutMs/1000.0:0.#}s; jumping to unstick");
-                    Jump();
-                }
 
                 if (fate.Rule == PublicEvent.FateRule.Collect && !collectTextAdvanceArmed)
                 {
@@ -790,56 +780,6 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         if (!fate.IsOnMap) return;
         if (BossModIPC.Instance.HasTempObstacleMap()) return;
         await GenerateObstacleMap(fate);
-    }
-
-    private static unsafe void Jump()
-    {
-        var am = ActionManager.Instance();
-        if (am is null) return;
-        am->UseAction(ActionType.GeneralAction, 2); // GeneralAction #2 = Jump
-    }
-
-    // Jumps only when a target sits beyond reach yet we haven't physically moved — BossMod wedged on
-    // terrain — so it stays silent while legitimately stood in a hitbox. A jump never repositions.
-    private sealed class InFightStuckTracker
-    {
-        private Vector3? lastPos;
-        private long lastMoveAtMs = Environment.TickCount64;
-        private long lastJumpAtMs;
-
-        public bool ShouldJump()
-        {
-            var player = Svc.Objects.LocalPlayer;
-            if (player is null) return false;
-
-            var now = Environment.TickCount64;
-            var pos = player.Position;
-
-            var target = player.TargetObject;
-            if (target is null
-             || !Svc.Condition[ConditionFlag.InCombat]
-             || Svc.Condition[ConditionFlag.Mounted]
-             || IsPositionFrozenLegit()
-             || Vector3.Distance(pos, target.Position) <= InFightTargetReachMeters)
-            {
-                lastPos = pos;
-                lastMoveAtMs = now;
-                return false;
-            }
-
-            if (lastPos is null || Vector3.Distance(lastPos.Value, pos) > StuckMoveThresholdMeters)
-            {
-                lastPos = pos;
-                lastMoveAtMs = now;
-                return false;
-            }
-
-            if (now - lastMoveAtMs < InFightStuckTimeoutMs) return false;
-            if (now - lastJumpAtMs < InFightJumpCooldownMs) return false;
-
-            lastJumpAtMs = now;
-            return true;
-        }
     }
 
     private enum MoveStopReason { None, StuckRetry, StuckTeleport, StuckInCombat, HigherPriority, NpcSpawned, FateInvalid }
