@@ -29,13 +29,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
     private readonly HashSet<uint> sessionStuckFateIds = new();
     private static readonly HashSet<uint> obstacleMapBlacklist = new() { 1831, 1832, 1914, 1915 };
 
-    private const float StuckMoveThresholdMeters = 1.5f;
     private const int   HardStuckTimeoutMs = 3_000;
-    // Idle = no movement while NOTHING legitimate is happening (no vnav, no pathfind, no cast/mount/zone
-    // transition). That is a wedged pre-pathfind phase — typically a clib teleport that was issued but
-    // never started casting. Longer than the vnav wedge so the ~1-2s gap before a real teleport's cast
-    // begins (and brief aetheryte-menu frames) can't trip it, but far below the hard watchdog.
-    private const int   IdleStallTimeoutMs = 8_000;
     private const int   InFightStuckTimeoutMs = 2_500;
     private const float InFightTargetReachMeters = 6.0f;
     private const int   InFightJumpCooldownMs = 1_500;
@@ -61,7 +55,6 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
     private const float RetargetDistanceMarginMeters = 15f;
     private const float RetargetNearArrivalLockMeters = 20f;
     private const int   TeleportWatchdogMs = 60_000;
-    private const int   TerritoryWaitMs = 45_000;
     private const int   AethernetWatchdogMs = 60_000;
     private const int   ActivateMoveWatchdogMs = 60_000;
     private const int   NavmeshReadyWaitMs = 60_000;
@@ -310,15 +303,8 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
     {
         Status = $"Teleporting to {zone.Name}";
         Diag($"Off-zone (in {Svc.ClientState.TerritoryType}), teleporting to {zone.TerritoryId}");
-        var landing = zone.CentralLanding;
-        var tp = new MoveOp(o => o.Teleport(zone.TerritoryId, landing, allowSameZoneTeleport: false));
-        if (!await RunCancellable(tp, TeleportWatchdogMs, "teleport-to-zone"))
-        {
-            await NextFrame(60);
-            return;
-        }
-        // A pure wait on our own frame loop — no clib task to leak, so the local timed wait is enough.
-        await WaitUntilTimed(() => Svc.ClientState.TerritoryType == zone.TerritoryId, TerritoryWaitMs, "wait-territory-zone", 60);
+        // Fast idle-stall detection + bounded retry inside; arrives or returns and the outer loop re-enters.
+        await TeleportToTerritory(zone.TerritoryId, zone.CentralLanding, "teleport-to-zone", TeleportWatchdogMs);
     }
 
     private bool AdvanceZone()
@@ -645,10 +631,10 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
             Diag($"Re-engaging FATE {retId} after revive.");
             var retPos = retFate.Position;
             var tp = new MoveOp(o => o.Teleport(zone.TerritoryId, retPos, allowSameZoneTeleport: true));
-            if (await RunCancellable(tp, TeleportWatchdogMs, $"revive-return-tp-{retId}"))
+            if (await RunCancellable(tp, TeleportWatchdogMs, $"revive-return-tp-{retId}", IdleStallAbort(IdleStallTimeoutMs)))
             {
                 var aeth = new MoveOp(o => o.Aethernet(zone.TerritoryId, retPos));
-                await RunCancellable(aeth, AethernetWatchdogMs, $"revive-return-aethernet-{retId}");
+                await RunCancellable(aeth, AethernetWatchdogMs, $"revive-return-aethernet-{retId}", IdleStallAbort(IdleStallTimeoutMs));
             }
         }
         else if (Svc.ClientState.TerritoryType != startZoneId && startPos is not null)
@@ -1066,11 +1052,13 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         Diag($"Teleport recovery to FATE {fate.Id} ({fate.Position})");
 
         var fatePos = fate.Position;
+        // Same-zone teleport to the aetheryte nearest the FATE. Idle-stall guard catches a teleport that
+        // never starts casting in ~8s instead of the full watchdog.
         var tp = new MoveOp(o => o.Teleport(zone.TerritoryId, fatePos, allowSameZoneTeleport: true));
-        if (!await RunCancellable(tp, TeleportWatchdogMs, $"teleport-recovery-{fate.Id}"))
+        if (!await RunCancellable(tp, TeleportWatchdogMs, $"teleport-recovery-{fate.Id}", IdleStallAbort(IdleStallTimeoutMs)))
             return false;
         var aeth = new MoveOp(o => o.Aethernet(zone.TerritoryId, fatePos));
-        await RunCancellable(aeth, AethernetWatchdogMs, $"aethernet-recovery-{fate.Id}");
+        await RunCancellable(aeth, AethernetWatchdogMs, $"aethernet-recovery-{fate.Id}", IdleStallAbort(IdleStallTimeoutMs));
 
         var after = Svc.Objects.LocalPlayer?.Position;
         if (before is null || after is null) return false;
@@ -1121,19 +1109,6 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         if (Svc.Condition[ConditionFlag.InCombat])
             Diag($"Still in combat after {CombatClearTimeoutMs / 1000}s of fighting; will retry travel");
     }
-
-    // Excludes Mounted (a mount stuck on terrain is a real freeze) but includes Mounting: summoning a
-    // mount holds the character still for ~1-2s and must not count as a wedge.
-    private static bool IsPositionFrozenLegit()
-        => Svc.Condition[ConditionFlag.Casting]
-        || Svc.Condition[ConditionFlag.Casting87]
-        || Svc.Condition[ConditionFlag.Mounting]
-        || Svc.Condition[ConditionFlag.Mounting71]
-        || Svc.Condition[ConditionFlag.BetweenAreas]
-        || Svc.Condition[ConditionFlag.BetweenAreas51]
-        || Svc.Condition[ConditionFlag.OccupiedInCutSceneEvent]
-        || Svc.Condition[ConditionFlag.WatchingCutscene]
-        || Svc.Condition[ConditionFlag.WatchingCutscene78];
 
     internal enum StallKind { None, NavWedge, Idle }
 

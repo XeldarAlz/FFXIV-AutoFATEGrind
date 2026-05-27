@@ -15,7 +15,6 @@ public sealed class AutoTrade(uint targetItemId, uint originTerritoryId, Expansi
     private readonly ExpansionKind originExpansion = originExpansion;
 
     private const int TeleportWatchdogMs = 60_000;
-    private const int TerritoryWaitMs = 45_000;
     private const int MoveWatchdogMs = 120_000;
     private const int InteractWaitMs = 15_000;
     private const int ShopOpenWaitMs = 15_000;
@@ -38,14 +37,10 @@ public sealed class AutoTrade(uint targetItemId, uint originTerritoryId, Expansi
         {
             var traderPos = trader.Position;
             var traderTerr = trader.TerritoryId;
-            await RunWithStatusPinned($"Teleporting to {trader.Name}", async () =>
-            {
-                var tp = new MoveOp(o => o.Teleport(traderTerr, traderPos, allowSameZoneTeleport: false));
-                if (!await RunCancellable(tp, TeleportWatchdogMs, "trade-teleport"))
-                    return;
-                await WaitUntilTimed(() => Svc.ClientState.TerritoryType == traderTerr, TerritoryWaitMs, "trade-wait-territory", 60);
-            });
-            ErrorIf(Svc.ClientState.TerritoryType != trader.TerritoryId,
+            var reached = false;
+            await RunWithStatusPinned($"Teleporting to {trader.Name}",
+                async () => reached = await TeleportToTerritory(traderTerr, traderPos, "trade-teleport", TeleportWatchdogMs));
+            ErrorIf(!reached,
                 $"Could not reach {trader.Name}'s zone (still in {Svc.ClientState.TerritoryType}); aborting trade.");
         }
 

@@ -1,6 +1,9 @@
+using AutoFateGrind.Core.Ipc;
 using clib.TaskSystem;
+using Dalamud.Game.ClientState.Conditions;
 using ECommons.DalamudServices;
 using System;
+using System.Numerics;
 using System.Threading.Tasks;
 
 namespace AutoFateGrind.Core.Tasks;
@@ -8,6 +11,69 @@ namespace AutoFateGrind.Core.Tasks;
 public abstract class AutoCommon : TaskBase
 {
     protected const int SubTaskUnwindGraceMs = 5_000;
+    internal const float StuckMoveThresholdMeters = 1.5f;
+    // Idle = no movement while NOTHING legitimate is happening (no vnav, no pathfind, no cast/mount/zone
+    // transition). That is a wedged op — typically a clib teleport that was issued but never started
+    // casting. Long enough that the ~1-2s gap before a real teleport's cast can't trip it.
+    internal const int IdleStallTimeoutMs = 8_000;
+
+    // Stationary-but-legitimate states. Excludes Mounted (a mount snagged on terrain is a real freeze)
+    // but includes Mounting (the summon holds the character still for ~1-2s).
+    internal static bool IsPositionFrozenLegit()
+        => Svc.Condition[ConditionFlag.Casting]
+        || Svc.Condition[ConditionFlag.Casting87]
+        || Svc.Condition[ConditionFlag.Mounting]
+        || Svc.Condition[ConditionFlag.Mounting71]
+        || Svc.Condition[ConditionFlag.BetweenAreas]
+        || Svc.Condition[ConditionFlag.BetweenAreas51]
+        || Svc.Condition[ConditionFlag.OccupiedInCutSceneEvent]
+        || Svc.Condition[ConditionFlag.WatchingCutscene]
+        || Svc.Condition[ConditionFlag.WatchingCutscene78];
+
+    // A reusable abort predicate: trips when the player makes no physical progress while nothing
+    // legitimate is in progress — no vnav follow/pathfind, no cast/mount/zone-transition. That is a clib
+    // op (usually a teleport) that accepted its command but never started; a real teleport's cast and
+    // zone load set frozen-legit flags, so its idle time never accrues. Returns a fresh stateful closure.
+    internal Func<bool> IdleStallAbort(int timeoutMs)
+    {
+        Vector3? anchor = null;
+        var idleSinceMs = Environment.TickCount64;
+        return () =>
+        {
+            var player = Svc.Objects.LocalPlayer;
+            if (player is null) return false;
+            var now = Environment.TickCount64;
+            var pos = player.Position;
+            if (anchor is null
+             || Vector3.Distance(anchor.Value, pos) > StuckMoveThresholdMeters
+             || NavmeshIPC.Instance.IsBusy()
+             || IsPositionFrozenLegit())
+            {
+                anchor = pos;
+                idleSinceMs = now;
+                return false;
+            }
+            return now - idleSinceMs >= timeoutMs;
+        };
+    }
+
+    // Resilient cross-zone teleport. clib's TeleportTo can accept the teleport yet never start casting
+    // (a brief post-FATE/combat teleport lock), then spin until a watchdog fires. IdleStallAbort catches
+    // that in ~8s; we retry with a short backoff so the lock can clear, instead of failing the whole
+    // operation on one slow timeout. Returns true once we are in the target territory.
+    internal async Task<bool> TeleportToTerritory(uint territoryId, Vector3 dest, string label, int perAttemptTimeoutMs, int attempts = 4)
+    {
+        for (var i = 1; i <= attempts && !CancelToken.IsCancellationRequested; i++)
+        {
+            if (Svc.ClientState.TerritoryType == territoryId) return true;
+            var op = new MoveOp(o => o.Teleport(territoryId, dest, allowSameZoneTeleport: false));
+            await RunCancellable(op, perAttemptTimeoutMs, $"{label}#{i}", IdleStallAbort(IdleStallTimeoutMs));
+            if (Svc.ClientState.TerritoryType == territoryId) return true;
+            if (op.Fault is not null) Diag($"{label}#{i} teleport faulted: {op.Fault.Message}");
+            await NextFrame(120); // brief backoff so a transient teleport lock can clear before the retry
+        }
+        return Svc.ClientState.TerritoryType == territoryId;
+    }
 
     // Run a single clib operation as its own cancellable AutoTask and bound it with a wall-clock cap.
     // Unlike AwaitWatchdog (which could only NavmeshIPC.Stop and then abandon a still-running clib
