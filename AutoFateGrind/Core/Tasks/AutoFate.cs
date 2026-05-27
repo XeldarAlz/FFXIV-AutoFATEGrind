@@ -8,7 +8,6 @@ using clib.Extensions;
 using clib.TaskSystem;
 using clib.Utils;
 using Dalamud.Game.ClientState.Conditions;
-using ECommons.Automation;
 using ECommons.DalamudServices;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Fate;
@@ -74,10 +73,11 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
     private static readonly Random rng = new();
     private bool presetEnsured;
 
-    // Game-side revive command IDs (resolved via GameMain.Instance()->ExecuteCommand).
-    private const uint ReviveCommandId = 0x115;
-    private const int  ReviveParamReturn = 0;
-    private const int  ReviveParamAccept = 5;
+    // ExecuteCommand revive opcodes, per clib.Enums (CommandFlag.Revive + AgentReviveOp).
+    private const uint ReviveCommandId   = (uint)clib.Enums.CommandFlag.Revive;        // 200
+    private const int  ReviveParamReturn = (int)clib.Enums.AgentReviveOp.Return;        // 8 — return to home point
+    private const int  ReviveParamAccept = (int)clib.Enums.AgentReviveOp.AcceptRevive;  // 5 — accept a raise
+    private const int  ReturnReissueMs   = 1_500;
 
     private enum GrindState
     {
@@ -595,9 +595,10 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         Status = soloWait ? "KO — releasing" : "KO — waiting for raise";
         Diag(soloWait ? "Solo KO: returning home." : "Party KO: waiting up to 30s for a raise.");
 
+        var returningHome = soloWait;
         if (soloWait)
         {
-            await TriggerReturnHome();
+            TriggerReturnHome();
         }
         else
         {
@@ -624,11 +625,20 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
             if (!accepted)
             {
                 Diag("No raise within window; falling back to return-home.");
-                await TriggerReturnHome();
+                TriggerReturnHome();
+                returningHome = true;
             }
         }
 
-        await WaitForReviveOrTransition();
+        await WaitForReviveOrTransition(reissueReturn: returningHome);
+
+        // Revive can fail (window not ready, command dropped). Never chase a FATE while still
+        // on the ground — bail and let the outer loop re-enter Unconscious and retry the release.
+        if (IsPlayerKO())
+        {
+            Diag("Still KO after revive window; outer loop will retry.");
+            return;
+        }
 
         if (returnToFateId is { } retId
             && PublicEvent.GetFateById(retId) is { Progress: < 100 } retFate
@@ -652,13 +662,10 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         }
     }
 
-    private async Task TriggerReturnHome()
+    private void TriggerReturnHome()
     {
         if (!TryExecuteReviveCommand(ReviveParamReturn))
-        {
-            try { Chat.SendMessage("/release"); }
-            catch (Exception ex) { Diag($"/release send failed: {ex.Message}"); }
-        }
+            Diag("Return-home command dispatch failed.");
     }
 
     private static bool TryExecuteReviveCommand(int param)
@@ -682,9 +689,10 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         return TryExecuteReviveCommand(ReviveParamAccept);
     }
 
-    private async Task WaitForReviveOrTransition()
+    private async Task WaitForReviveOrTransition(bool reissueReturn)
     {
         var deadline = Environment.TickCount64 + ReleaseTransitionWaitMs;
+        var nextReissueAt = Environment.TickCount64 + ReturnReissueMs;
         while (Environment.TickCount64 < deadline)
         {
             if (CancelToken.IsCancellationRequested) return;
@@ -695,6 +703,13 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
             {
                 await NextFrame(60); // settle so weakness statuses register
                 return;
+            }
+            // The revive window isn't accepting input the instant Unconscious flips, so a single
+            // Return fire can land on nothing. Keep re-issuing until the home teleport starts.
+            if (reissueReturn && stillKO && !transitioning && Environment.TickCount64 >= nextReissueAt)
+            {
+                TriggerReturnHome();
+                nextReissueAt = Environment.TickCount64 + ReturnReissueMs;
             }
             await NextFrame(30);
         }
