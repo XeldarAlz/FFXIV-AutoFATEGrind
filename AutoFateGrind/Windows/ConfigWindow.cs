@@ -13,7 +13,7 @@ namespace AutoFateGrind.Windows;
 
 public sealed class ConfigWindow : Window, IDisposable
 {
-    private enum Tab { General, Filters, Classes, Gemstones, Repair }
+    private enum Tab { General, Filters, Classes, Gemstones, Repair, GmAlert }
 
     private readonly Plugin plugin;
     private Tab activeTab = Tab.General;
@@ -58,6 +58,7 @@ public sealed class ConfigWindow : Window, IDisposable
         if (SidebarTab.Draw("Class queue",  FontAwesomeIcon.UserShield, Styling.AccentMint,       activeTab == Tab.Classes)) activeTab = Tab.Classes;
         if (SidebarTab.Draw("Gemstones",    FontAwesomeIcon.Gem,        Styling.AccentPink,       activeTab == Tab.Gemstones)) activeTab = Tab.Gemstones;
         if (SidebarTab.Draw("Repair",       FontAwesomeIcon.Wrench,     Styling.AccentRose,       activeTab == Tab.Repair))    activeTab = Tab.Repair;
+        if (SidebarTab.Draw("GM alert",     FontAwesomeIcon.UserSecret, Styling.AccentAmber,      activeTab == Tab.GmAlert))   activeTab = Tab.GmAlert;
     }
 
     private void DrawContent(Configuration cfg)
@@ -70,6 +71,7 @@ public sealed class ConfigWindow : Window, IDisposable
             case Tab.Classes: DrawHeader("Class queue", "Switch gearsets on start, and advance to the next class when one hits its level cap."); DrawClassesTab(cfg); break;
             case Tab.Gemstones: DrawHeader("Gemstones", "Auto-spend Bicolor Gemstones once the wallet hits your threshold."); DrawGemstonesTab(cfg); break;
             case Tab.Repair:    DrawHeader("Repair",    "Auto-repair gear when equipped item condition drops below the threshold."); DrawRepairTab(cfg); break;
+            case Tab.GmAlert:   DrawHeader("GM alert",  "Detects nearby Game Masters and reacts — stop the bot, ping you, or take more drastic action.");  DrawGmAlertTab(cfg); break;
         }
     }
 
@@ -601,5 +603,135 @@ public sealed class ConfigWindow : Window, IDisposable
 
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
             ImGui.TextWrapped("NPC repair requires Grand Company affiliation — the plugin teleports to your GC's mender NPC and pays in company seals.");
+    }
+
+    private static string gmCommandDraft = string.Empty;
+
+    private static void DrawGmAlertTab(Configuration cfg)
+    {
+        SettingsRow.Draw("Stop the run",
+            "Halt automation immediately when a GM appears in your zone. Strongly recommended — the rest of the alerts are useless if the bot keeps grinding.",
+            () => DrawToggle(cfg, () => cfg.GmAlertStopRun, v => cfg.GmAlertStopRun = v, "##gm_stop", Styling.AccentRose));
+
+        SettingsRow.Draw("Toast notification",
+            "Pop a Dalamud toast: \"GM <name> is nearby!\"",
+            () => DrawToggle(cfg, () => cfg.GmAlertToast, v => cfg.GmAlertToast = v, "##gm_toast", Styling.AccentAmber));
+
+        SettingsRow.Draw("Chat alert",
+            "Print a red chat warning into your local log.",
+            () => DrawToggle(cfg, () => cfg.GmAlertChat, v => cfg.GmAlertChat = v, "##gm_chat", Styling.AccentAmber));
+
+        SettingsRow.Draw("Sound beeps",
+            "Plays a series of system beeps through your speakers. Loud enough to grab your attention if you're tabbed away.",
+            () =>
+            {
+                DrawToggle(cfg, () => cfg.GmAlertSound, v => cfg.GmAlertSound = v, "##gm_sound", Styling.AccentAmber);
+
+                if (!cfg.GmAlertSound) return;
+
+                ImGui.Indent(20f);
+
+                var count = cfg.GmAlertBeepCount;
+                ImGui.SetNextItemWidth(280);
+                if (ImGui.SliderInt("##gm_beep_count", ref count, 1, 20, "%d beeps"))
+                { cfg.GmAlertBeepCount = Math.Clamp(count, 1, 20); cfg.SaveDebounced(); }
+
+                var dur = cfg.GmAlertBeepDurationMs;
+                ImGui.SetNextItemWidth(280);
+                if (ImGui.SliderInt("##gm_beep_dur", ref dur, 50, 1000, "%d ms each"))
+                { cfg.GmAlertBeepDurationMs = Math.Clamp(dur, 50, 1000); cfg.SaveDebounced(); }
+
+                var freq = cfg.GmAlertBeepFrequencyHz;
+                ImGui.SetNextItemWidth(280);
+                if (ImGui.SliderInt("##gm_beep_freq", ref freq, 100, 5000, "%d Hz"))
+                { cfg.GmAlertBeepFrequencyHz = Math.Clamp(freq, 100, 5000); cfg.SaveDebounced(); }
+
+                using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentAmber))
+                    if (ImGui.SmallButton("Preview##gm_beep_preview"))
+                        Core.Game.GmAlertWatcher.PlayBeeps(cfg.GmAlertBeepCount, cfg.GmAlertBeepFrequencyHz, cfg.GmAlertBeepDurationMs);
+
+                ImGui.Unindent(20f);
+            });
+
+        SettingsRow.Draw("Custom commands",
+            "Chat commands to run when a GM is spotted. Useful for things like /logout, /sh stay calm, or a macro.",
+            () => DrawGmCommandList(cfg));
+
+        SettingsRow.Draw("Kill the game",
+            "Hard-terminate the game process via /xlkill. The last-resort option — no goodbyes, no cutscene, no logout. You'll get a disconnect.",
+            () => DrawToggle(cfg, () => cfg.GmAlertKillGame, v => cfg.GmAlertKillGame = v, "##gm_kill", Styling.AccentRose));
+    }
+
+    private static void DrawGmCommandList(Configuration cfg)
+    {
+        ImGui.SetNextItemWidth(360);
+        var input = gmCommandDraft;
+        if (ImGui.InputTextWithHint("##gm_cmd_in", "/logout", ref input, 200, ImGuiInputTextFlags.EnterReturnsTrue))
+        {
+            var trimmed = input.Trim();
+            if (trimmed.Length > 0)
+            {
+                var cmd = trimmed.StartsWith('/') ? trimmed : "/" + trimmed;
+                if (!cfg.GmAlertCommands.Contains(cmd))
+                {
+                    cfg.GmAlertCommands.Add(cmd);
+                    cfg.SaveDebounced();
+                }
+            }
+            gmCommandDraft = string.Empty;
+        }
+        else
+        {
+            gmCommandDraft = input;
+        }
+
+        ImGui.SameLine();
+        using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentMint))
+            if (ImGui.SmallButton("Add##gm_cmd_add"))
+            {
+                var trimmed = gmCommandDraft.Trim();
+                if (trimmed.Length > 0)
+                {
+                    var cmd = trimmed.StartsWith('/') ? trimmed : "/" + trimmed;
+                    if (!cfg.GmAlertCommands.Contains(cmd))
+                    {
+                        cfg.GmAlertCommands.Add(cmd);
+                        cfg.SaveDebounced();
+                    }
+                    gmCommandDraft = string.Empty;
+                }
+            }
+
+        if (cfg.GmAlertCommands.Count == 0)
+        {
+            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
+                ImGui.TextUnformatted("No commands queued.");
+            return;
+        }
+
+        int? remove = null;
+        var btnSize = ImGui.GetFrameHeight();
+        for (var i = 0; i < cfg.GmAlertCommands.Count; i++)
+        {
+            ImGui.AlignTextToFramePadding();
+            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
+                ImGui.TextUnformatted($"{i + 1}.");
+            ImGui.SameLine();
+            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextStrong))
+                ImGui.TextUnformatted(cfg.GmAlertCommands[i]);
+
+            var rightStart = ImGui.GetContentRegionAvail().X + ImGui.GetCursorPosX() - btnSize - 8f * ImGuiHelpers.GlobalScale;
+            ImGui.SameLine(rightStart);
+            using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentRose))
+            using (ImRaii.PushFont(UiBuilder.IconFont))
+                if (ImGui.Button(FontAwesomeIcon.Times.ToIconString() + $"##gm_cmd_rm_{i}", new Vector2(btnSize, btnSize)))
+                    remove = i;
+        }
+
+        if (remove is int r)
+        {
+            cfg.GmAlertCommands.RemoveAt(r);
+            cfg.SaveDebounced();
+        }
     }
 }

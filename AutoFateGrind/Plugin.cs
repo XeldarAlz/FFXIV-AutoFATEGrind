@@ -28,6 +28,7 @@ public sealed class Plugin : IDalamudPlugin
     internal static Configuration Cfg { get; private set; } = null!;
     internal WindowSystem WindowSystem { get; } = new("AutoFateGrind");
     internal AutoFateController Controller { get; }
+    private readonly GmAlertWatcher gmAlertWatcher;
 
     private readonly MainWindow mainWindow;
     private readonly ConfigWindow configWindow;
@@ -50,6 +51,7 @@ public sealed class Plugin : IDalamudPlugin
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         Cfg = Configuration;
         Controller = new AutoFateController();
+        gmAlertWatcher = new GmAlertWatcher();
 
         mainWindow = new MainWindow(this);
         configWindow = new ConfigWindow(this);
@@ -108,6 +110,8 @@ public sealed class Plugin : IDalamudPlugin
 
         CommandManager.RemoveHandler(AfgConstants.PrimaryCommand);
         CommandManager.RemoveHandler(AfgConstants.AliasCommand);
+
+        gmAlertWatcher.Dispose();
 
         CLibMain.Dispose();
         ECommonsMain.Dispose();
