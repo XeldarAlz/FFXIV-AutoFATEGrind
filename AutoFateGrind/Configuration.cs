@@ -80,6 +80,11 @@ public sealed class Configuration : IPluginConfiguration
     public List<ClassQueueEntry> ClassQueue { get; set; } = [];
     public AfterClassQueueDone AfterClassQueueDone { get; set; } = AfterClassQueueDone.KeepGrindingOnLast;
 
+    public bool AutoRepair { get; set; } = false;
+    // Triggers when the lowest-condition equipped item drops to or below this percentage.
+    public int AutoRepairThresholdPct { get; set; } = 20;
+    public RepairMode RepairMode { get; set; } = RepairMode.SelfThenNpc;
+
     public void Save() => Plugin.PluginInterface.SavePluginConfig(this);
 
     public void SaveDebounced()
@@ -125,6 +130,13 @@ public enum AfterClassQueueDone
 {
     KeepGrindingOnLast,
     StopRun,
+}
+
+public enum RepairMode
+{
+    SelfThenNpc,
+    SelfOnly,
+    NpcOnly,
 }
 
 public enum FateSortCriterion

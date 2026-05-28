@@ -78,20 +78,47 @@ internal sealed class AutoFateController
         Diag($"FATE grind phase entering at zone[{startZoneIndex}] {startName}.");
         Svc.Automation.Start(
             new AutoFate(activeZones, owningSession, startZoneIndex),
-            OnCompleted: () => HandleTradeIfPending(owningSession));
+            OnCompleted: () => HandlePostFateHandoffs(owningSession));
     }
 
-    private void HandleTradeIfPending(AutoFateSession owningSession)
+    private void HandlePostFateHandoffs(AutoFateSession owningSession)
     {
         if (owningSession != session)
         {
-            Diag("FATE grind ended: owning session is stale (Stop was called or a new run replaced it). Ignoring trade hand-off.");
+            Diag("FATE grind ended: owning session is stale (Stop was called or a new run replaced it). Ignoring hand-offs.");
             Phase = AutoPhase.Idle;
             return;
         }
+
+        if (owningSession.PendingRepair)
+        {
+            owningSession.PendingRepair = false;
+            Phase = AutoPhase.Repairing;
+            Diag("Repair phase entering.");
+            // After repair, fall back into this same dispatcher so any pending trade also runs before
+            // we resume the FATE grind.
+            Svc.Automation.Start(
+                new AutoRepair(),
+                OnCompleted: () => HandlePostFateHandoffs(owningSession));
+            return;
+        }
+
         if (owningSession.PendingTradeFromZone is not { } origin)
         {
-            Diag("FATE grind ended without queueing a trade (stop condition, error, or trade-on-cap skipped). Run ends.");
+            // No more hand-offs; either we never queued one (stop condition / error), or we just
+            // finished the trade phase. Resume the FATE grind if we ended on repair-only.
+            if (Phase == AutoPhase.Repairing && activeZones.Count > 0)
+            {
+                var resumeIndex = 0;
+                if (owningSession.PendingRepairFromZone is { } repairOrigin)
+                    for (var i = 0; i < activeZones.Count; i++)
+                        if (activeZones[i].TerritoryId == repairOrigin.TerritoryId) { resumeIndex = i; break; }
+                owningSession.PendingRepairFromZone = null;
+                Diag($"Repair finished with no pending trade; resuming FATE grind at {activeZones[resumeIndex].Name}.");
+                StartFateGrind(resumeIndex, owningSession);
+                return;
+            }
+            Diag("FATE grind ended without queueing further hand-offs. Run ends.");
             Phase = AutoPhase.Idle;
             return;
         }
@@ -141,4 +168,4 @@ internal sealed class AutoFateController
     }
 }
 
-internal enum AutoPhase { Idle, Grinding, Trading }
+internal enum AutoPhase { Idle, Grinding, Trading, Repairing }

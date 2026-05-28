@@ -13,7 +13,7 @@ namespace AutoFateGrind.Windows;
 
 public sealed class ConfigWindow : Window, IDisposable
 {
-    private enum Tab { General, Filters, Classes, Gemstones }
+    private enum Tab { General, Filters, Classes, Gemstones, Repair }
 
     private readonly Plugin plugin;
     private Tab activeTab = Tab.General;
@@ -57,6 +57,7 @@ public sealed class ConfigWindow : Window, IDisposable
         if (SidebarTab.Draw("FATE filters", FontAwesomeIcon.Filter,     Styling.AccentVioletSoft, activeTab == Tab.Filters)) activeTab = Tab.Filters;
         if (SidebarTab.Draw("Class queue",  FontAwesomeIcon.UserShield, Styling.AccentMint,       activeTab == Tab.Classes)) activeTab = Tab.Classes;
         if (SidebarTab.Draw("Gemstones",    FontAwesomeIcon.Gem,        Styling.AccentPink,       activeTab == Tab.Gemstones)) activeTab = Tab.Gemstones;
+        if (SidebarTab.Draw("Repair",       FontAwesomeIcon.Wrench,     Styling.AccentRose,       activeTab == Tab.Repair))    activeTab = Tab.Repair;
     }
 
     private void DrawContent(Configuration cfg)
@@ -68,6 +69,7 @@ public sealed class ConfigWindow : Window, IDisposable
             case Tab.Filters: DrawHeader("FATE filters", "Keeps the plugin off dying or late FATEs."); DrawFiltersTab(cfg); break;
             case Tab.Classes: DrawHeader("Class queue", "Switch gearsets on start, and advance to the next class when one hits its level cap."); DrawClassesTab(cfg); break;
             case Tab.Gemstones: DrawHeader("Gemstones", "Auto-spend Bicolor Gemstones once the wallet hits your threshold."); DrawGemstonesTab(cfg); break;
+            case Tab.Repair:    DrawHeader("Repair",    "Auto-repair gear when equipped item condition drops below the threshold."); DrawRepairTab(cfg); break;
         }
     }
 
@@ -558,5 +560,46 @@ public sealed class ConfigWindow : Window, IDisposable
             setter(v);
             cfg.SaveDebounced();
         }
+    }
+
+    private static void DrawRepairTab(Configuration cfg)
+    {
+        SettingsRow.Draw("Auto-repair when gear is damaged",
+            "Between FATEs, when the lowest equipped item drops to or below the threshold, the plugin runs a repair. At 0% the gear stops working — keep some margin.",
+            () => DrawToggle(cfg, () => cfg.AutoRepair, v => cfg.AutoRepair = v, "##rp_on", Styling.AccentRose));
+
+        if (!cfg.AutoRepair)
+        {
+            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
+                ImGui.TextWrapped("Auto-repair is off. Enable the toggle above to configure repair.");
+            return;
+        }
+
+        SettingsRow.Draw("Repair threshold",
+            "Trips when the worst equipped slot reaches this condition percentage. 20% leaves comfortable margin before the 0% breakdown.",
+            () =>
+            {
+                var v = cfg.AutoRepairThresholdPct;
+                ImGui.SetNextItemWidth(280);
+                if (ImGui.SliderInt("##rp_threshold", ref v, 5, 80, "%d%%"))
+                { cfg.AutoRepairThresholdPct = Math.Clamp(v, 5, 80); cfg.SaveDebounced(); }
+            });
+
+        SettingsRow.Draw("Repair source",
+            "How the repair is performed. Self-repair uses Dark Matter from your bag (no travel). NPC repair travels to your Grand Company mender.",
+            () =>
+            {
+                if (ImGui.RadioButton("Self first, then NPC if no Dark Matter", cfg.RepairMode == RepairMode.SelfThenNpc))
+                { cfg.RepairMode = RepairMode.SelfThenNpc; cfg.SaveDebounced(); }
+
+                if (ImGui.RadioButton("Self only (Dark Matter)", cfg.RepairMode == RepairMode.SelfOnly))
+                { cfg.RepairMode = RepairMode.SelfOnly; cfg.SaveDebounced(); }
+
+                if (ImGui.RadioButton("NPC only (Grand Company mender)", cfg.RepairMode == RepairMode.NpcOnly))
+                { cfg.RepairMode = RepairMode.NpcOnly; cfg.SaveDebounced(); }
+            });
+
+        using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
+            ImGui.TextWrapped("NPC repair requires Grand Company affiliation — the plugin teleports to your GC's mender NPC and pays in company seals.");
     }
 }

@@ -512,6 +512,15 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
 
             if (AdvanceClassQueueIfCapHit()) return ExitReason.Quit;
 
+            if (Plugin.Cfg.AutoRepair
+                && RepairOps.NeedsRepair(Plugin.Cfg.AutoRepairThresholdPct))
+            {
+                Diag($"Repair threshold tripped (lowest equipped at {RepairOps.LowestEquippedConditionPct():F0}% ≤ {Plugin.Cfg.AutoRepairThresholdPct}%); queueing repair hand-off.");
+                session.PendingRepair = true;
+                session.PendingRepairFromZone = zone;
+                return ExitReason.Quit;
+            }
+
             if (Plugin.Cfg.TradeOnCap && session.GemstoneCurrent >= Plugin.Cfg.TradeThreshold)
             {
                 if (TryQueueTrade()) return ExitReason.Quit;
@@ -1230,6 +1239,8 @@ public sealed class AutoFateSession
     public int GemstoneCurrent;
 
     public ZoneInfo? PendingTradeFromZone;
+    public bool PendingRepair;
+    public ZoneInfo? PendingRepairFromZone;
 
     public TimeSpan Elapsed => DateTime.UtcNow - StartedAt;
     public int GemstonesEarned => Math.Max(0, GemstoneCurrent - GemstoneStart);
