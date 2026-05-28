@@ -95,6 +95,17 @@ public sealed class Configuration : IPluginConfiguration
     public bool GmAlertKillGame { get; set; } = false;
     public List<string> GmAlertCommands { get; set; } = [];
 
+    public bool HumanizerEnabled { get; set; } = false;
+    public int HumanizerFatesBeforeBreak { get; set; } = 20;
+    public int HumanizerBreakMinMinutes { get; set; } = 5;
+    public int HumanizerBreakMaxMinutes { get; set; } = 10;
+    public int HumanizerPauseMinSec { get; set; } = 3;
+    public int HumanizerPauseMaxSec { get; set; } = 8;
+    public int HumanizerWanderMinMeters { get; set; } = 25;
+    public int HumanizerWanderMaxMeters { get; set; } = 80;
+    // TerritoryIds from Core.Zones.CityCatalog; defaults to every expansion's main hub.
+    public HashSet<uint> HumanizerCities { get; set; } = [129, 132, 1185, 1205];
+
     public void Save() => Plugin.PluginInterface.SavePluginConfig(this);
 
     public void SaveDebounced()

@@ -505,6 +505,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         if (ended)
         {
             session.CompletedCount++;
+            session.FatesSinceLastBreak++;
             zone.CompletedThisRun++;
             session.GemstoneCurrent = GemstoneCatalog.CurrentWalletCount();
             Diag($"FATE {fateId} done (session total: {session.CompletedCount}, wallet {session.GemstoneCurrent}g)");
@@ -524,6 +525,16 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
             if (Plugin.Cfg.TradeOnCap && session.GemstoneCurrent >= Plugin.Cfg.TradeThreshold)
             {
                 if (TryQueueTrade()) return ExitReason.Quit;
+            }
+
+            if (Plugin.Cfg.HumanizerEnabled
+             && Plugin.Cfg.HumanizerCities.Count > 0
+             && session.FatesSinceLastBreak >= Math.Max(1, Plugin.Cfg.HumanizerFatesBeforeBreak))
+            {
+                Diag($"Humanizer threshold {Plugin.Cfg.HumanizerFatesBeforeBreak} reached (counter {session.FatesSinceLastBreak}); queueing break hand-off.");
+                session.PendingHumanize = true;
+                session.PendingHumanizeFromZone = zone;
+                return ExitReason.Quit;
             }
         }
 
@@ -1241,6 +1252,9 @@ public sealed class AutoFateSession
     public ZoneInfo? PendingTradeFromZone;
     public bool PendingRepair;
     public ZoneInfo? PendingRepairFromZone;
+    public int FatesSinceLastBreak;
+    public bool PendingHumanize;
+    public ZoneInfo? PendingHumanizeFromZone;
 
     public TimeSpan Elapsed => DateTime.UtcNow - StartedAt;
     public int GemstonesEarned => Math.Max(0, GemstoneCurrent - GemstoneStart);

@@ -15,6 +15,8 @@ internal sealed class AutoFateController
     private IReadOnlyList<ZoneInfo> activeZones = [];
     public AutoFateSession? SessionSnapshot => session;
 
+    private static readonly Random rng = new();
+
     private static void Diag(string message)
         => ECommons.DalamudServices.Svc.Log.Info($"[AFG] {message}");
 
@@ -115,7 +117,17 @@ internal sealed class AutoFateController
                         if (activeZones[i].TerritoryId == repairOrigin.TerritoryId) { resumeIndex = i; break; }
                 owningSession.PendingRepairFromZone = null;
                 Diag($"Repair finished with no pending trade; resuming FATE grind at {activeZones[resumeIndex].Name}.");
-                StartFateGrind(resumeIndex, owningSession);
+                ResumeGrindOrHumanize(owningSession, resumeIndex);
+                return;
+            }
+            if (owningSession.PendingHumanize && activeZones.Count > 0)
+            {
+                var resumeIndex = 0;
+                if (owningSession.PendingHumanizeFromZone is { } humOrigin)
+                    for (var i = 0; i < activeZones.Count; i++)
+                        if (activeZones[i].TerritoryId == humOrigin.TerritoryId) { resumeIndex = i; break; }
+                Diag($"Humanize triggered with no other hand-offs; entering break from {activeZones[resumeIndex].Name}.");
+                ResumeGrindOrHumanize(owningSession, resumeIndex);
                 return;
             }
             Diag("FATE grind ended without queueing further hand-offs. Run ends.");
@@ -163,9 +175,75 @@ internal sealed class AutoFateController
                     if (activeZones[i].TerritoryId == origin.TerritoryId) { resumeIndex = i; break; }
 
                 Diag($"AutoTrade finished: resuming FATE grind at {activeZones[resumeIndex].Name}.");
-                StartFateGrind(resumeIndex, owningSession);
+                ResumeGrindOrHumanize(owningSession, resumeIndex);
+            });
+    }
+
+    // Runs after every other post-FATE hand-off has cleared. If the humanize threshold tripped while
+    // we were repairing/trading, this is where the break actually fires; otherwise we resume the grind
+    // directly. Bookkeeping (FatesSinceLastBreak reset, origin zone, city selection) lives here so the
+    // trigger site only has to set a flag.
+    private void ResumeGrindOrHumanize(AutoFateSession owningSession, int resumeIndex)
+    {
+        if (!owningSession.PendingHumanize)
+        {
+            StartFateGrind(resumeIndex, owningSession);
+            return;
+        }
+
+        owningSession.PendingHumanize = false;
+        var origin = owningSession.PendingHumanizeFromZone;
+        owningSession.PendingHumanizeFromZone = null;
+
+        var cfg = Plugin.Cfg;
+        if (!cfg.HumanizerEnabled || cfg.HumanizerCities.Count == 0)
+        {
+            Diag("Humanize hand-off skipped: feature disabled or no cities selected.");
+            owningSession.FatesSinceLastBreak = 0;
+            StartFateGrind(resumeIndex, owningSession);
+            return;
+        }
+
+        // Filter against the catalog so cities removed from the registry (e.g. Ul'dah, dropped due to
+        // navmesh issues) are ignored even if they're still in an older saved config.
+        var cities = cfg.HumanizerCities.Where(id => Core.Zones.CityCatalog.Find(id) is not null).ToArray();
+        if (cities.Length == 0)
+        {
+            Diag("Humanize hand-off skipped: no selected cities are in the current catalog.");
+            owningSession.FatesSinceLastBreak = 0;
+            StartFateGrind(resumeIndex, owningSession);
+            return;
+        }
+        var cityId = cities[rng.Next(cities.Length)];
+        var minMin = Math.Max(1, cfg.HumanizerBreakMinMinutes);
+        var maxMin = Math.Max(minMin, cfg.HumanizerBreakMaxMinutes);
+        var minutes = rng.Next(minMin, maxMin + 1);
+        var durationMs = minutes * 60_000;
+
+        // If the origin zone was dropped from the selection (e.g. user edited zones during the break),
+        // fall back to the resume index we already have.
+        var resumeIdx = resumeIndex;
+        if (origin is not null)
+            for (var i = 0; i < activeZones.Count; i++)
+                if (activeZones[i].TerritoryId == origin.TerritoryId) { resumeIdx = i; break; }
+
+        Phase = AutoPhase.Humanizing;
+        Diag($"Humanize phase entering: city {cityId}, duration {minutes}m, resume zone {activeZones[resumeIdx].Name}.");
+        Svc.Automation.Start(
+            new AutoHumanize(cityId, durationMs),
+            OnCompleted: () =>
+            {
+                if (owningSession != session)
+                {
+                    Diag("Humanize finished: owning session is stale; not resuming.");
+                    Phase = AutoPhase.Idle;
+                    return;
+                }
+                owningSession.FatesSinceLastBreak = 0;
+                Diag($"Humanize finished: resuming FATE grind at {activeZones[resumeIdx].Name}.");
+                StartFateGrind(resumeIdx, owningSession);
             });
     }
 }
 
-internal enum AutoPhase { Idle, Grinding, Trading, Repairing }
+internal enum AutoPhase { Idle, Grinding, Trading, Repairing, Humanizing }

@@ -68,9 +68,11 @@ internal static class RunningPanel
 
         return controller.Phase switch
         {
-            AutoPhase.Trading  => (Styling.AccentAmber, Styling.AccentAmberSoft, "TRADING GEMSTONES"),
-            AutoPhase.Grinding => (Styling.AccentBlue,  Styling.AccentBlueSoft,  inFate ? "ENGAGING FATE" : "GRINDING FATES"),
-            _                  => (Styling.TextDim,    Styling.TextSecondary,   "STANDING BY"),
+            AutoPhase.Trading    => (Styling.AccentAmber, Styling.AccentAmberSoft, "TRADING GEMSTONES"),
+            AutoPhase.Repairing  => (Styling.TextStrong,  Styling.TextSecondary,   "REPAIRING GEAR"),
+            AutoPhase.Humanizing => (Styling.AccentMint,  Styling.AccentMintSoft,  "ON A BREAK"),
+            AutoPhase.Grinding   => (Styling.AccentBlue,  Styling.AccentBlueSoft,  inFate ? "ENGAGING FATE" : "GRINDING FATES"),
+            _                    => (Styling.TextDim,     Styling.TextSecondary,   "STANDING BY"),
         };
     }
 
