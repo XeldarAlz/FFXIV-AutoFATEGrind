@@ -22,7 +22,7 @@ internal static class GoalGrid
         DrawHeaderRow(plugin);
 
         var modes = FateGrindModes.All;
-        var cardCount = modes.Count + 2; // trailing disabled "coming soon" cards
+        var cardCount = modes.Count + 1; // trailing disabled "coming soon" card
         var avail = ImGui.GetContentRegionAvail().X;
         var gap = Layout.GoalCardGap * ImGuiHelpers.GlobalScale;
         var cardWidth = (avail - gap * (cardCount - 1)) / cardCount;
@@ -46,11 +46,6 @@ internal static class GoalGrid
                 cfg.SaveDebounced();
             }
         }
-
-        ImGui.SameLine(0, gap);
-        GoalCard.Draw("##goal_maxfates", "Max Shared FATEs", FontAwesomeIcon.Trophy,
-            Styling.AccentAmber, false, size,
-            tooltip: "Temporarily disabled due to a bug.\nComing soon.", disabled: true);
 
         ImGui.SameLine(0, gap);
         GoalCard.Draw("##goal_coming_soon", "Field Operations", FontAwesomeIcon.Hammer,
