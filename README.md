@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <em>Shared FATEs, farmed for you. Built on Dalamud.</em>
+  <em>FATEs, farmed for you. Built on Dalamud.</em>
 </p>
 
 ---
@@ -27,15 +27,15 @@ Lists every FATE zone from A Realm Reborn through Dawntrail in one window. Tick 
 
 ## Features
 
-- One window listing every FATE zone from ARR through DT, grouped by expansion. Shared FATE modes auto-scope to ShB / EW / DT, with a toggle to show all expansions.
-- Click cards to select; **Run selected** rotates through them back-to-back.
-- Grind modes: endless, achievement-driven, Bicolor gemstone cap, or fixed FATE count.
-- Per-zone live state: active FATE count pill, achievement progress bar.
-- Live FATE tracker inline in the main window (and as a separate HUD overlay when enabled).
-- FATE filters: minimum time remaining, maximum progress, persistent blacklist.
-- Auto-trade Bicolor Gemstones at threshold, with resume-after-trade.
-- Locked zones greyed out with hover tooltips explaining why.
-- Cancellable mid-run; selection persists across reloads.
+- **Zone picker** — every FATE zone from ARR through DT, grouped by expansion tabs, with a Queue tab summarising what's selected. Per-zone live state shows the active FATE count.
+- **Three grind modes** — *Farm Gemstones* (stops at your Bicolor target), *Run N FATEs* (stops after N completions), and *Endless* (runs until you press Stop).
+- **FATE filters & priority** — skip FATEs by type (escort, collect, defend…), minimum time remaining, maximum progress, plus a reorderable priority list (closest, bonus, expiring, etc.). Persistent blacklist for FATEs with broken obstacle maps.
+- **Live FATE tracker** — inline in the main window, or as a separate HUD overlay when enabled.
+- **Class queue** — equip a list of gearsets in order with per-class level caps; the plugin advances to the next class on cap.
+- **Auto-trade Bicolor Gemstones** — teleports to the trader at threshold and resumes the grind.
+- **Auto-repair** — self-repair via Dark Matter when available, falls back to your Grand Company mender.
+- **GM alert** — detects nearby Game Masters and stops the bot (plus optional toast / chat / beeps / custom commands / `/xlkill`).
+- **Cancellable mid-run; selection persists across reloads.** Locked zones are greyed with hover tooltips explaining why.
 
 ## Install
 
