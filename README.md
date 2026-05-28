@@ -34,6 +34,7 @@ Lists every FATE zone from A Realm Reborn through Dawntrail in one window. Tick 
 - **Class queue** — equip a list of gearsets in order with per-class level caps; the plugin advances to the next class on cap.
 - **Auto-trade Bicolor Gemstones** — teleports to the trader at threshold and resumes the grind.
 - **Auto-repair** — self-repair via Dark Matter when available, falls back to your Grand Company mender.
+- **Humanizer** — every N FATEs, teleports to a random city (Limsa, Gridania, Tuliyollal, Solution Nine) and wanders between random points for a configurable few minutes before resuming the grind. Helps long sessions look less mechanical to other players.
 - **GM alert** — detects nearby Game Masters and stops the bot (plus optional toast / chat / beeps / custom commands / `/xlkill`).
 - **Cancellable mid-run; selection persists across reloads.** Locked zones are greyed with hover tooltips explaining why.
 
