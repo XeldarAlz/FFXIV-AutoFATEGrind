@@ -5,7 +5,7 @@
     "InternalName": "AutoFateGrind",
     "AssemblyVersion": "1.0.0.12",
     "TestingAssemblyVersion": "1.0.0.12",
-    "Description": "Farms FATEs for you: tick the zones, the plugin teleports, finds active FATEs, and runs them in a loop. Includes class queue, auto-repair, gemstone auto-trade, and a GM alert that stops the bot when a Game Master is nearby.",
+    "Description": "Farms FATEs for you: tick the zones, and the plugin teleports in, finds active FATEs, and runs them in a loop until your target is met.",
     "Punchline": "FATEs, farmed for you.",
     "RepoUrl": "https://github.com/XeldarAlz/FFXIV-AutoFATEGrind",
     "ApplicableVersion": "any",
