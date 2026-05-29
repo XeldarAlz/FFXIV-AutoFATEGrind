@@ -130,6 +130,8 @@ internal sealed class AutoFateController
                 ResumeGrindOrHumanize(owningSession, resumeIndex);
                 return;
             }
+            if (owningSession.EndedWithFault && TryAutoResumeAfterFault(owningSession))
+                return;
             Diag("FATE grind ended without queueing further hand-offs. Run ends.");
             Phase = AutoPhase.Idle;
             return;
@@ -177,6 +179,36 @@ internal sealed class AutoFateController
                 Diag($"AutoTrade finished: resuming FATE grind at {activeZones[resumeIndex].Name}.");
                 ResumeGrindOrHumanize(owningSession, resumeIndex);
             });
+    }
+
+    private const int  MaxFaultResumes     = 3;
+    private const long FaultResumeWindowMs = 5 * 60_000;
+
+    // Bounded restart after the grind task ended by throwing (gated on AutoResumeOnFault). The window
+    // resets once it lapses, so sparse faults over a long run each get a fresh budget; only a burst — a
+    // hard wedge that re-faults immediately — exhausts the budget and lets the run end for real.
+    private bool TryAutoResumeAfterFault(AutoFateSession s)
+    {
+        s.EndedWithFault = false;
+        if (activeZones.Count == 0) return false;
+
+        var now = Environment.TickCount64;
+        if (now - s.FaultWindowStartedAtMs > FaultResumeWindowMs)
+        {
+            s.FaultResumeCount = 0;
+            s.FaultWindowStartedAtMs = now;
+        }
+        if (s.FaultResumeCount >= MaxFaultResumes)
+        {
+            Diag($"Grind task faulted {s.FaultResumeCount}× within {FaultResumeWindowMs / 60000}m; not resuming. Run ends.");
+            return false;
+        }
+
+        s.FaultResumeCount++;
+        var idx = Math.Clamp(s.FaultResumeZoneIndex, 0, activeZones.Count - 1);
+        Diag($"Grind task ended with an unexpected fault; auto-resuming at {activeZones[idx].Name} (resume {s.FaultResumeCount}/{MaxFaultResumes} this {FaultResumeWindowMs / 60000}m window).");
+        StartFateGrind(idx, s);
+        return true;
     }
 
     // Runs after every other post-FATE hand-off has cleared. If the humanize threshold tripped while

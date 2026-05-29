@@ -56,6 +56,7 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
     private const int   ActivateMoveWatchdogMs = 60_000;
     private const int   NavmeshReadyWaitMs = 60_000;
     private const int   HeartbeatMs = 30_000;
+    private const int   MaxConsecutiveStateErrors = 20;
 
     private uint? lastStuckFateId;
     private int consecutiveStuckRetries;
@@ -114,6 +115,15 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         catch (Exception ex)
         {
             DisableTextAdvance();
+            // A user Stop / run cancellation also unwinds through here; only flag a genuine fault so the
+            // controller's bounded auto-resume can't be triggered by a deliberate stop.
+            if (Plugin.Cfg.AutoResumeOnFault
+             && !CancelToken.IsCancellationRequested
+             && ex is not OperationCanceledException)
+            {
+                session.EndedWithFault = true;
+                session.FaultResumeZoneIndex = zoneIndex;
+            }
             var msg = ex.Message;
             var lastBracket = msg.LastIndexOf("] ");
             if (lastBracket >= 0) msg = msg[(lastBracket + 2)..];
@@ -128,8 +138,11 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
 
     private async Task RunStateMachine()
     {
+        var consecutiveErrors = 0;
         while (!CancelToken.IsCancellationRequested)
         {
+          try
+          {
             var state = ComputeState();
 
             if (state != lastObservedState)
@@ -200,6 +213,21 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
             // iteration. Some handlers can return synchronously (e.g. a FATE that ended the instant
             // we entered); without this a synchronous state could spin and freeze the game.
             await NextFrame();
+            consecutiveErrors = 0;
+          }
+          catch (Exception ex) when (!CancelToken.IsCancellationRequested)
+          {
+            // One transient fault (e.g. a clib NRE on a despawned FATE) must not end the grind; back off
+            // and retry. Only a long unbroken run of failures (a genuinely wedged state) surfaces and stops.
+            consecutiveErrors++;
+            Diag($"State machine caught {ex.GetType().Name} (#{consecutiveErrors}/{MaxConsecutiveStateErrors}): {ex.Message}");
+            if (consecutiveErrors >= MaxConsecutiveStateErrors)
+            {
+                Diag("Too many consecutive state-machine errors; surfacing and stopping.");
+                throw;
+            }
+            await NextFrame(30);
+          }
         }
     }
 
@@ -414,6 +442,12 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         if (lastStuckFateId == fate.Id) { lastStuckFateId = null; consecutiveStuckRetries = 0; }
         if (lastTeleportedFateId == fate.Id) lastTeleportedFateId = null;
 
+        // clib's PublicEvent getters deref a freed FateContext* and throw NRE; re-resolve before reading
+        // native fields. A null handle means the FATE finished/expired mid-move (incl. MoveStopReason.FateInvalid).
+        var arrived = PublicEvent.GetFateById(fate.Id);
+        if (arrived is null) return ExitReason.Continue;
+        fate = arrived;
+
         // Boss/event FATEs must be activated via their NPC before they go Running. 0xE0000000 = no NPC.
         if (fate.State == FateState.Preparing && fate.MotivationNpcId != 0xE0000000)
             await ActivateFate(fate);
@@ -437,6 +471,10 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
 
         await EnsureObstacleMapForEngage(fate);
 
+        // The FATE can end during obstacle-map generation; re-resolve before reading native fields so a
+        // freed FateContext* can't NRE (same hazard as the engage loop below, which re-resolves each tick).
+        if (PublicEvent.GetFateById(fateId) is not { } live) return ExitReason.Continue;
+        fate = live;
         Status = $"Engaging {fate.Name}";
 
         var lastProgress = fate.Progress;
@@ -753,11 +791,16 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
         while (Environment.TickCount64 < npcDeadline)
         {
             if (CancelToken.IsCancellationRequested) return;
+            // Re-resolve each frame: clib's getters NRE if the FATE despawns during the NPC-spawn wait.
+            if (PublicEvent.GetFateById(fate.Id) is not { } live) return;
+            fate = live;
             if (fate.State == FateState.Running) return;
             if (fate.MotivationNpc?.IsTargetable == true) break;
             await NextFrame(30);
         }
 
+        if (PublicEvent.GetFateById(fate.Id) is not { } refreshed) return;
+        fate = refreshed;
         if (fate.State == FateState.Running) return;
         var npc = fate.MotivationNpc;
         if (npc is null || !npc.IsTargetable)
@@ -1255,6 +1298,13 @@ public sealed class AutoFateSession
     public int FatesSinceLastBreak;
     public bool PendingHumanize;
     public ZoneInfo? PendingHumanizeFromZone;
+
+    // Fault-resume bookkeeping. The flag is set only when the grind task ends by throwing (and only when
+    // AutoResumeOnFault is on); the controller restarts a bounded number of times within a sliding window.
+    public bool EndedWithFault;
+    public int  FaultResumeZoneIndex;
+    public int  FaultResumeCount;
+    public long FaultWindowStartedAtMs;
 
     public TimeSpan Elapsed => DateTime.UtcNow - StartedAt;
     public int GemstonesEarned => Math.Max(0, GemstoneCurrent - GemstoneStart);

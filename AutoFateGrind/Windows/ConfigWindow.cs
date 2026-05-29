@@ -110,6 +110,10 @@ public sealed class ConfigWindow : Window, IDisposable
                 cfg.ShowLivePopout = v;
                 Plugin.Instance.LiveFateWindow.IsOpen = v;
             }, "##gen_popout", Styling.AccentViolet));
+
+        SettingsRow.Draw("Auto-resume on fault",
+            "If the grind hits an unrecoverable error and stops, automatically restart it (up to 3 times in 5 minutes) instead of ending the run. Leave off if you want faults to surface.",
+            () => DrawToggle(cfg, () => cfg.AutoResumeOnFault, v => cfg.AutoResumeOnFault = v, "##gen_autoresume", Styling.AccentViolet));
     }
 
     private static void DrawFiltersTab(Configuration cfg)

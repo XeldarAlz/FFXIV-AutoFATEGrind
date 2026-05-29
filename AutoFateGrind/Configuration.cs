@@ -47,6 +47,10 @@ public sealed class Configuration : IPluginConfiguration
     public bool SwapZonesWhenEmpty { get; set; } = true;
     public bool ShowLivePopout { get; set; } = false;
 
+    // When the grind task ends by throwing (the MaxConsecutiveStateErrors backstop), auto-restart it a
+    // bounded number of times instead of stopping the run.
+    public bool AutoResumeOnFault { get; set; } = true;
+
     // Flat blacklist for FATEs with broken obstacle maps that pathfinding always fails on.
     public HashSet<uint> BlacklistedFateIds { get; set; } = [1831, 1832, 1914, 1915];
 
