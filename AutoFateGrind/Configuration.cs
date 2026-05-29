@@ -32,6 +32,7 @@ public sealed class Configuration : IPluginConfiguration
 
     public int TargetFateCount { get; set; } = 30;
     public int TargetGemstoneCount { get; set; } = 1500;
+    public int TargetMinutes { get; set; } = 60;
 
     // Kept so old saved configs deserialize.
     public bool ShowAllZonesOverride { get; set; } = false;

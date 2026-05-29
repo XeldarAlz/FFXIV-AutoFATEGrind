@@ -7,6 +7,7 @@ public static class FateGrindModes
     [
         new MaxGemstonesMode(),
         new RunCountMode(),
+        new TimeBoxedMode(),
         new EndlessMode(),
     ];
 

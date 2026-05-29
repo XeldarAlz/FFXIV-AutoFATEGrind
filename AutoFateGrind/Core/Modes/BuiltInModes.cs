@@ -26,6 +26,23 @@ public sealed class MaxGemstonesMode : IFateGrindMode
     }
 }
 
+public sealed class TimeBoxedMode : IFateGrindMode
+{
+    public string Id => "timeboxed";
+    public string DisplayName => "Farm for Time";
+    public string Description => "Runs for a set number of minutes, then stops. Always finishes the FATE in progress first.";
+    public bool IsComplete(ModeContext ctx) => ctx.Elapsed >= TimeSpan.FromMinutes(Math.Max(1, Plugin.Cfg.TargetMinutes));
+
+    public string? GetRemainingDisplay(ModeContext ctx)
+    {
+        var remaining = TimeSpan.FromMinutes(Math.Max(1, Plugin.Cfg.TargetMinutes)) - ctx.Elapsed;
+        if (remaining <= TimeSpan.Zero) return null;
+        return remaining.TotalHours >= 1
+            ? $"{(int)remaining.TotalHours}h {remaining.Minutes:D2}m left"
+            : $"{remaining.Minutes}m {remaining.Seconds:D2}s left";
+    }
+}
+
 public sealed class RunCountMode : IFateGrindMode
 {
     public string Id => "runcount";

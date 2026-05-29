@@ -12,9 +12,10 @@ internal static class GoalGrid
     // Keyed by mode id so the registry stays UI-agnostic; unknown ids fall back to a neutral visual.
     private static readonly Dictionary<string, (FontAwesomeIcon Icon, Vector4 Accent)> visuals = new()
     {
-        ["maxgemstones"] = (FontAwesomeIcon.Gem,      Styling.AccentViolet),
-        ["runcount"]     = (FontAwesomeIcon.ListOl,   Styling.AccentVioletSoft),
-        ["endless"]      = (FontAwesomeIcon.Infinity, Styling.AccentPink),
+        ["maxgemstones"] = (FontAwesomeIcon.Gem,       Styling.AccentViolet),
+        ["runcount"]     = (FontAwesomeIcon.ListOl,    Styling.AccentVioletSoft),
+        ["timeboxed"]    = (FontAwesomeIcon.Stopwatch, Styling.AccentTeal),
+        ["endless"]      = (FontAwesomeIcon.Infinity,  Styling.AccentPink),
     };
 
     public static void Draw(Configuration cfg, Plugin plugin)

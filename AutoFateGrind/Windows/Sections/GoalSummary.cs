@@ -46,6 +46,20 @@ internal static class GoalSummary
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
                 ImGui.TextUnformatted($"gems  ·  have {GemstoneCount()}");
         }
+        else if (modeId == "timeboxed")
+        {
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth(80);
+            var mins = cfg.TargetMinutes;
+            if (ImGui.InputInt("##mins", ref mins, 5, 30))
+            {
+                cfg.TargetMinutes = Math.Clamp(mins, 1, 1440);
+                cfg.SaveDebounced();
+            }
+            ImGui.SameLine();
+            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
+                ImGui.TextUnformatted("minutes");
+        }
 
         ImGui.Spacing();
 
@@ -65,6 +79,7 @@ internal static class GoalSummary
     {
         "maxgemstones" => "Stops at",
         "runcount"     => "Stops after",
+        "timeboxed"    => "Stops after",
         "endless"      => "Rotates selected zones until you press Stop.",
         _              => cfg.ActiveMode.Description,
     };
