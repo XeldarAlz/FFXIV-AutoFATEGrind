@@ -45,6 +45,7 @@ public sealed class MainWindow : Window, IDisposable
         GoalSummary.Draw(cfg, ctrl);
 
         ImGui.Spacing();
+        Styling.SectionLabel("Zones");
         ZonePicker.Draw(cfg, ctrl);
     }
 }

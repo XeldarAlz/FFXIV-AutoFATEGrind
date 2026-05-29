@@ -13,10 +13,8 @@ public sealed class Configuration : IPluginConfiguration
 
     public List<uint> SelectedZones { get; set; } = [];
 
-    // Legacy enum kept for migration from pre-mode-registry saves; ModeId is the source of truth now.
+    // Legacy enum for migration; ModeId is the source of truth.
     public GrindMode Mode { get; set; } = GrindMode.MaxGemstones;
-
-    // Stable id into FateGrindModes. Empty means "not yet migrated" — resolved from Mode on first access.
     public string ModeId { get; set; } = "";
 
     [Newtonsoft.Json.JsonIgnore]
@@ -34,10 +32,7 @@ public sealed class Configuration : IPluginConfiguration
     public int TargetGemstoneCount { get; set; } = 1500;
     public int TargetMinutes { get; set; } = 60;
 
-    // Kept so old saved configs deserialize.
     public bool ShowAllZonesOverride { get; set; } = false;
-
-    // Kept so old saved configs deserialize.
     public ExpansionFilter RegionFilter { get; set; } = ExpansionFilter.All;
 
     public string CombatPresetName { get; set; } = Core.AfgConstants.BundledCombatPresetName;
@@ -48,25 +43,18 @@ public sealed class Configuration : IPluginConfiguration
     public bool SwapZonesWhenEmpty { get; set; } = true;
     public bool ShowLivePopout { get; set; } = false;
 
-    // When the grind task ends by throwing (the MaxConsecutiveStateErrors backstop), auto-restart it a
-    // bounded number of times instead of stopping the run.
+    // Auto-restart on fault, bounded by MaxConsecutiveStateErrors.
     public bool AutoResumeOnFault { get; set; } = true;
 
-    // Flat blacklist for FATEs with broken obstacle maps that pathfinding always fails on.
     public HashSet<uint> BlacklistedFateIds { get; set; } = [1831, 1832, 1914, 1915];
 
-    // Per-FateType blacklist (key is (int)FateType for serialization stability). Augments, not replaces,
-    // BlacklistedFateIds.
+    // Per-FateType blacklist (augments BlacklistedFateIds); key is (int)FateType for stability.
     public Dictionary<int, HashSet<uint>> BlacklistedTypeIds { get; set; } = [];
 
-    // Stored as int so saved configs survive clib's FateRule enum reordering.
     public HashSet<int> SkippedFateRules { get; set; } = [];
-
-    // Reorderable sort criteria. Empty list falls back to the default order baked into FateScanner.
     public List<FateSortEntry> FateSortOrder { get; set; } = [];
 
-    // Runtime-only — never persists; FATEs whose obstacle map evaluated as bad mid-run, so the next
-    // attempt won't re-generate and stall again. Cleared when the plugin reloads.
+    // Runtime-only; FATEs with bad obstacle maps mid-run (cleared on reload).
     [Newtonsoft.Json.JsonIgnore]
     public HashSet<uint> RuntimeBadObstacleMaps { get; set; } = [];
 
@@ -75,6 +63,9 @@ public sealed class Configuration : IPluginConfiguration
     // Game-imposed Bicolor cap is 1500.
     public int TradeThreshold { get; set; } = 1500;
     public AfterTradeAction AfterTrade { get; set; } = AfterTradeAction.Resume;
+
+    // What to do once the run's stop condition is met (never fires on manual Stop or a fault).
+    public AfterRunAction AfterRun { get; set; } = AfterRunAction.StayLoggedIn;
 
     public GemstoneSpendMode SpendMode { get; set; } = GemstoneSpendMode.SpendAll;
     public int SpendGemsAmount { get; set; } = 1000;
@@ -86,10 +77,9 @@ public sealed class Configuration : IPluginConfiguration
     public AfterClassQueueDone AfterClassQueueDone { get; set; } = AfterClassQueueDone.KeepGrindingOnLast;
 
     public bool AutoRepair { get; set; } = false;
-    // Triggers when the lowest-condition equipped item drops to or below this percentage.
     public int AutoRepairThresholdPct { get; set; } = 20;
     public RepairMode RepairMode { get; set; } = RepairMode.SelfThenNpc;
-    // When set, the NPC repair branch travels to this NPC instead of the Grand Company mender.
+    // Preferred repair NPC; null uses the GC mender.
     public RepairNpc? PreferredRepairNpc { get; set; } = null;
 
     public bool GmAlertStopRun { get; set; } = true;
@@ -159,6 +149,14 @@ public enum AfterTradeAction
     Stop,
 }
 
+public enum AfterRunAction
+{
+    StayLoggedIn,
+    Logout,
+    ReturnToInn,
+    CloseGame,
+}
+
 public enum GemstoneSpendMode
 {
     SpendAll,
@@ -217,8 +215,7 @@ public sealed class ConsumableEntry
 {
     public uint ItemId { get; set; }
     public string Name { get; set; } = "";
-    // The buff the item grants (48 Well Fed for food, 49 Medicated for medicine) — checked via the
-    // player's status list.
+    // Status ID granted (Well Fed = 48, Medicated = 49).
     public uint StatusId { get; set; }
     public bool CanBeHq { get; set; }
 }

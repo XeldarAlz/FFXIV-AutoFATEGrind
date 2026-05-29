@@ -17,8 +17,6 @@ using CSFateManager = FFXIVClientStructs.FFXIV.Client.Game.Fate.FateManager;
 
 namespace AutoFateGrind.Core.Tasks;
 
-// Each tick computes the desired state, then dispatches a bounded handler. Every wait has a
-// wall-clock timeout so no single condition can park the run — an early return self-recovers.
 public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession session, int startIndex = 0) : AutoCommon
 {
     private readonly IReadOnlyList<ZoneInfo> zones = zones;
@@ -165,6 +163,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
                 case GrindState.AllDone:
                     Status = "Stop condition met";
                     Diag("Stop condition met; exiting");
+                    session.CompletedByStopCondition = true;
                     return;
 
                 case GrindState.Unconscious:

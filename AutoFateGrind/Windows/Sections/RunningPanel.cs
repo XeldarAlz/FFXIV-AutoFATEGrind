@@ -71,6 +71,7 @@ internal static class RunningPanel
             AutoPhase.Trading    => (Styling.AccentAmber, Styling.AccentAmberSoft, "TRADING GEMSTONES"),
             AutoPhase.Repairing  => (Styling.TextStrong,  Styling.TextSecondary,   "REPAIRING GEAR"),
             AutoPhase.Humanizing => (Styling.AccentMint,  Styling.AccentMintSoft,  "ON A BREAK"),
+            AutoPhase.Finishing  => (Styling.AccentMint,  Styling.AccentMintSoft,  "FINISHING UP"),
             AutoPhase.Grinding   => (Styling.AccentBlue,  Styling.AccentBlueSoft,  inFate ? "ENGAGING FATE" : "GRINDING FATES"),
             _                    => (Styling.TextDim,     Styling.TextSecondary,   "STANDING BY"),
         };

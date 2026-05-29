@@ -9,27 +9,22 @@ public sealed class AutoFateSession
     public int GemstoneStart;
     public int GemstoneCurrent;
 
-    // Experience progress for the run. All best-effort: if ExpReader can't read (between zones, login
-    // edge), the sample is skipped and accrual simply pauses until the next readable tick.
     public uint JobId;
     public string JobAbbr = "";
     public int StartLevel;
     public int CurrentLevel;
-    // Accumulated across the run by summing positive deltas WITHIN each job segment. The class queue (or a
-    // manual swap) can change jobs mid-run; a single cross-job cumulative diff would go wrong when the new
-    // job has a different cumulative total, so we re-baseline on every job change instead of diffing across.
+    // Accumulated per job segment; reset baseline on job change to avoid cross-job cumulative diff errors.
     public long ExpEarned;
     public int LevelsGained;
 
-    // Current segment's job and the baselines that the next positive delta is measured against. A job
-    // change resets the baselines without crediting the cross-job jump.
     private uint trackedJobId;
     private long segmentBaselineExp;
     private int segmentBaselineLevel;
     private bool startCaptured;
 
-    // Set once the run is written to history, so terminal hand-offs and Stop can't double-record it.
     public bool Recorded;
+    public bool CompletedByStopCondition;
+    public bool AfterActionDispatched;
 
     public void CaptureStartExp()
     {
@@ -46,7 +41,6 @@ public sealed class AutoFateSession
     {
         if (Core.Game.ExpReader.Read() is not { } s) return;
 
-        // Start sample was missed (player not loaded when the run began); baseline now without crediting.
         if (!startCaptured)
         {
             StartLevel = s.Level;
@@ -56,7 +50,6 @@ public sealed class AutoFateSession
             return;
         }
 
-        // Job changed mid-run: start a fresh segment; never diff one job's total against another's.
         if (s.JobId != trackedJobId)
         {
             RebaselineTo(s);
@@ -94,8 +87,6 @@ public sealed class AutoFateSession
     public bool PendingHumanize;
     public ZoneInfo? PendingHumanizeFromZone;
 
-    // Fault-resume bookkeeping. The flag is set only when the grind task ends by throwing (and only when
-    // AutoResumeOnFault is on); the controller restarts a bounded number of times within a sliding window.
     public bool EndedWithFault;
     public int  FaultResumeZoneIndex;
     public int  FaultResumeCount;

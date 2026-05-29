@@ -75,13 +75,35 @@ internal sealed class AutoFateController
         if (ending is not null) Diag("Stop requested; session cleared.");
     }
 
-    // Single terminal choke point: record the run, then drop to Idle. Every hand-off path that ends a run
-    // funnels through here so a future terminal branch can't forget to record by writing Phase = Idle on its
-    // own. FinalizeRun is idempotent, so the stale-session paths can call this harmlessly too.
+    // Terminal choke point so every end-run path records and returns to Idle.
     private void EndRun(AutoFateSession? s)
     {
         FinalizeRun(s);
         Phase = AutoPhase.Idle;
+        MaybeRunAfterAction(s);
+    }
+
+    // After-action gates: s must be the live session and have ended via stop condition (not manual Stop or fault).
+    private void MaybeRunAfterAction(AutoFateSession? s)
+    {
+        if (s is null || s != session || !s.CompletedByStopCondition || s.AfterActionDispatched) return;
+        s.AfterActionDispatched = true;
+
+        var action = Plugin.Cfg.AfterRun;
+        if (action == AfterRunAction.StayLoggedIn)
+        {
+            Diag("Run completed by stop condition; after-run action = StayLoggedIn (no-op).");
+            return;
+        }
+
+        Diag($"Run completed by stop condition; starting after-run action {action}.");
+        Phase = AutoPhase.Finishing;
+        AutoCommon task = action == AfterRunAction.ReturnToInn ? new AutoReturnToInn() : new AutoAfterRun(action);
+        Svc.Automation.Start(task, OnCompleted: () =>
+        {
+            Diag($"After-run action {action} finished.");
+            Phase = AutoPhase.Idle;
+        });
     }
 
     // Writes a finished run to history exactly once. Idempotent (guarded by session.Recorded) so the many
@@ -326,4 +348,4 @@ internal sealed class AutoFateController
     }
 }
 
-internal enum AutoPhase { Idle, Grinding, Trading, Repairing, Humanizing }
+internal enum AutoPhase { Idle, Grinding, Trading, Repairing, Humanizing, Finishing }
