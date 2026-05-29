@@ -59,8 +59,6 @@ public sealed class AutoRepair : AutoCommon
         Svc.Chat.Print($"[AFG] Repair done. Lowest condition {before:F0}% → {after:F0}%.");
     }
 
-    // ---------- Self-repair branch ----------
-
     private async Task<bool> TrySelfRepair()
     {
         if (Svc.Condition[ConditionFlag.Mounted])
@@ -82,8 +80,6 @@ public sealed class AutoRepair : AutoCommon
 
         return await DriveRepairAddon();
     }
-
-    // ---------- NPC branch ----------
 
     private async Task RepairAtGcMender()
     {
@@ -145,9 +141,6 @@ public sealed class AutoRepair : AutoCommon
         await DriveRepairAddon();
     }
 
-    // ---------- Shared addon driver ----------
-
-    // Walks the Repair → SelectYesno → completion sequence common to self-repair and NPC repair.
     private async Task<bool> DriveRepairAddon()
     {
         Status = "Repairing gear";

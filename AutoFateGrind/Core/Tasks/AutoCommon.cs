@@ -135,7 +135,7 @@ public abstract class AutoCommon : TaskBase
         // The op can complete (and dispose its CTS) between our IsCompleted check and here; Cancel on a
         // disposed CTS throws. Swallow it — a completed op needs no cancelling.
         try { op.Cancel(); }
-        catch (ObjectDisposedException) { /* already completed */ }
+        catch (ObjectDisposedException) { }
         catch (Exception ex) { Diag($"RunCancellable '{label}' Cancel threw: {ex.Message}"); }
     }
 

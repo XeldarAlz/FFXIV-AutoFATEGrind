@@ -12,14 +12,11 @@ using System.Numerics;
 
 namespace AutoFateGrind.Core.Game;
 
-// Repair detection + addon helpers, structured the same way as ShopInteraction.cs.
 internal static unsafe class RepairOps
 {
-    // The Repair general-action id (the same icon the player slots on a hotbar).
     public const uint RepairGeneralActionId = 6;
 
-    // Lowest item Condition across the 13 equipped slots, in 0..100%. Condition is stored in 1/300ths
-    // internally; matches AutoDuty's check.
+    // Condition is stored internally in 1/300ths; convert across the 13 equipped slots to 0..100%.
     public static float LowestEquippedConditionPct()
     {
         var im = InventoryManager.Instance();
@@ -43,9 +40,6 @@ internal static unsafe class RepairOps
     public static bool NeedsRepair(int thresholdPct)
         => LowestEquippedConditionPct() <= thresholdPct;
 
-    // True iff every repair material the equipped set needs is somewhere in the bag at the required
-    // grade or better. Used to skip the in-place self-repair branch and go straight to the NPC when we
-    // know it would fail.
     public static bool HasDarkMatterForAllEquipped()
     {
         var im = InventoryManager.Instance();
@@ -83,8 +77,6 @@ internal static unsafe class RepairOps
         return false;
     }
 
-    // ---------- Self-repair action ----------
-
     public static bool TriggerRepairGeneralAction()
     {
         if (!EzThrottler.Throttle("AFG.Repair.Trigger", 500)) return false;
@@ -93,8 +85,6 @@ internal static unsafe class RepairOps
         am->UseAction(ActionType.GeneralAction, RepairGeneralActionId);
         return true;
     }
-
-    // ---------- Repair UI helpers (mirrors ShopInteraction.cs) ----------
 
     public static bool RepairAddonOpen()
         => GenericHelpers.TryGetAddonByName<AtkUnitBase>("Repair", out var addon)
@@ -161,8 +151,6 @@ internal static unsafe class RepairOps
         agent->Hide();
     }
 
-    // ---------- Grand Company mender lookup ----------
-
     public record struct GcMender(uint TerritoryId, Vector3 Position, uint DataId, string Name);
 
     public static GcMender? GetGrandCompanyMender()
@@ -185,9 +173,7 @@ internal static unsafe class RepairOps
         return null;
     }
 
-    // ---------- Custom repair NPC ----------
-
-    // The NPC the repair branch should travel to: the user's chosen NPC if set, else the GC mender.
+    // The user's chosen NPC if set, else the GC mender.
     public static GcMender? ResolveRepairNpc(out int repairIndex)
     {
         var custom = Plugin.Cfg.PreferredRepairNpc;
@@ -201,7 +187,6 @@ internal static unsafe class RepairOps
         return GetGrandCompanyMender();
     }
 
-    // Snapshot the current target as a repair NPC for the config. Null if nothing is targeted.
     public static RepairNpc? CaptureCurrentTargetAsRepairNpc()
     {
         var target = TargetSystem.Instance()->Target;

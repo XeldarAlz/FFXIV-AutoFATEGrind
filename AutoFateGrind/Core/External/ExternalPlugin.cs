@@ -35,9 +35,6 @@ public static class ExternalPlugins
             RepoUrl: "https://puni.sh/api/repository/veyn",
             Purpose: "Auto-rotation, targeting, and dodging during FATE combat.",
             Required: true),
-            // BossMod Reborn (community fork) support disabled for now; re-enable later.
-            // DisplayName: "BossMod / BossMod Reborn",
-            // Aliases: ["BossModReborn"]),
         [ExternalPlugin.TextAdvance] = new(
             InternalName: "TextAdvance",
             DisplayName: "TextAdvance",
