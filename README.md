@@ -69,6 +69,10 @@ If you liked this plugin, take a look at my other Dalamud work. You might find s
 
 → [XeldarAlz Dalamud Plugins](https://github.com/XeldarAlz/DalamudPlugins)
 
+## Acknowledgements
+
+Auto FATE Grind's core automation design was inspired by the FATE-grinding work in [FateToolKit / Date with Destiny](https://github.com/Jaksuhn/ffxiv-bundleoftweaks) — the state-machine and FATE-handling approach started from those ideas. Credit to that project's author for the original design.
+
 ## License
 
 AGPL-3.0-or-later. See [LICENSE.md](LICENSE.md).
