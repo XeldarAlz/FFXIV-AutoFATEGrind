@@ -112,6 +112,11 @@ public sealed class Configuration : IPluginConfiguration
     // TerritoryIds from Core.Zones.CityCatalog; defaults to every expansion's main hub.
     public HashSet<uint> HumanizerCities { get; set; } = [129, 132, 1185, 1205];
 
+    public bool AutoConsume { get; set; } = false;
+    // 0 = only re-eat once Well Fed has fully worn off.
+    public int AutoConsumeMinMinutes { get; set; } = 3;
+    public List<ConsumableEntry> AutoConsumeItems { get; set; } = [];
+
     public void Save() => Plugin.PluginInterface.SavePluginConfig(this);
 
     public void SaveDebounced()
@@ -190,6 +195,17 @@ public enum FateSortCriterion
     TimeRemaining,
     Level,
     Name,
+}
+
+[Serializable]
+public sealed class ConsumableEntry
+{
+    public uint ItemId { get; set; }
+    public string Name { get; set; } = "";
+    // The buff the item grants (48 Well Fed for food, 49 Medicated for medicine) — checked via the
+    // player's status list.
+    public uint StatusId { get; set; }
+    public bool CanBeHq { get; set; }
 }
 
 [Serializable]

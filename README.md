@@ -27,16 +27,17 @@ Lists every FATE zone from A Realm Reborn through Dawntrail in one window. Tick 
 
 ## Features
 
-- **Zone picker** — every FATE zone from ARR through DT, grouped by expansion tabs, with a Queue tab summarising what's selected. Per-zone live state shows the active FATE count.
-- **Three grind modes** — *Farm Gemstones* (stops at your Bicolor target), *Run N FATEs* (stops after N completions), and *Endless* (runs until you press Stop).
-- **FATE filters & priority** — skip FATEs by type (escort, collect, defend…), minimum time remaining, maximum progress, plus a reorderable priority list (closest, bonus, expiring, etc.). Persistent blacklist for FATEs with broken obstacle maps.
-- **Live FATE tracker** — inline in the main window, or as a separate HUD overlay when enabled.
-- **Class queue** — equip a list of gearsets in order with per-class level caps; the plugin advances to the next class on cap.
-- **Auto-trade Bicolor Gemstones** — teleports to the trader at threshold and resumes the grind.
-- **Auto-repair** — self-repair via Dark Matter when available, falls back to your Grand Company mender.
-- **Humanizer** — every N FATEs, teleports to a random city (Limsa, Gridania, Tuliyollal, Solution Nine) and wanders between random points for a configurable few minutes before resuming the grind. Helps long sessions look less mechanical to other players.
-- **GM alert** — detects nearby Game Masters and stops the bot (plus optional toast / chat / beeps / custom commands / `/xlkill`).
-- **Cancellable mid-run; selection persists across reloads.** Locked zones are greyed with hover tooltips explaining why.
+- **Zone picker**: pick any FATE zones from ARR through DT, with live active-FATE counts.
+- **Three grind modes**: farm to a Gemstone target, run N FATEs, or go endless.
+- **FATE filters & priority**: skip by type, time left, or progress, and reorder how the next FATE is chosen.
+- **Live FATE tracker**: shown inline, or as a separate HUD overlay.
+- **Class queue**: cycle gearsets in order with per-class level caps.
+- **Auto-trade**: spends Bicolor Gemstones at the trader once you hit your threshold.
+- **Auto-repair**: Dark Matter first, Grand Company mender as fallback.
+- **Auto-consume**: keeps food and medicine buffs up (Well Fed is a free +3% EXP), HQ first.
+- **Humanizer**: takes random city breaks between FATEs so long sessions look less mechanical.
+- **GM alert**: stops the bot when a GM is near, with optional toast, beeps, or custom commands.
+- **Resilient**: cancellable mid-run, and your selection persists across reloads.
 
 ## Install
 

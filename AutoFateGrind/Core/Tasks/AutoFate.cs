@@ -109,6 +109,8 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
 
         try
         {
+            // Eat up front so the buff is live before the first FATE (food works anywhere out of combat).
+            await EnsureConsumables();
             await RunStateMachine();
             Svc.Chat.Print($"[AFG] {zone.Name}: zone done.");
         }
@@ -346,9 +348,45 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
 
     private async Task TickIdleScan()
     {
+        await EnsureConsumables();
         idleScans++;
         Status = $"Waiting for FATEs in {zone.Name} ({idleScans}/{IdleScansBeforeSwap})";
         await NextFrame(60);
+    }
+
+    private const int ConsumeItemWaitMs = 6_000;
+
+    // Each item is bounded by a wall-clock deadline, so a use that never lands can't park the grind.
+    private async Task EnsureConsumables()
+    {
+        var cfg = Plugin.Cfg;
+        if (!cfg.AutoConsume || cfg.AutoConsumeItems.Count == 0) return;
+        if (Svc.Condition[ConditionFlag.InCombat]) return;
+        if (IsPlayerKO()) return;
+        if (!FoodOps.AnyNeeded(cfg)) return;
+
+        // Eating requires being grounded; dismount first if we're on a mount (e.g. Start pressed mounted).
+        if (Svc.Condition[ConditionFlag.Mounted])
+            await DismountViaOp("dismount-consume");
+        if (Svc.Condition[ConditionFlag.Mounted] || Svc.Condition[ConditionFlag.InCombat]) return;
+
+        var minSeconds = Math.Max(0, cfg.AutoConsumeMinMinutes) * 60f;
+        foreach (var entry in cfg.AutoConsumeItems)
+        {
+            if (CancelToken.IsCancellationRequested) return;
+            if (FoodOps.HasStatus(entry.StatusId, minSeconds)) continue;
+            if (!FoodOps.IsAvailable(entry)) continue;
+
+            Status = $"Consuming {entry.Name}";
+            Diag($"Auto-consume: {entry.Name} (status {entry.StatusId} missing or under {cfg.AutoConsumeMinMinutes}m)");
+            await WaitUntilTimed(() =>
+            {
+                if (FoodOps.HasStatus(entry.StatusId, minSeconds)) return true;
+                if (Svc.Condition[ConditionFlag.InCombat]) return true; // combat started; re-apply later
+                FoodOps.UseConsumable(entry);
+                return false;
+            }, ConsumeItemWaitMs, $"consume-{entry.ItemId}", checkMs: 100);
+        }
     }
 
     private async Task TickFollowUpWait()
@@ -368,6 +406,9 @@ public sealed class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSession sess
     {
         var player = Svc.Objects.LocalPlayer;
         if (player is null) { await NextFrame(); return ExitReason.Continue; }
+
+        await EnsureConsumables();
+        if (CancelToken.IsCancellationRequested) return ExitReason.Quit;
 
         var fate = FateScanner.PickNext(Plugin.Cfg, player.Position, sessionStuckFateIds, returnToFateId);
         if (fate is null) return ExitReason.Continue;
