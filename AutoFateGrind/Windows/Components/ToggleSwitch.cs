@@ -6,8 +6,9 @@ namespace AutoFateGrind.Windows.Components;
 
 internal static class ToggleSwitch
 {
-    public static bool Draw(string id, ref bool value, Vector4 accent)
+    public static bool Draw(string id, ref bool value)
     {
+        var accent = Styling.AccentViolet;
         var trackWidth = 38f * ImGuiHelpers.GlobalScale;
         var trackHeight = 20f * ImGuiHelpers.GlobalScale;
         var knobRadius = (trackHeight - 4f * ImGuiHelpers.GlobalScale) * 0.5f;

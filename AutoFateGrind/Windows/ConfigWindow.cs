@@ -55,13 +55,13 @@ public sealed class ConfigWindow : Window, IDisposable
     private void DrawSidebar()
     {
         ImGui.Spacing();
-        if (SidebarTab.Draw("General",      FontAwesomeIcon.Cog,        Styling.AccentViolet,     activeTab == Tab.General)) activeTab = Tab.General;
-        if (SidebarTab.Draw("FATE filters", FontAwesomeIcon.Filter,     Styling.AccentVioletSoft, activeTab == Tab.Filters)) activeTab = Tab.Filters;
-        if (SidebarTab.Draw("Class queue",  FontAwesomeIcon.UserShield, Styling.AccentMint,       activeTab == Tab.Classes)) activeTab = Tab.Classes;
-        if (SidebarTab.Draw("Gemstones",    FontAwesomeIcon.Gem,        Styling.AccentPink,       activeTab == Tab.Gemstones)) activeTab = Tab.Gemstones;
-        if (SidebarTab.Draw("Repair",       FontAwesomeIcon.Wrench,     Styling.AccentRose,       activeTab == Tab.Repair))    activeTab = Tab.Repair;
-        if (SidebarTab.Draw("Humanizer",    FontAwesomeIcon.Walking,    Styling.AccentMint,       activeTab == Tab.Humanize))  activeTab = Tab.Humanize;
-        if (SidebarTab.Draw("GM alert",     FontAwesomeIcon.UserSecret, Styling.AccentAmber,      activeTab == Tab.GmAlert))   activeTab = Tab.GmAlert;
+        if (SidebarTab.Draw("General",      FontAwesomeIcon.Cog,        Styling.AccentViolet, activeTab == Tab.General)) activeTab = Tab.General;
+        if (SidebarTab.Draw("FATE filters", FontAwesomeIcon.Filter,     Styling.AccentViolet, activeTab == Tab.Filters)) activeTab = Tab.Filters;
+        if (SidebarTab.Draw("Class queue",  FontAwesomeIcon.UserShield, Styling.AccentViolet, activeTab == Tab.Classes)) activeTab = Tab.Classes;
+        if (SidebarTab.Draw("Gemstones",    FontAwesomeIcon.Gem,        Styling.AccentViolet, activeTab == Tab.Gemstones)) activeTab = Tab.Gemstones;
+        if (SidebarTab.Draw("Repair",       FontAwesomeIcon.Wrench,     Styling.AccentViolet, activeTab == Tab.Repair))    activeTab = Tab.Repair;
+        if (SidebarTab.Draw("Humanizer",    FontAwesomeIcon.Walking,    Styling.AccentViolet, activeTab == Tab.Humanize))  activeTab = Tab.Humanize;
+        if (SidebarTab.Draw("GM alert",     FontAwesomeIcon.UserSecret, Styling.AccentViolet, activeTab == Tab.GmAlert))   activeTab = Tab.GmAlert;
     }
 
     private void DrawContent(Configuration cfg)
@@ -98,11 +98,11 @@ public sealed class ConfigWindow : Window, IDisposable
     {
         SettingsRow.Draw("Open this window on login",
             "Pop the main window automatically the next time you log in.",
-            () => DrawToggle(cfg, () => cfg.AutoShowOnLogin, v => cfg.AutoShowOnLogin = v, "##gen_autoshow", Styling.AccentViolet));
+            () => DrawToggle(cfg, () => cfg.AutoShowOnLogin, v => cfg.AutoShowOnLogin = v, "##gen_autoshow"));
 
         SettingsRow.Draw("Swap zones when current is empty",
             "When the current zone runs out of eligible FATEs, jump to the next zone in your priority order.",
-            () => DrawToggle(cfg, () => cfg.SwapZonesWhenEmpty, v => cfg.SwapZonesWhenEmpty = v, "##gen_swap", Styling.AccentViolet));
+            () => DrawToggle(cfg, () => cfg.SwapZonesWhenEmpty, v => cfg.SwapZonesWhenEmpty = v, "##gen_swap"));
 
         SettingsRow.Draw("Live FATE tracker popout",
             "Show the live FATE tracker as a small overlay window so you can keep it visible while the main window is closed.",
@@ -110,11 +110,11 @@ public sealed class ConfigWindow : Window, IDisposable
             {
                 cfg.ShowLivePopout = v;
                 Plugin.Instance.LiveFateWindow.IsOpen = v;
-            }, "##gen_popout", Styling.AccentViolet));
+            }, "##gen_popout"));
 
         SettingsRow.Draw("Auto-resume on fault",
             "If the grind hits an unrecoverable error and stops, automatically restart it (up to 3 times in 5 minutes) instead of ending the run. Leave off if you want faults to surface.",
-            () => DrawToggle(cfg, () => cfg.AutoResumeOnFault, v => cfg.AutoResumeOnFault = v, "##gen_autoresume", Styling.AccentViolet));
+            () => DrawToggle(cfg, () => cfg.AutoResumeOnFault, v => cfg.AutoResumeOnFault = v, "##gen_autoresume"));
     }
 
     private static void DrawFiltersTab(Configuration cfg)
@@ -261,7 +261,7 @@ public sealed class ConfigWindow : Window, IDisposable
             var key = (int)rule;
             var skipped = cfg.SkippedFateRules.Contains(key);
             var id = $"##filt_rule_{key}";
-            if (ToggleSwitch.Draw(id, ref skipped, Styling.AccentVioletSoft))
+            if (ToggleSwitch.Draw(id, ref skipped))
             {
                 if (skipped) cfg.SkippedFateRules.Add(key);
                 else         cfg.SkippedFateRules.Remove(key);
@@ -281,7 +281,7 @@ public sealed class ConfigWindow : Window, IDisposable
     {
         SettingsRow.Draw("Switch class when run starts",
             "Equip the first eligible gearset below when you press Start. Disable to leave the run on whatever class you're currently on.",
-            () => DrawToggle(cfg, () => cfg.ApplyClassOnStart, v => cfg.ApplyClassOnStart = v, "##cls_apply", Styling.AccentMint));
+            () => DrawToggle(cfg, () => cfg.ApplyClassOnStart, v => cfg.ApplyClassOnStart = v, "##cls_apply"));
 
         if (!cfg.ApplyClassOnStart)
         {
@@ -454,7 +454,7 @@ public sealed class ConfigWindow : Window, IDisposable
     {
         SettingsRow.Draw("Auto-trade when at threshold",
             "When your Bicolor Gemstone inventory reaches the threshold below, the plugin teleports to a trader and buys the item.",
-            () => DrawToggle(cfg, () => cfg.TradeOnCap, v => cfg.TradeOnCap = v, "##tr_oncap", Styling.AccentPink));
+            () => DrawToggle(cfg, () => cfg.TradeOnCap, v => cfg.TradeOnCap = v, "##tr_oncap"));
 
         if (!cfg.TradeOnCap)
         {
@@ -562,10 +562,10 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.Spacing();
     }
 
-    private static void DrawToggle(Configuration cfg, Func<bool> getter, Action<bool> setter, string id, Vector4 accent)
+    private static void DrawToggle(Configuration cfg, Func<bool> getter, Action<bool> setter, string id)
     {
         var v = getter();
-        if (ToggleSwitch.Draw(id, ref v, accent))
+        if (ToggleSwitch.Draw(id, ref v))
         {
             setter(v);
             cfg.SaveDebounced();
@@ -576,7 +576,7 @@ public sealed class ConfigWindow : Window, IDisposable
     {
         SettingsRow.Draw("Auto-repair when gear is damaged",
             "Between FATEs, when the lowest equipped item drops to or below the threshold, the plugin runs a repair. At 0% the gear stops working — keep some margin.",
-            () => DrawToggle(cfg, () => cfg.AutoRepair, v => cfg.AutoRepair = v, "##rp_on", Styling.AccentRose));
+            () => DrawToggle(cfg, () => cfg.AutoRepair, v => cfg.AutoRepair = v, "##rp_on"));
 
         if (!cfg.AutoRepair)
         {
@@ -663,7 +663,7 @@ public sealed class ConfigWindow : Window, IDisposable
     {
         SettingsRow.Draw("Take periodic city breaks",
             "Every N FATEs, teleport to a random selected city and wander around for a few minutes before resuming. Helps you avoid player reports by acting a little more human — useful when you leave the PC running for long sessions and don't want others noticing you grinding FATEs non-stop.",
-            () => DrawToggle(cfg, () => cfg.HumanizerEnabled, v => cfg.HumanizerEnabled = v, "##hum_on", Styling.AccentMint));
+            () => DrawToggle(cfg, () => cfg.HumanizerEnabled, v => cfg.HumanizerEnabled = v, "##hum_on"));
 
         if (!cfg.HumanizerEnabled)
         {
@@ -768,7 +768,7 @@ public sealed class ConfigWindow : Window, IDisposable
             {
                 var selected = cfg.HumanizerCities.Contains(city.TerritoryId);
                 var id = $"##hum_city_{city.TerritoryId}";
-                if (ToggleSwitch.Draw(id, ref selected, Styling.AccentMint))
+                if (ToggleSwitch.Draw(id, ref selected))
                 {
                     if (selected) cfg.HumanizerCities.Add(city.TerritoryId);
                     else          cfg.HumanizerCities.Remove(city.TerritoryId);
@@ -793,21 +793,21 @@ public sealed class ConfigWindow : Window, IDisposable
     {
         SettingsRow.Draw("Stop the run",
             "Halt automation immediately when a GM appears in your zone. Strongly recommended — the rest of the alerts are useless if the bot keeps grinding.",
-            () => DrawToggle(cfg, () => cfg.GmAlertStopRun, v => cfg.GmAlertStopRun = v, "##gm_stop", Styling.AccentRose));
+            () => DrawToggle(cfg, () => cfg.GmAlertStopRun, v => cfg.GmAlertStopRun = v, "##gm_stop"));
 
         SettingsRow.Draw("Toast notification",
             "Pop a Dalamud toast: \"GM <name> is nearby!\"",
-            () => DrawToggle(cfg, () => cfg.GmAlertToast, v => cfg.GmAlertToast = v, "##gm_toast", Styling.AccentAmber));
+            () => DrawToggle(cfg, () => cfg.GmAlertToast, v => cfg.GmAlertToast = v, "##gm_toast"));
 
         SettingsRow.Draw("Chat alert",
             "Print a red chat warning into your local log.",
-            () => DrawToggle(cfg, () => cfg.GmAlertChat, v => cfg.GmAlertChat = v, "##gm_chat", Styling.AccentAmber));
+            () => DrawToggle(cfg, () => cfg.GmAlertChat, v => cfg.GmAlertChat = v, "##gm_chat"));
 
         SettingsRow.Draw("Sound beeps",
             "Plays a series of system beeps through your speakers. Loud enough to grab your attention if you're tabbed away.",
             () =>
             {
-                DrawToggle(cfg, () => cfg.GmAlertSound, v => cfg.GmAlertSound = v, "##gm_sound", Styling.AccentAmber);
+                DrawToggle(cfg, () => cfg.GmAlertSound, v => cfg.GmAlertSound = v, "##gm_sound");
 
                 if (!cfg.GmAlertSound) return;
 
@@ -841,7 +841,7 @@ public sealed class ConfigWindow : Window, IDisposable
 
         SettingsRow.Draw("Kill the game",
             "Hard-terminate the game process via /xlkill. The last-resort option — no goodbyes, no cutscene, no logout. You'll get a disconnect.",
-            () => DrawToggle(cfg, () => cfg.GmAlertKillGame, v => cfg.GmAlertKillGame = v, "##gm_kill", Styling.AccentRose));
+            () => DrawToggle(cfg, () => cfg.GmAlertKillGame, v => cfg.GmAlertKillGame = v, "##gm_kill"));
     }
 
     private static void DrawGmCommandList(Configuration cfg)
