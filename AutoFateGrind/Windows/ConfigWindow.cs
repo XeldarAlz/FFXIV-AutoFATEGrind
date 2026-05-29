@@ -4,6 +4,7 @@ using AutoFateGrind.Core.Zones;
 using AutoFateGrind.Windows.Components;
 using clib.Utils;
 using Dalamud.Bindings.ImGui;
+using ECommons.DalamudServices;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
@@ -29,7 +30,7 @@ public sealed class ConfigWindow : Window, IDisposable
         SizeConstraints = new WindowSizeConstraints
         {
             MinimumSize = new Vector2(520, 380),
-            MaximumSize = new Vector2(900, 900),
+            MaximumSize = new Vector2(2000, 1600),
         };
     }
 
@@ -608,8 +609,54 @@ public sealed class ConfigWindow : Window, IDisposable
                 { cfg.RepairMode = RepairMode.NpcOnly; cfg.SaveDebounced(); }
             });
 
+        if (cfg.RepairMode != RepairMode.SelfOnly)
+            DrawCustomRepairNpcRow(cfg);
+
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
-            ImGui.TextWrapped("NPC repair requires Grand Company affiliation — the plugin teleports to your GC's mender NPC and pays in company seals.");
+            ImGui.TextWrapped("NPC repair uses your custom repair NPC if set, otherwise your Grand Company mender (teleports there and pays in company seals). A custom NPC removes the Grand Company requirement.");
+    }
+
+    private static void DrawCustomRepairNpcRow(Configuration cfg)
+    {
+        SettingsRow.Draw("Custom repair NPC",
+            "Optional. Travel to any repair NPC instead of the Grand Company mender. Target the NPC in-game, then click \"Set from target\". Clear to fall back to the GC mender.",
+            () =>
+            {
+                var npc = cfg.PreferredRepairNpc;
+                if (npc is not null)
+                {
+                    using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentMint))
+                        ImGui.TextWrapped($"{npc.Name}  (territory {npc.TerritoryId})");
+                }
+                else
+                {
+                    using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
+                        ImGui.TextWrapped("None — using Grand Company mender.");
+                }
+
+                if (ImGui.Button("Set from target"))
+                {
+                    var captured = RepairOps.CaptureCurrentTargetAsRepairNpc();
+                    if (captured is null)
+                        Svc.Chat.PrintError("[AFG] No target — target a repair NPC first, then click again.");
+                    else
+                    {
+                        cfg.PreferredRepairNpc = captured;
+                        cfg.SaveDebounced();
+                        Svc.Chat.Print($"[AFG] Custom repair NPC set: {captured.Name} (territory {captured.TerritoryId}).");
+                    }
+                }
+
+                if (npc is not null)
+                {
+                    ImGui.SameLine();
+                    if (ImGui.Button("Clear"))
+                    {
+                        cfg.PreferredRepairNpc = null;
+                        cfg.SaveDebounced();
+                    }
+                }
+            });
     }
 
     private static void DrawHumanizeTab(Configuration cfg)

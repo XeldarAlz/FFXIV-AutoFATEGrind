@@ -87,9 +87,9 @@ public sealed class AutoRepair : AutoCommon
 
     private async Task RepairAtGcMender()
     {
-        var mender = RepairOps.GetGrandCompanyMender();
+        var mender = RepairOps.ResolveRepairNpc(out var repairIndex);
         ErrorIf(mender is null,
-            "Auto-repair NPC fallback needs a Grand Company affiliation. Join a Grand Company or enable Self-only repair.");
+            "Auto-repair NPC fallback needs a Grand Company affiliation or a custom repair NPC. Join a Grand Company, set a custom repair NPC, or enable Self-only repair.");
 
         var m = mender!.Value;
         Diag($"NPC repair: heading to {m.Name} (territory {m.TerritoryId}, DataId {m.DataId})");
@@ -123,8 +123,24 @@ public sealed class AutoRepair : AutoCommon
         var interact = new MoveOp(o => o.Interact(npc!, waitUntil: null, skip: UiSkipOptions.Talk));
         await RunCancellable(interact, InteractWaitMs, "repair-interact");
 
-        ErrorIf(!await WaitUntilTimed(RepairOps.RepairAddonOpen, RepairAddonWaitMs, "npc-wait-repair-addon"),
-            $"{m.Name} did not open the Repair window within {RepairAddonWaitMs / 1000}s.");
+        // GC menders open the Repair window directly; other repair NPCs first present a talk menu
+        // (SelectIconString) whose repair entry we pick before the window appears.
+        ErrorIf(!await WaitUntilTimed(
+                () => RepairOps.RepairAddonOpen() || RepairOps.SelectIconStringOpen(),
+                RepairAddonWaitMs, "npc-wait-menu-or-repair"),
+            $"{m.Name} did not respond with a repair menu within {RepairAddonWaitMs / 1000}s.");
+
+        if (!RepairOps.RepairAddonOpen() && RepairOps.SelectIconStringOpen())
+        {
+            var detected = RepairOps.FindRepairMenuEntry();
+            var index = detected >= 0 ? detected : repairIndex;
+            Diag($"Talk menu open; selecting repair entry {index} (auto-detected: {detected >= 0}).");
+            ErrorIf(!RepairOps.ClickSelectIconString(index),
+                $"Could not select repair option {index} in {m.Name}'s menu.");
+
+            ErrorIf(!await WaitUntilTimed(RepairOps.RepairAddonOpen, RepairAddonWaitMs, "npc-wait-repair-after-menu"),
+                $"{m.Name} did not open the Repair window after menu selection.");
+        }
 
         await DriveRepairAddon();
     }

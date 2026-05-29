@@ -88,6 +88,8 @@ public sealed class Configuration : IPluginConfiguration
     // Triggers when the lowest-condition equipped item drops to or below this percentage.
     public int AutoRepairThresholdPct { get; set; } = 20;
     public RepairMode RepairMode { get; set; } = RepairMode.SelfThenNpc;
+    // When set, the NPC repair branch travels to this NPC instead of the Grand Company mender.
+    public RepairNpc? PreferredRepairNpc { get; set; } = null;
 
     public bool GmAlertStopRun { get; set; } = true;
     public bool GmAlertToast { get; set; } = false;
@@ -162,6 +164,20 @@ public enum RepairMode
     SelfThenNpc,
     SelfOnly,
     NpcOnly,
+}
+
+// A user-chosen repair NPC captured from the current target. Coordinates are stored as scalars so the
+// config serializes without a Vector3 converter.
+public sealed class RepairNpc
+{
+    public uint TerritoryId { get; set; }
+    public float X { get; set; }
+    public float Y { get; set; }
+    public float Z { get; set; }
+    public uint DataId { get; set; }
+    public string Name { get; set; } = "";
+    // Fallback talk-menu index used only if the repair entry can't be matched by text (non-English clients).
+    public int RepairIndex { get; set; } = 0;
 }
 
 public enum FateSortCriterion

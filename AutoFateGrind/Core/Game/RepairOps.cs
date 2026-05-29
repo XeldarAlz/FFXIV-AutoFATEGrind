@@ -3,6 +3,7 @@ using ECommons.DalamudServices;
 using ECommons.Throttlers;
 using ECommons.UIHelpers.AddonMasterImplementations;
 using FFXIVClientStructs.FFXIV.Client.Game;
+using FFXIVClientStructs.FFXIV.Client.Game.Control;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using FFXIVClientStructs.FFXIV.Component.GUI;
@@ -136,6 +137,23 @@ internal static unsafe class RepairOps
         return true;
     }
 
+    // Index of the talk-menu entry whose label looks like a repair option, or -1 if none/closed.
+    // Lets custom repair NPCs work without a hand-tuned index on English clients.
+    public static int FindRepairMenuEntry()
+    {
+        if (!GenericHelpers.TryGetAddonByName<AtkUnitBase>("SelectIconString", out var addon)) return -1;
+        if (!GenericHelpers.IsAddonReady(addon)) return -1;
+        var entries = new AddonMaster.SelectIconString(addon).Entries;
+        for (var i = 0; i < entries.Length; i++)
+        {
+            var text = entries[i].Text;
+            if (!string.IsNullOrEmpty(text)
+                && text.Contains("repair", System.StringComparison.OrdinalIgnoreCase))
+                return i;
+        }
+        return -1;
+    }
+
     public static void HideRepairAgent()
     {
         var agent = AgentModule.Instance()->GetAgentByInternalId(AgentId.Repair);
@@ -165,5 +183,43 @@ internal static unsafe class RepairOps
         foreach (var obj in Svc.Objects)
             if (obj.BaseId == baseId) return obj;
         return null;
+    }
+
+    // ---------- Custom repair NPC ----------
+
+    // The NPC the repair branch should travel to: the user's chosen NPC if set, else the GC mender.
+    public static GcMender? ResolveRepairNpc(out int repairIndex)
+    {
+        var custom = Plugin.Cfg.PreferredRepairNpc;
+        if (custom is not null)
+        {
+            repairIndex = custom.RepairIndex;
+            return new GcMender(custom.TerritoryId,
+                new Vector3(custom.X, custom.Y, custom.Z), custom.DataId, custom.Name);
+        }
+        repairIndex = 0;
+        return GetGrandCompanyMender();
+    }
+
+    // Snapshot the current target as a repair NPC for the config. Null if nothing is targeted.
+    public static RepairNpc? CaptureCurrentTargetAsRepairNpc()
+    {
+        var target = TargetSystem.Instance()->Target;
+        if (target is null) return null;
+
+        var baseId = target->BaseId;
+        var name = Svc.Data.GetExcelSheet<ENpcResident>()?.GetRowOrDefault(baseId)?.Singular.ToString();
+        if (string.IsNullOrEmpty(name)) name = target->NameString;
+
+        var pos = target->Position;
+        return new RepairNpc
+        {
+            TerritoryId = Svc.ClientState.TerritoryType,
+            X = pos.X,
+            Y = pos.Y,
+            Z = pos.Z,
+            DataId = baseId,
+            Name = name,
+        };
     }
 }
