@@ -70,7 +70,7 @@ public sealed class Configuration : IPluginConfiguration
     public HashSet<uint> RuntimeBadObstacleMaps { get; set; } = [];
 
     public uint TargetTradeItemId { get; set; } = 0;
-    public bool TradeOnCap { get; set; } = true;
+    public bool TradeOnCap { get; set; } = false;
     // Game-imposed Bicolor cap is 1500.
     public int TradeThreshold { get; set; } = 1500;
     public AfterTradeAction AfterTrade { get; set; } = AfterTradeAction.Resume;
@@ -80,7 +80,7 @@ public sealed class Configuration : IPluginConfiguration
     public int BuyQuantityAmount { get; set; } = 10;
     public int KeepGemstonesReserve { get; set; } = 0;
 
-    public bool ApplyClassOnStart { get; set; } = true;
+    public bool ApplyClassOnStart { get; set; } = false;
     public List<ClassQueueEntry> ClassQueue { get; set; } = [];
     public AfterClassQueueDone AfterClassQueueDone { get; set; } = AfterClassQueueDone.KeepGrindingOnLast;
 
