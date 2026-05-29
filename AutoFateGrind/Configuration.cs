@@ -117,6 +117,13 @@ public sealed class Configuration : IPluginConfiguration
     public int AutoConsumeMinMinutes { get; set; } = 3;
     public List<ConsumableEntry> AutoConsumeItems { get; set; } = [];
 
+    public bool DeclinePartyInvites { get; set; } = false;
+    public int DeclineInviteDelayMinSec { get; set; } = 2;
+    public int DeclineInviteDelayMaxSec { get; set; } = 6;
+    public bool DeclineInviteReply { get; set; } = false;
+    public PartyInviteReplyChannel DeclineInviteReplyChannel { get; set; } = PartyInviteReplyChannel.Tell;
+    public string DeclineInviteReplyMessage { get; set; } = "";
+
     public void Save() => Plugin.PluginInterface.SavePluginConfig(this);
 
     public void SaveDebounced()
@@ -169,6 +176,13 @@ public enum RepairMode
     SelfThenNpc,
     SelfOnly,
     NpcOnly,
+}
+
+public enum PartyInviteReplyChannel
+{
+    Tell,
+    Say,
+    Yell,
 }
 
 // A user-chosen repair NPC captured from the current target. Coordinates are stored as scalars so the
