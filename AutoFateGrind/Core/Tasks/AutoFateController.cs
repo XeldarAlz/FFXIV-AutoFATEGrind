@@ -1,4 +1,5 @@
 using AutoFateGrind.Core.Game;
+using AutoFateGrind.Core.Stats;
 using AutoFateGrind.Core.Trading;
 using AutoFateGrind.Core.Zones;
 using clib.Services;
@@ -35,6 +36,7 @@ internal sealed class AutoFateController
             GemstoneStart = startWallet,
             GemstoneCurrent = startWallet,
         };
+        s.CaptureStartExp();
         session = s;
         Diag($"Run starting: {activeZones.Count} zone(s), mode {Plugin.Cfg.ActiveMode.DisplayName}, wallet {startWallet}g, threshold {Plugin.Cfg.TradeThreshold}g, trade-on-cap {(Plugin.Cfg.TradeOnCap ? "on" : "off")}.");
 
@@ -64,12 +66,58 @@ internal sealed class AutoFateController
 
     public void Stop()
     {
-        var wasRunning = session is not null;
+        var ending = session;
         Svc.Automation.Stop();
+        FinalizeRun(ending);
         session = null;
         activeZones = [];
         Phase = AutoPhase.Idle;
-        if (wasRunning) Diag("Stop requested; session cleared.");
+        if (ending is not null) Diag("Stop requested; session cleared.");
+    }
+
+    // Single terminal choke point: record the run, then drop to Idle. Every hand-off path that ends a run
+    // funnels through here so a future terminal branch can't forget to record by writing Phase = Idle on its
+    // own. FinalizeRun is idempotent, so the stale-session paths can call this harmlessly too.
+    private void EndRun(AutoFateSession? s)
+    {
+        FinalizeRun(s);
+        Phase = AutoPhase.Idle;
+    }
+
+    // Writes a finished run to history exactly once. Idempotent (guarded by session.Recorded) so the many
+    // terminal hand-off paths and an explicit Stop can all call it without double-counting. Purely additive
+    // — never touches grind control flow, so a history failure can't wedge automation.
+    private void FinalizeRun(AutoFateSession? s)
+    {
+        if (s is null || s.Recorded) return;
+        if (s.CompletedCount == 0 && s.ExpEarned == 0 && s.GemstonesEarned == 0) { s.Recorded = true; return; }
+        s.Recorded = true;
+        try
+        {
+            s.UpdateExp();
+            var record = new RunRecord
+            {
+                StartedAtUtc = s.StartedAt,
+                EndedAtUtc = DateTime.UtcNow,
+                DurationSeconds = s.Elapsed.TotalSeconds,
+                FatesCompleted = s.CompletedCount,
+                GemstonesEarned = s.GemstonesEarned,
+                ExpEarned = s.ExpEarned,
+                LevelsGained = s.LevelsGained,
+                StartLevel = s.StartLevel,
+                EndLevel = s.CurrentLevel,
+                JobId = s.JobId,
+                JobAbbr = s.JobAbbr,
+                ModeName = Plugin.Cfg.ActiveMode.DisplayName,
+                ZoneNames = activeZones.Select(z => z.Name).ToList(),
+            };
+            Plugin.Instance.History.Append(record);
+            Diag($"Run recorded to history: {record.FatesCompleted} FATEs, {record.GemstonesEarned}g, {record.ExpEarned} exp over {record.Duration}.");
+        }
+        catch (Exception ex)
+        {
+            Diag($"FinalizeRun failed to record history: {ex.Message}");
+        }
     }
 
     // clib.Automation buffers only one queued task; multi-step handoffs chain via OnCompleted.
@@ -88,7 +136,7 @@ internal sealed class AutoFateController
         if (owningSession != session)
         {
             Diag("FATE grind ended: owning session is stale (Stop was called or a new run replaced it). Ignoring hand-offs.");
-            Phase = AutoPhase.Idle;
+            EndRun(owningSession);
             return;
         }
 
@@ -133,7 +181,7 @@ internal sealed class AutoFateController
             if (owningSession.EndedWithFault && TryAutoResumeAfterFault(owningSession))
                 return;
             Diag("FATE grind ended without queueing further hand-offs. Run ends.");
-            Phase = AutoPhase.Idle;
+            EndRun(owningSession);
             return;
         }
 
@@ -143,7 +191,7 @@ internal sealed class AutoFateController
         if (itemId == 0)
         {
             Diag("Trade hand-off aborted: EnsurePersistedTarget returned 0 (no purchasable item resolvable). Run ends.");
-            Phase = AutoPhase.Idle;
+            EndRun(owningSession);
             return;
         }
 
@@ -156,19 +204,19 @@ internal sealed class AutoFateController
                 if (owningSession != session)
                 {
                     Diag("AutoTrade finished: owning session is stale; not resuming.");
-                    Phase = AutoPhase.Idle;
+                    EndRun(owningSession);
                     return;
                 }
                 if (Plugin.Cfg.AfterTrade != AfterTradeAction.Resume)
                 {
                     Diag($"AutoTrade finished: AfterTrade = {Plugin.Cfg.AfterTrade}; not resuming.");
-                    Phase = AutoPhase.Idle;
+                    EndRun(owningSession);
                     return;
                 }
                 if (activeZones.Count == 0)
                 {
                     Diag("AutoTrade finished: no active zones recorded; cannot resume.");
-                    Phase = AutoPhase.Idle;
+                    EndRun(owningSession);
                     return;
                 }
 
@@ -268,7 +316,7 @@ internal sealed class AutoFateController
                 if (owningSession != session)
                 {
                     Diag("Humanize finished: owning session is stale; not resuming.");
-                    Phase = AutoPhase.Idle;
+                    EndRun(owningSession);
                     return;
                 }
                 owningSession.FatesSinceLastBreak = 0;

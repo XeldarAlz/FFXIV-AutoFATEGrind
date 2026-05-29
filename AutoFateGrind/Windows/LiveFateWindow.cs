@@ -76,7 +76,7 @@ public sealed class LiveFateWindow : Window, IDisposable
 
         DrawBar(fate.Progress / 100f, Styling.AccentViolet);
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
-            ImGui.TextUnformatted($"{fate.Progress}%   ·   {FormatTime(fate.TimeRemaining)}");
+            ImGui.TextUnformatted($"{fate.Progress}%   ·   {Formatting.Time(fate.TimeRemaining)}");
     }
 
     private static void DrawIdle(AutoFateController controller)
@@ -128,7 +128,7 @@ public sealed class LiveFateWindow : Window, IDisposable
             ImGui.TextUnformatted($"L{fate.Level} {fate.Name}");
 
         var banSize = ImGui.GetFrameHeight();
-        var right = $"{fate.Progress}%  {FormatTime(fate.TimeRemaining)}";
+        var right = $"{fate.Progress}%  {Formatting.Time(fate.TimeRemaining)}";
         var rightSize = ImGui.CalcTextSize(right);
         var pad = 8f * ImGuiHelpers.GlobalScale;
         ImGui.SameLine(ImGui.GetContentRegionAvail().X + ImGui.GetCursorPosX() - rightSize.X - banSize - pad);
@@ -154,7 +154,11 @@ public sealed class LiveFateWindow : Window, IDisposable
             return;
         }
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
-            ImGui.TextUnformatted($"{s.CompletedCount} FATEs · {s.GemstonesEarned} gems · {FormatElapsed(s.Elapsed)}");
+            ImGui.TextUnformatted($"{s.CompletedCount} FATEs · {s.GemstonesEarned} gems · {Formatting.Elapsed(s.Elapsed)}");
+
+        if (s.ExpEarned > 0)
+            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
+                ImGui.TextUnformatted($"{Formatting.Exp(s.ExpEarned)} exp · {Formatting.Exp((long)s.ExpPerHour)}/h");
     }
 
     private static void DrawBar(float fraction, Vector4 color)
@@ -171,18 +175,5 @@ public sealed class LiveFateWindow : Window, IDisposable
             dl.AddRectFilled(origin, fillEnd, ImGui.GetColorU32(color * 0.85f), 4f);
         }
         ImGui.Dummy(new Vector2(width, height));
-    }
-
-    private static string FormatTime(float secs)
-    {
-        if (secs <= 0) return "--:--";
-        var s = (int)secs;
-        return $"{s / 60}:{s % 60:D2}";
-    }
-
-    private static string FormatElapsed(TimeSpan t)
-    {
-        if (t.TotalHours >= 1) return $"{(int)t.TotalHours}h {t.Minutes:D2}m";
-        return $"{t.Minutes}m {t.Seconds:D2}s";
     }
 }

@@ -1,6 +1,7 @@
 using AutoFateGrind.Core;
 using AutoFateGrind.Core.Debug;
 using AutoFateGrind.Core.Game;
+using AutoFateGrind.Core.Stats;
 using AutoFateGrind.Core.Tasks;
 using AutoFateGrind.Windows;
 using clib;
@@ -27,6 +28,7 @@ public sealed class Plugin : IDalamudPlugin
     internal Configuration Configuration { get; }
     internal static Configuration Cfg { get; private set; } = null!;
     internal WindowSystem WindowSystem { get; } = new("AutoFateGrind");
+    internal RunHistory History { get; }
     internal AutoFateController Controller { get; }
     private readonly GmAlertWatcher gmAlertWatcher;
     private readonly PartyInviteWatcher partyInviteWatcher;
@@ -35,6 +37,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ConfigWindow configWindow;
     private readonly AboutWindow aboutWindow;
     private readonly DependenciesWindow dependenciesWindow;
+    private readonly RunHistoryWindow runHistoryWindow;
     internal LiveFateWindow LiveFateWindow { get; }
 
     private readonly EventHandler<UnobservedTaskExceptionEventArgs> unobservedTaskHandler;
@@ -51,6 +54,7 @@ public sealed class Plugin : IDalamudPlugin
 
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         Cfg = Configuration;
+        History = new RunHistory();
         Controller = new AutoFateController();
         gmAlertWatcher = new GmAlertWatcher();
         partyInviteWatcher = new PartyInviteWatcher();
@@ -59,17 +63,19 @@ public sealed class Plugin : IDalamudPlugin
         configWindow = new ConfigWindow(this);
         aboutWindow = new AboutWindow();
         dependenciesWindow = new DependenciesWindow();
+        runHistoryWindow = new RunHistoryWindow();
         LiveFateWindow = new LiveFateWindow(this) { IsOpen = Configuration.ShowLivePopout };
 
         WindowSystem.AddWindow(mainWindow);
         WindowSystem.AddWindow(configWindow);
         WindowSystem.AddWindow(aboutWindow);
         WindowSystem.AddWindow(dependenciesWindow);
+        WindowSystem.AddWindow(runHistoryWindow);
         WindowSystem.AddWindow(LiveFateWindow);
 
         CommandManager.AddHandler(AfgConstants.PrimaryCommand, new CommandInfo(OnCommand)
         {
-            HelpMessage = "Toggle the Auto FATE Grind window. /afg config | deps | about | target (dump current target's BaseId)."
+            HelpMessage = "Toggle the Auto FATE Grind window. /afg config | stats | deps | about | target (dump current target's BaseId)."
         });
         CommandManager.AddHandler(AfgConstants.AliasCommand, new CommandInfo(OnCommand)
         {
@@ -108,6 +114,7 @@ public sealed class Plugin : IDalamudPlugin
         configWindow.Dispose();
         aboutWindow.Dispose();
         dependenciesWindow.Dispose();
+        runHistoryWindow.Dispose();
         LiveFateWindow.Dispose();
 
         CommandManager.RemoveHandler(AfgConstants.PrimaryCommand);
@@ -129,6 +136,8 @@ public sealed class Plugin : IDalamudPlugin
             ToggleAboutUi();
         else if (trimmed.Equals("deps", StringComparison.OrdinalIgnoreCase) || trimmed.Equals("dependencies", StringComparison.OrdinalIgnoreCase))
             ToggleDependenciesUi();
+        else if (trimmed.Equals("stats", StringComparison.OrdinalIgnoreCase) || trimmed.Equals("history", StringComparison.OrdinalIgnoreCase))
+            ToggleHistoryUi();
         else if (trimmed.Equals("target", StringComparison.OrdinalIgnoreCase))
             TargetDumper.Dump();
         else
@@ -139,4 +148,5 @@ public sealed class Plugin : IDalamudPlugin
     public void ToggleConfigUi() => configWindow.Toggle();
     public void ToggleAboutUi() => aboutWindow.Toggle();
     public void ToggleDependenciesUi() => dependenciesWindow.Toggle();
+    public void ToggleHistoryUi() => runHistoryWindow.Toggle();
 }

@@ -102,7 +102,7 @@ internal static class RunningPanel
         ImGui.Spacing();
         DrawFatProgressBar(fate.Progress / 100f, accent);
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
-            ImGui.TextUnformatted($"{fate.Progress}%   ·   {FormatTime(fate.TimeRemaining)} remaining");
+            ImGui.TextUnformatted($"{fate.Progress}%   ·   {Formatting.Time(fate.TimeRemaining)} remaining");
 
         ImGui.Spacing();
         DrawSessionLine(controller);
@@ -124,8 +124,28 @@ internal static class RunningPanel
         var s = controller.SessionSnapshot;
         if (s is null) return;
         ImGui.SetCursorPosY(ImGui.GetCursorPosY() - 4f * ImGuiHelpers.GlobalScale);
+
+        var remaining = Plugin.Cfg.ActiveMode.GetRemainingDisplay(
+            new Core.Modes.ModeContext { CompletedCount = s.CompletedCount, Zones = [], Elapsed = s.Elapsed });
+        var remainingSuffix = remaining is null ? "" : $"  ·  {remaining}";
+
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
-            ImGui.TextUnformatted($"Session:  {s.CompletedCount} FATEs  ·  {s.GemstonesEarned} gems  ·  {FormatElapsed(s.Elapsed)}  ·  {s.FatesPerHour:F1}/h");
+            ImGui.TextUnformatted($"Session:  {s.CompletedCount} FATEs  ·  {s.GemstonesEarned} gems  ·  {Formatting.Elapsed(s.Elapsed)}  ·  {s.FatesPerHour:F1}/h{remainingSuffix}");
+
+        if (s.ExpEarned > 0)
+            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
+                ImGui.TextUnformatted($"Exp:  {Formatting.Exp(s.ExpEarned)} earned  ·  {Formatting.Exp((long)s.ExpPerHour)}/h{FormatTimeToCap(s.ExpPerHour)}");
+    }
+
+    private static string FormatTimeToCap(double expPerHour)
+    {
+        if (expPerHour <= 0) return "";
+        if (Core.Game.ExpReader.ExpToCap() is not { } toCap || toCap <= 0) return "";
+        var hours = toCap / expPerHour;
+        if (hours <= 0 || double.IsInfinity(hours)) return "";
+        var span = TimeSpan.FromHours(hours);
+        var eta = span.TotalHours >= 1 ? $"{(int)span.TotalHours}h {span.Minutes:D2}m" : $"{span.Minutes}m";
+        return $"  ·  ~{eta} to cap";
     }
 
     private static void DrawQueue(Configuration cfg)
@@ -177,7 +197,7 @@ internal static class RunningPanel
             ImGui.TextUnformatted($"L{fate.Level}   {fate.Name}");
 
         var dist = (int)Math.Round(Vector3.Distance(playerPos, fate.Position));
-        var right = $"{fate.Progress}%   ·   {FormatTime(fate.TimeRemaining)}   ·   {dist}y";
+        var right = $"{fate.Progress}%   ·   {Formatting.Time(fate.TimeRemaining)}   ·   {dist}y";
         var rightSize = ImGui.CalcTextSize(right);
         ImGui.SetCursorScreenPos(new Vector2(end.X - rightSize.X - padX, topY));
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
@@ -236,18 +256,5 @@ internal static class RunningPanel
         ImGui.Spacing();
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
             ImGui.TextUnformatted(text);
-    }
-
-    private static string FormatTime(float secs)
-    {
-        if (secs <= 0) return "--:--";
-        var s = (int)secs;
-        return $"{s / 60}:{s % 60:D2}";
-    }
-
-    private static string FormatElapsed(TimeSpan t)
-    {
-        if (t.TotalHours >= 1) return $"{(int)t.TotalHours}h {t.Minutes:D2}m";
-        return $"{t.Minutes}m {t.Seconds:D2}s";
     }
 }

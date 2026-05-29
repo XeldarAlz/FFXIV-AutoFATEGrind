@@ -11,6 +11,7 @@ internal static class TopToolbar
     {
         var anyMissing = !ExternalPlugins.AllRequiredInstalled();
 
+        var statsLabel = FontAwesomeIcon.ChartLine.ToIconString();
         var plugLabel = FontAwesomeIcon.Plug.ToIconString();
         var infoLabel = FontAwesomeIcon.InfoCircle.ToIconString();
         var gearLabel = FontAwesomeIcon.Cog.ToIconString();
@@ -20,8 +21,14 @@ internal static class TopToolbar
             btnW = ImGui.CalcTextSize(gearLabel).X + ImGui.GetStyle().FramePadding.X * 2;
 
         var spacingX = ImGui.GetStyle().ItemSpacing.X;
-        ImGui.SameLine(ImGui.GetContentRegionAvail().X + ImGui.GetCursorPosX() - btnW * 3 - spacingX * 2);
+        ImGui.SameLine(ImGui.GetContentRegionAvail().X + ImGui.GetCursorPosX() - btnW * 4 - spacingX * 3);
 
+        bool statsClicked;
+        using (ImRaii.PushFont(UiBuilder.IconFont))
+            statsClicked = ImGui.Button(statsLabel + "##history");
+        HoverTip("Run history");
+
+        ImGui.SameLine();
         bool plugClicked;
         using (ImRaii.PushFont(UiBuilder.IconFont))
         using (ImRaii.PushColor(ImGuiCol.Text, anyMissing ? Styling.AccentRose : Styling.TextSecondary))
@@ -40,6 +47,7 @@ internal static class TopToolbar
             gearClicked = ImGui.Button(gearLabel + "##gear");
         HoverTip("Settings");
 
+        if (statsClicked) plugin.ToggleHistoryUi();
         if (plugClicked) plugin.ToggleDependenciesUi();
         if (infoClicked) plugin.ToggleAboutUi();
         if (gearClicked) plugin.ToggleConfigUi();
