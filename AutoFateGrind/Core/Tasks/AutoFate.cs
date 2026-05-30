@@ -260,7 +260,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
         var inState = (Environment.TickCount64 - lastStateChangedAtMs) / 1000;
         var nav = NavmeshIPC.Instance;
         var navStr = $"run={nav.IsRunning()} busy={nav.IsBusy()}";
-        Diag($"HEARTBEAT state={state} ({inState}s) terr={Svc.ClientState.TerritoryType} zone={zone.Name} pos={posStr} fate={fateStr} {navStr} " +
+        Diag($"HEARTBEAT state={state} ({inState}s) terr={Svc.ClientState.TerritoryType} zone={zone.Name} pos={posStr} fate={fateStr} {navStr} cond={ConditionTag()} " +
              $"done={session.CompletedCount} ret={returnToFateId?.ToString() ?? "-"} followUp={followUpFateId?.ToString() ?? "-"} stuckBL={sessionStuckFateIds.Count}");
 
         if (state is not GrindState.Engaging and not GrindState.WaitingForFates && inState >= 180)
