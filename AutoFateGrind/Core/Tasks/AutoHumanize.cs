@@ -16,6 +16,10 @@ public sealed class AutoHumanize(uint cityTerritoryId, int durationMs) : AutoCom
     private readonly uint cityTerritoryId = cityTerritoryId;
     private readonly int durationMs = durationMs;
 
+    // False until we actually reach the city and start the break. Lets the controller distinguish a real
+    // break from a teleport-abort, so a skipped break re-triggers on the next FATE instead of being consumed.
+    public bool BreakTaken { get; private set; }
+
     private const int   TeleportWatchdogMs = 60_000;
     private const int   WalkWatchdogMs     = 90_000;
     private const int   DismountWatchdogMs = 30_000;
@@ -62,6 +66,7 @@ public sealed class AutoHumanize(uint cityTerritoryId, int durationMs) : AutoCom
             }
         }
 
+        BreakTaken = true;
         await WaitForNavmeshReady();
         if (CancelToken.IsCancellationRequested) return;
 

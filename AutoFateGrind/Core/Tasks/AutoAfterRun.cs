@@ -29,7 +29,22 @@ public sealed class AutoAfterRun(AfterRunAction action) : AutoCommon
                 await NextFrame(800);
                 Chat.ExecuteCommand("/logout");
                 if (await WaitUntilTimed(SelectYesnoOpen, YesnoWaitMs, "logout-yesno"))
+                {
                     ClickYes();
+                    Diag("Logout confirmation accepted.");
+                }
+                else
+                {
+                    // The confirmation can fail to surface if the command was eaten (lag, a blocking
+                    // addon); re-issue once before giving up so we don't silently stay logged in.
+                    Warn($"Logout confirmation did not appear within {YesnoWaitMs / 1000}s; re-issuing /logout.");
+                    await NextFrame(800);
+                    Chat.ExecuteCommand("/logout");
+                    if (await WaitUntilTimed(SelectYesnoOpen, YesnoWaitMs, "logout-yesno-retry"))
+                        ClickYes();
+                    else
+                        Warn("Logout confirmation still absent after retry; character may remain logged in.");
+                }
                 break;
 
             case AfterRunAction.CloseGame:

@@ -330,8 +330,9 @@ internal sealed class AutoFateController
 
         Phase = AutoPhase.Humanizing;
         Diag($"Humanize phase entering: city {cityId}, duration {minutes}m, resume zone {activeZones[resumeIdx].Name}.");
+        var humanize = new AutoHumanize(cityId, durationMs);
         Svc.Automation.Start(
-            new AutoHumanize(cityId, durationMs),
+            humanize,
             OnCompleted: () =>
             {
                 if (owningSession != session)
@@ -340,8 +341,17 @@ internal sealed class AutoFateController
                     EndRun(owningSession);
                     return;
                 }
-                owningSession.FatesSinceLastBreak = 0;
-                Diag($"Humanize finished: resuming FATE grind at {activeZones[resumeIdx].Name}.");
+                // Only consume the break when it actually happened. A teleport-abort leaves the counter
+                // intact so the threshold re-trips on the next completed FATE and the break retries.
+                if (humanize.BreakTaken)
+                {
+                    owningSession.FatesSinceLastBreak = 0;
+                    Diag($"Humanize finished: resuming FATE grind at {activeZones[resumeIdx].Name}.");
+                }
+                else
+                {
+                    Diag($"Humanize did not take a break (could not reach city); leaving counter at {owningSession.FatesSinceLastBreak} to retry next FATE. Resuming at {activeZones[resumeIdx].Name}.");
+                }
                 StartFateGrind(resumeIdx, owningSession);
             });
     }

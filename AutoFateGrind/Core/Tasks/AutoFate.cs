@@ -56,10 +56,17 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private const int   HeartbeatMs = 30_000;
     private const int   MaxConsecutiveStateErrors = 20;
     private const int   GemstoneSettleTimeoutMs = 2_500;
+    // WrongZone give-up ladder: rotate zones, then (single-zone) fault into auto-resume — never re-issue
+    // an impossible teleport forever (the 2026-05-30 wedge).
+    private const int   WrongZoneSwapAfterFailures  = 2;
+    private const int   WrongZoneFaultAfterFailures = 3;
+    // Never-stuck backstop: zero forward progress for this long in a non-idle state faults into auto-resume.
+    private const int   NoProgressFaultMs = 300_000;
 
     private uint? lastStuckFateId;
     private int consecutiveStuckRetries;
     private uint? lastTeleportedFateId;
+    private int consecutiveZoneTeleportFailures;
 
     private uint? returnToFateId;          // FATE we died in; honor even if normal eligibility fails.
     private uint? followUpFateId;
@@ -94,6 +101,11 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private GrindState lastObservedState = GrindState.Idle;
     private long lastStateChangedAtMs;
     private long lastHeartbeatAtMs;
+
+    private long noProgressSinceMs;
+    private int  noProgressCompleted = -1;
+    private uint noProgressTerritory;
+    private Vector3 noProgressPos;
 
     protected override async Task Execute()
     {
@@ -142,6 +154,8 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
         var consecutiveErrors = 0;
         while (!CancelToken.IsCancellationRequested)
         {
+          // Outside the try so its fault propagates (the catch below only swallows transient errors).
+          GuardForwardProgress(lastObservedState);
           try
           {
             session.UpdateGemstones();
@@ -151,6 +165,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
             if (state != lastObservedState)
             {
                 Diag($"State {lastObservedState} -> {state}");
+                if (state != GrindState.WrongZone) consecutiveZoneTeleportFailures = 0;
                 lastObservedState = state;
                 lastStateChangedAtMs = Environment.TickCount64;
             }
@@ -252,6 +267,33 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
             Diag($"STALL WARNING: state {state} held {inState}s — see prior heartbeats for context.");
     }
 
+    // Progress = a completed FATE, a territory change, or real movement. None for NoProgressFaultMs in a
+    // state that shouldn't sit still (i.e. not fighting / idle-waiting) surfaces a fault for recovery.
+    private void GuardForwardProgress(GrindState state)
+    {
+        var now = Environment.TickCount64;
+        var terr = Svc.ClientState.TerritoryType;
+        var pos = Svc.Objects.LocalPlayer?.Position ?? noProgressPos;
+
+        var advanced = noProgressCompleted < 0
+                    || session.CompletedCount != noProgressCompleted
+                    || terr != noProgressTerritory
+                    || Vector3.Distance(pos, noProgressPos) > StuckMoveThresholdMeters
+                    || state is GrindState.Engaging or GrindState.WaitingForFates;
+
+        if (advanced)
+        {
+            noProgressCompleted = session.CompletedCount;
+            noProgressTerritory = terr;
+            noProgressPos = pos;
+            noProgressSinceMs = now;
+            return;
+        }
+
+        ErrorIf(now - noProgressSinceMs >= NoProgressFaultMs,
+            $"No forward progress for {NoProgressFaultMs / 60000}m in state {state}; surfacing fault for recovery.");
+    }
+
     private GrindState ComputeState()
     {
         if (waitForExpiryFateId is { } wid)
@@ -332,8 +374,28 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     {
         Status = $"Teleporting to {zone.Name}";
         Diag($"Off-zone (in {Svc.ClientState.TerritoryType}), teleporting to {zone.TerritoryId}");
-        // Fast idle-stall detection + bounded retry inside; arrives or returns and the outer loop re-enters.
-        await TeleportToTerritory(zone.TerritoryId, zone.CentralLanding, "teleport-to-zone", TeleportWatchdogMs);
+        if (await TeleportToTerritory(zone.TerritoryId, zone.CentralLanding, "teleport-to-zone", TeleportWatchdogMs))
+        {
+            consecutiveZoneTeleportFailures = 0;
+            return;
+        }
+        if (CancelToken.IsCancellationRequested) return;
+
+        consecutiveZoneTeleportFailures++;
+        Warn($"Could not reach {zone.Name} (failure {consecutiveZoneTeleportFailures}); escalating to keep the run moving.");
+
+        // Unreachable target: grind another zone instead (the rotation may land on the one we're in).
+        if (consecutiveZoneTeleportFailures >= WrongZoneSwapAfterFailures && zones.Count > 1)
+        {
+            Diag($"Rotating away from unreachable {zone.Name}.");
+            AdvanceZone();
+            consecutiveZoneTeleportFailures = 0;
+            return;
+        }
+
+        // Single-zone and still stuck: bounded fault -> auto-resume (or clean end), never an endless wedge.
+        ErrorIf(consecutiveZoneTeleportFailures >= WrongZoneFaultAfterFailures,
+            $"Unable to reach {zone.Name} after {consecutiveZoneTeleportFailures} teleport attempts.");
     }
 
     private bool AdvanceZone()

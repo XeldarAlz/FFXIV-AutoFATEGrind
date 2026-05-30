@@ -57,6 +57,29 @@ public abstract class AutoCommon : TaskBase
         };
     }
 
+    private const int TeleportCombatClearMs = 30_000;
+    private const int DismountForTeleportMs = 30_000;
+
+    // Teleport can't cast in combat, nor while airborne on a flying mount (clib then spins forever on a
+    // cast that never starts — the 2026-05-30 2h wedge). Clear combat, then dismount so the cast can fire.
+    internal async Task PrepareForTeleport(string scope)
+    {
+        if (Svc.Condition[ConditionFlag.InCombat] || Svc.Condition[ConditionFlag.Casting])
+        {
+            Status = "Waiting for combat to clear before teleport";
+            Diag($"{scope}: in combat/casting, waiting up to {TeleportCombatClearMs / 1000}s for a castable window");
+            await WaitUntilTimed(
+                () => !Svc.Condition[ConditionFlag.InCombat] && !Svc.Condition[ConditionFlag.Casting],
+                TeleportCombatClearMs, $"{scope}-wait-teleportable");
+        }
+        if (CancelToken.IsCancellationRequested) return;
+        if (Svc.Condition[ConditionFlag.Mounted])
+        {
+            Diag($"{scope}: dismounting before teleport (a flying mount blocks the teleport cast)");
+            await RunCancellable(new MoveOp(o => o.DismountNow()), DismountForTeleportMs, $"{scope}-dismount");
+        }
+    }
+
     // Resilient cross-zone teleport. clib's TeleportTo can accept the teleport yet never start casting
     // (a brief post-FATE/combat teleport lock), then spin until a watchdog fires. IdleStallAbort catches
     // that in ~8s; we retry with a short backoff so the lock can clear, instead of failing the whole
@@ -66,6 +89,8 @@ public abstract class AutoCommon : TaskBase
         for (var i = 1; i <= attempts && !CancelToken.IsCancellationRequested; i++)
         {
             if (Svc.ClientState.TerritoryType == territoryId) return true;
+            await PrepareForTeleport($"{label}#{i}");
+            if (CancelToken.IsCancellationRequested) break;
             var op = new MoveOp(o => o.Teleport(territoryId, dest, allowSameZoneTeleport: false));
             await RunCancellable(op, perAttemptTimeoutMs, $"{label}#{i}", IdleStallAbort(IdleStallTimeoutMs));
             if (Svc.ClientState.TerritoryType == territoryId) return true;
@@ -94,6 +119,7 @@ public abstract class AutoCommon : TaskBase
 
         var deadline = Environment.TickCount64 + timeoutMs;
         var aborted = false;
+        var abortThrew = false;
         while (!work.IsCompleted && Environment.TickCount64 < deadline)
         {
             if (CancelToken.IsCancellationRequested) break;
@@ -101,7 +127,11 @@ public abstract class AutoCommon : TaskBase
             {
                 bool trip;
                 try { trip = abortIf(); }
-                catch (Exception ex) { Diag($"RunCancellable '{label}' abortIf threw: {ex.Message}"); trip = false; }
+                catch (Exception ex)
+                {
+                    if (!abortThrew) { Warn($"RunCancellable '{label}' abortIf threw (abort disabled, watchdog still active): {ex.Message}"); abortThrew = true; }
+                    trip = false;
+                }
                 if (trip) { aborted = true; break; }
             }
             await NextFrame(4);
@@ -136,12 +166,17 @@ public abstract class AutoCommon : TaskBase
         // disposed CTS throws. Swallow it — a completed op needs no cancelling.
         try { op.Cancel(); }
         catch (ObjectDisposedException) { }
-        catch (Exception ex) { Diag($"RunCancellable '{label}' Cancel threw: {ex.Message}"); }
+        catch (Exception ex) { Warn($"RunCancellable '{label}' Cancel threw: {ex.Message}"); }
     }
 
     protected void Diag(string message)
     {
         Svc.Log.Info($"[AFG] {message}");
+    }
+
+    protected void Warn(string message)
+    {
+        Svc.Log.Warning($"[AFG] {message}");
     }
 
     protected void Trace(string message)
@@ -162,12 +197,17 @@ public abstract class AutoCommon : TaskBase
     protected async Task<bool> WaitUntilTimed(Func<bool> condition, int timeoutMs, string scope, int checkMs = 30)
     {
         var deadline = Environment.TickCount64 + timeoutMs;
+        var threw = false;
         while (Environment.TickCount64 < deadline)
         {
             if (CancelToken.IsCancellationRequested) return false;
             bool ok;
             try { ok = condition(); }
-            catch (Exception ex) { Diag($"WaitUntilTimed '{scope}' condition threw: {ex.Message}"); ok = false; }
+            catch (Exception ex)
+            {
+                if (!threw) { Warn($"WaitUntilTimed '{scope}' condition threw (treating as unsatisfied; will retry until timeout): {ex.Message}"); threw = true; }
+                ok = false;
+            }
             if (ok) return true;
             await NextFrame(checkMs);
         }

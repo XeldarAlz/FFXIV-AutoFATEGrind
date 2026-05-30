@@ -82,6 +82,8 @@ public sealed partial class AutoFate
         {
             Status = "Returning to FATE";
             Diag($"Re-engaging FATE {retId} after revive.");
+            await PrepareForTeleport($"revive-return-{retId}");
+            if (CancelToken.IsCancellationRequested) return;
             var retPos = retFate.Position;
             var tp = new MoveOp(o => o.Teleport(zone.TerritoryId, retPos, allowSameZoneTeleport: true));
             if (await RunCancellable(tp, TeleportWatchdogMs, $"revive-return-tp-{retId}", IdleStallAbort(IdleStallTimeoutMs)))

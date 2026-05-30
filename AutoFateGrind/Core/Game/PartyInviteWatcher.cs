@@ -25,6 +25,7 @@ internal sealed unsafe class PartyInviteWatcher : IDisposable
 
     private bool pending;
     private long declineAtTick;
+    private uint confirmAddonId;
     private string inviterName = "";
     private string inviterWorld = "";
 
@@ -49,7 +50,19 @@ internal sealed unsafe class PartyInviteWatcher : IDisposable
         if (!Plugin.Instance.Controller.Running) return;
 
         var agent = AgentPartyInvite.Instance();
-        if (agent is null || !agent->IsAgentActive()) return;
+        if (agent is null) return;
+
+        // An incoming invite spawns this SelectYesno as the agent's confirm dialog and records its addon id
+        // in ConfirmAddonId. Matching that against the addon that just opened pins us to a genuine invite
+        // without touching our own shop/repair yes/no prompts. We do NOT gate on IsAgentActive(): the agent
+        // doesn't reliably report active for an incoming invite, which silently broke auto-decline.
+        var addon = (AtkUnitBase*)args.Addon.Address;
+        if (addon is null) return;
+        if (agent->ConfirmAddonId == 0 || agent->ConfirmAddonId != addon->Id)
+        {
+            Svc.Log.Debug($"[AFG] SelectYesno opened (id={addon->Id}) but not a party invite (ConfirmAddonId={agent->ConfirmAddonId}); ignoring.");
+            return;
+        }
 
         CaptureInviter();
 
@@ -58,6 +71,7 @@ internal sealed unsafe class PartyInviteWatcher : IDisposable
         var delayMs = (lo == hi ? lo : rng.Next(lo, hi + 1)) * 1000;
 
         pending = true;
+        confirmAddonId = addon->Id;
         declineAtTick = Environment.TickCount64 + delayMs;
         Svc.Log.Info($"[AFG] Party invite from {DisplayName()} detected; declining in ~{delayMs / 1000}s.");
     }
@@ -67,9 +81,10 @@ internal sealed unsafe class PartyInviteWatcher : IDisposable
         if (!pending) return;
 
         var agent = AgentPartyInvite.Instance();
-        if (agent is null || !agent->IsAgentActive())
+        if (agent is null || agent->ConfirmAddonId != confirmAddonId)
         {
-            // Invite expired or was handled (manually/elsewhere) before our delay elapsed.
+            // Invite expired or was handled (manually/elsewhere) before our delay elapsed: the agent
+            // no longer points at the confirm dialog we captured.
             pending = false;
             return;
         }

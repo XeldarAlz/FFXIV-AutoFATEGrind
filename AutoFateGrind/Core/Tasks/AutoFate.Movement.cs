@@ -158,10 +158,14 @@ public sealed partial class AutoFate
 
     private async Task<bool> TryTeleportToFate(PublicEvent fate)
     {
-        var before = Svc.Objects.LocalPlayer?.Position;
         Status = $"Teleporting to {fate.Name}";
         Diag($"Teleport recovery to FATE {fate.Id} ({fate.Position})");
 
+        await PrepareForTeleport($"teleport-recovery-{fate.Id}");
+        if (CancelToken.IsCancellationRequested) return false;
+
+        // Capture position AFTER any dismount so a flight descent isn't mistaken for teleport progress.
+        var before = Svc.Objects.LocalPlayer?.Position;
         var fatePos = fate.Position;
         // Same-zone teleport to the aetheryte nearest the FATE. Idle-stall guard catches a teleport that
         // never starts casting in ~8s instead of the full watchdog.
