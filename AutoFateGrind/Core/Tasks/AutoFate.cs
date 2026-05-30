@@ -55,6 +55,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private const int   NavmeshReadyWaitMs = 60_000;
     private const int   HeartbeatMs = 30_000;
     private const int   MaxConsecutiveStateErrors = 20;
+    private const int   GemstoneSettleTimeoutMs = 2_500;
 
     private uint? lastStuckFateId;
     private int consecutiveStuckRetries;
@@ -143,6 +144,8 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
         {
           try
           {
+            session.UpdateGemstones();
+
             var state = ComputeState();
 
             if (state != lastObservedState)

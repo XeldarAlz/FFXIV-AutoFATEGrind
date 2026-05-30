@@ -33,7 +33,6 @@ internal sealed class AutoFateController
         var startWallet = GemstoneCatalog.CurrentWalletCount();
         var s = new AutoFateSession
         {
-            GemstoneStart = startWallet,
             GemstoneCurrent = startWallet,
         };
         s.CaptureStartExp();

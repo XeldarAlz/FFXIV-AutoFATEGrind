@@ -29,6 +29,15 @@ public static class GemstoneCatalog
         return im is null ? 0 : im->GetInventoryItemCount(BicolorGemstoneItemId);
     }
 
+    // Reports readability so delta-trackers don't mistake an unavailable inventory for a drop to zero.
+    public static unsafe bool TryCurrentWalletCount(out int count)
+    {
+        var im = InventoryManager.Instance();
+        if (im is null) { count = 0; return false; }
+        count = im->GetInventoryItemCount(BicolorGemstoneItemId);
+        return true;
+    }
+
     // Picks the cheapest routable item as a default so fresh installs don't no-op trade-on-cap.
     public static uint EnsurePersistedTarget()
     {

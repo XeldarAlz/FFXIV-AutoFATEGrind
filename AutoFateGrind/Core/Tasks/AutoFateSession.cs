@@ -1,3 +1,4 @@
+using AutoFateGrind.Core.Trading;
 using AutoFateGrind.Core.Zones;
 
 namespace AutoFateGrind.Core.Tasks;
@@ -6,8 +7,12 @@ public sealed class AutoFateSession
 {
     public int CompletedCount;
     public DateTime StartedAt = DateTime.UtcNow;
-    public int GemstoneStart;
     public int GemstoneCurrent;
+
+    // Accumulates positive wallet deltas; end-minus-start would undercount spent/capped gems.
+    public int GemstonesEarned;
+    private int gemWalletLastSeen;
+    private bool gemBaselineCaptured;
 
     public uint JobId;
     public string JobAbbr = "";
@@ -92,7 +97,16 @@ public sealed class AutoFateSession
     public int  FaultResumeCount;
     public long FaultWindowStartedAtMs;
 
+    public void UpdateGemstones()
+    {
+        if (!GemstoneCatalog.TryCurrentWalletCount(out var wallet)) return;
+        GemstoneCurrent = wallet;
+
+        if (!gemBaselineCaptured) { gemWalletLastSeen = wallet; gemBaselineCaptured = true; return; }
+        if (wallet > gemWalletLastSeen) GemstonesEarned += wallet - gemWalletLastSeen;
+        gemWalletLastSeen = wallet;
+    }
+
     public TimeSpan Elapsed => DateTime.UtcNow - StartedAt;
-    public int GemstonesEarned => Math.Max(0, GemstoneCurrent - GemstoneStart);
     public double FatesPerHour => Elapsed.TotalHours > 0 ? CompletedCount / Elapsed.TotalHours : 0;
 }

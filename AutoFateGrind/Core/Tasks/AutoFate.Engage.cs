@@ -203,7 +203,7 @@ public sealed partial class AutoFate
             session.CompletedCount++;
             session.FatesSinceLastBreak++;
             zone.CompletedThisRun++;
-            session.GemstoneCurrent = GemstoneCatalog.CurrentWalletCount();
+            await SettleGemstoneReward();
             session.UpdateExp();
             Diag($"FATE {fateId} done (session total: {session.CompletedCount}, wallet {session.GemstoneCurrent}g)");
             StartFollowUpWatch(fateId);
@@ -236,6 +236,21 @@ public sealed partial class AutoFate
         }
 
         return ExitReason.Continue;
+    }
+
+    private async Task SettleGemstoneReward()
+    {
+        if (!GemstoneCatalog.TryCurrentWalletCount(out var before)) { session.UpdateGemstones(); return; }
+
+        var deadline = Environment.TickCount64 + GemstoneSettleTimeoutMs;
+        while (Environment.TickCount64 < deadline)
+        {
+            if (CancelToken.IsCancellationRequested) break;
+            if (GemstoneCatalog.TryCurrentWalletCount(out var now) && now != before) break;
+            await NextFrame(60);
+        }
+
+        session.UpdateGemstones();
     }
 
     private bool TryQueueTrade()
