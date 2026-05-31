@@ -1,3 +1,4 @@
+using AutoFateGrind.Core.External;
 using AutoFateGrind.Core.Game;
 using AutoFateGrind.Windows.Components;
 using clib.Utils;
@@ -161,6 +162,19 @@ internal static class FilterSettings
             ImGui.SameLine();
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
                 ImGui.TextUnformatted("— " + helper);
+
+            if (rule == PublicEvent.FateRule.Collect && !skipped
+                && ExternalPlugins.IsInstalledButDisabled(ExternalPlugin.TextAdvance))
+            {
+                var pad = ImGui.GetFrameHeight() + 8f * ImGuiHelpers.GlobalScale;
+                ImGui.Indent(pad);
+                using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentAmber))
+                    ImGui.TextWrapped(
+                        "TextAdvance is installed but disabled. Collect hand-ins usually work anyway "
+                        + "(AFG drives the turn-in directly), but enabling TextAdvance's \"Enable plugin\" "
+                        + "toggle is the safe fallback if a hand-in stalls.");
+                ImGui.Unindent(pad);
+            }
         }
     }
 }

@@ -1,3 +1,4 @@
+using AutoFateGrind.Core.External;
 using AutoFateGrind.Core.Trading;
 using AutoFateGrind.Windows.Components;
 using Dalamud.Bindings.ImGui;
@@ -18,6 +19,15 @@ internal static class GemstoneSettings
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
                 ImGui.TextWrapped("Auto-trade is off. Enable the toggle above to configure the trade.");
             return;
+        }
+
+        if (ExternalPlugins.IsInstalledButDisabled(ExternalPlugin.TextAdvance))
+        {
+            using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentAmber))
+                ImGui.TextWrapped(
+                    "TextAdvance is installed but disabled. Auto-trade may stall at the trader's "
+                    + "dialogue — turn on TextAdvance's \"Enable plugin\" toggle for reliable trading.");
+            ImGui.Spacing();
         }
 
         SettingsRow.Draw("Trade threshold",

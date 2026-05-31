@@ -1,3 +1,4 @@
+using AutoFateGrind.Core.Ipc;
 using ECommons.DalamudServices;
 
 namespace AutoFateGrind.Core.External;
@@ -40,7 +41,7 @@ public static class ExternalPlugins
             DisplayName: "TextAdvance",
             RepoUrl: "https://raw.githubusercontent.com/NightmareXIV/MyDalamudPlugins/main/pluginmaster.json",
             Purpose: "Talk-skip during Collect FATE turn-ins (scoped, only enabled mid-Collect).",
-            Required: false),
+            Required: true),
     };
 
     public static IEnumerable<ExternalPlugin> All => Catalog.Keys;
@@ -56,4 +57,11 @@ public static class ExternalPlugins
 
     public static bool AllRequiredInstalled()
         => All.Where(p => Catalog[p].Required).All(IsInstalled);
+
+    // Loaded in Dalamud but its own in-plugin toggle is off. Advisory only — AFG drives
+    // TextAdvance via external control, so this never gates the grind, it only warns.
+    public static bool IsInstalledButDisabled(ExternalPlugin plugin)
+        => plugin == ExternalPlugin.TextAdvance
+           && IsInstalled(plugin)
+           && !TextAdvanceIPC.IsPluginEnabled();
 }

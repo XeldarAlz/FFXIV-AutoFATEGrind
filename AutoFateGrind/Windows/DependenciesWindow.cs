@@ -42,7 +42,7 @@ public sealed class DependenciesWindow : Window, IDisposable
     {
         ImGui.SetWindowFontScale(1.18f);
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextStrong))
-            ImGui.TextUnformatted("Required & optional plugins");
+            ImGui.TextUnformatted("Required plugins");
         ImGui.SetWindowFontScale(1.0f);
 
         var missing = ExternalPlugins.All.Count(p => ExternalPlugins.Catalog[p].Required && !ExternalPlugins.IsInstalled(p));

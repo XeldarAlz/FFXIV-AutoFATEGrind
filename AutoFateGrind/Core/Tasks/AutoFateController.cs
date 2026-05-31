@@ -1,3 +1,4 @@
+using AutoFateGrind.Core.External;
 using AutoFateGrind.Core.Game;
 using AutoFateGrind.Core.Stats;
 using AutoFateGrind.Core.Trading;
@@ -27,6 +28,16 @@ internal sealed class AutoFateController
         if (activeZones.Count == 0)
         {
             Diag("Start aborted: no zones selected.");
+            return;
+        }
+
+        if (!ExternalPlugins.AllRequiredInstalled())
+        {
+            var missing = string.Join(", ", ExternalPlugins.All
+                .Where(p => ExternalPlugins.Catalog[p].Required && !ExternalPlugins.IsInstalled(p))
+                .Select(p => ExternalPlugins.Catalog[p].DisplayName));
+            Diag($"Start aborted: required plugins missing ({missing}).");
+            ECommons.DalamudServices.Svc.Chat.PrintError($"[AFG] Cannot start — install all required plugins first: {missing}.");
             return;
         }
 

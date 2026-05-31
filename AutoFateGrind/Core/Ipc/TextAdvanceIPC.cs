@@ -29,6 +29,7 @@ public class ExternalTerritoryConfig
 internal static class TextAdvanceIPC
 {
     private static ICallGateSubscriber<bool>? isInExternalControl;
+    private static ICallGateSubscriber<bool>? isEnabled;
     private static ICallGateSubscriber<string, ExternalTerritoryConfig, bool>? enableExternalControl;
     private static ICallGateSubscriber<string, bool>? disableExternalControl;
     private static bool initialized;
@@ -40,6 +41,7 @@ internal static class TextAdvanceIPC
         try
         {
             isInExternalControl    = Svc.PluginInterface.GetIpcSubscriber<bool>("TextAdvance.IsInExternalControl");
+            isEnabled              = Svc.PluginInterface.GetIpcSubscriber<bool>("TextAdvance.IsEnabled");
             enableExternalControl  = Svc.PluginInterface.GetIpcSubscriber<string, ExternalTerritoryConfig, bool>("TextAdvance.EnableExternalControl");
             disableExternalControl = Svc.PluginInterface.GetIpcSubscriber<string, bool>("TextAdvance.DisableExternalControl");
         }
@@ -56,6 +58,15 @@ internal static class TextAdvanceIPC
             EnsureInit();
             return enableExternalControl?.HasFunction ?? false;
         }
+    }
+
+    // TextAdvance's own "Enable plugin" toggle. AFG drives talk-skip via EnableExternalControl,
+    // so this is advisory — returns true when the gate is absent/errors to avoid false warnings.
+    public static bool IsPluginEnabled()
+    {
+        EnsureInit();
+        try { return isEnabled?.HasFunction != true || isEnabled.InvokeFunc(); }
+        catch (Exception ex) { Svc.Log.Warning(ex, "[TextAdvanceIPC] IsEnabled failed"); return true; }
     }
 
     public static bool IsInExternalControl()

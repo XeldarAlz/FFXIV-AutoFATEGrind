@@ -1,3 +1,4 @@
+using AutoFateGrind.Core.External;
 using AutoFateGrind.Core.Modes;
 using AutoFateGrind.Core.Tasks;
 using AutoFateGrind.Core.Zones;
@@ -243,13 +244,16 @@ internal static class GoalSummary
     {
         var startList = ZoneSelection.ResolveStartList(cfg);
         var runnable = startList.Count;
-        var canStart = runnable > 0 && !controller.Running;
+        var depsOk = ExternalPlugins.AllRequiredInstalled();
+        var canStart = runnable > 0 && !controller.Running && depsOk;
         var label = canStart ? $"START   ({runnable} zone{(runnable == 1 ? "" : "s")})" : "START";
 
         if (PrimaryButton.Draw(label, Styling.AccentViolet, canStart))
             controller.RunAll(startList);
 
-        if (!canStart && runnable == 0)
+        if (!canStart && !depsOk)
+            Tooltip.For("Install all required plugins first (see the plug icon).");
+        else if (!canStart && runnable == 0)
             Tooltip.For("Pick at least one zone below.");
     }
 
