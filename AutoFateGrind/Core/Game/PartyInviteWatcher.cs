@@ -19,7 +19,7 @@ namespace AutoFateGrind.Core.Game;
 // time, and re-validated against the agent right before clicking in case the invite already cleared.
 internal sealed unsafe class PartyInviteWatcher : IDisposable
 {
-    private const string SelectYesnoAddon = "SelectYesno";
+    private const string SelectYesnoAddon = AfgConstants.AddonNames.SelectYesno;
 
     private static readonly Random rng = new();
 

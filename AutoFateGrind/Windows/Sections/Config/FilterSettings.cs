@@ -82,31 +82,27 @@ internal static class FilterSettings
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextStrong))
                 ImGui.TextUnformatted(LabelFor(entry.Criterion));
 
-            var rowRightWidth = btnSize * 4 + spacingX * 3 + 8f * ImGuiHelpers.GlobalScale;
+            var rowRightWidth = btnSize * 4 + spacingX * 3 + Layout.RowRightMargin * ImGuiHelpers.GlobalScale;
             var rightStart = ImGui.GetContentRegionAvail().X + ImGui.GetCursorPosX() - rowRightWidth;
             ImGui.SameLine(rightStart);
 
             var dirIcon = entry.Descending ? FontAwesomeIcon.SortAmountDown : FontAwesomeIcon.SortAmountUp;
-            if (SettingsControls.DrawIconButton(dirIcon, $"##sort_dir_{i}", btnSize))
+            if (IconButton.Draw(dirIcon, $"##sort_dir_{i}", btnSize))
             { entry.Descending = !entry.Descending; cfg.SaveDebounced(); }
             ImGui.SameLine(0, spacingX);
             using (ImRaii.Disabled(i == 0))
-                if (SettingsControls.DrawIconButton(FontAwesomeIcon.ArrowUp, $"##sort_up_{i}", btnSize)) moveUp = i;
+                if (IconButton.Draw(FontAwesomeIcon.ArrowUp, $"##sort_up_{i}", btnSize)) moveUp = i;
             ImGui.SameLine(0, spacingX);
             using (ImRaii.Disabled(i == cfg.FateSortOrder.Count - 1))
-                if (SettingsControls.DrawIconButton(FontAwesomeIcon.ArrowDown, $"##sort_dn_{i}", btnSize)) moveDown = i;
+                if (IconButton.Draw(FontAwesomeIcon.ArrowDown, $"##sort_dn_{i}", btnSize)) moveDown = i;
             ImGui.SameLine(0, spacingX);
             using (ImRaii.Disabled(cfg.FateSortOrder.Count <= 1))
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentRose))
-                if (SettingsControls.DrawIconButton(FontAwesomeIcon.Times, $"##sort_rm_{i}", btnSize)) remove = i;
+                if (IconButton.Draw(FontAwesomeIcon.Times, $"##sort_rm_{i}", btnSize)) remove = i;
         }
 
-        if (moveUp is int mu && mu > 0)
-        { (cfg.FateSortOrder[mu - 1], cfg.FateSortOrder[mu]) = (cfg.FateSortOrder[mu], cfg.FateSortOrder[mu - 1]); cfg.SaveDebounced(); }
-        else if (moveDown is int md && md < cfg.FateSortOrder.Count - 1)
-        { (cfg.FateSortOrder[md + 1], cfg.FateSortOrder[md]) = (cfg.FateSortOrder[md], cfg.FateSortOrder[md + 1]); cfg.SaveDebounced(); }
-        else if (remove is int r)
-        { cfg.FateSortOrder.RemoveAt(r); cfg.SaveDebounced(); }
+        if (ListReorder.Apply(cfg.FateSortOrder, cfg.FateSortOrder.Count, moveUp, moveDown, remove))
+            cfg.SaveDebounced();
 
         var missing = sortCriterionLabels.Where(l => cfg.FateSortOrder.All(e => e.Criterion != l.Criterion)).ToArray();
         if (missing.Length > 0)

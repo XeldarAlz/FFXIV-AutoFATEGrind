@@ -10,6 +10,9 @@ internal sealed class BossModIPC
     private static BossModIPC? instance;
     public static BossModIPC Instance => instance ??= new BossModIPC();
 
+    // Reflected so a change to BossMod's quality struct can't break us.
+    private const string QualityIsBadProperty = "IsBad";
+
     private readonly ICallGateSubscriber<string, bool> setActive;
     private readonly ICallGateSubscriber<bool>         clearActive;
     private readonly ICallGateSubscriber<string>       getActive;
@@ -40,92 +43,43 @@ internal sealed class BossModIPC
     public bool IsAvailable => setActive.HasFunction;
 
     public bool SetActive(string presetName)
-    {
-        if (!setActive.HasFunction) return false;
-        try { return setActive.InvokeFunc(presetName); }
-        catch (Exception ex) { Svc.Log.Warning(ex, "[BossModIPC] SetActive failed"); return false; }
-    }
+        => IpcGate.Invoke(setActive.HasFunction, () => setActive.InvokeFunc(presetName), false, "[BossModIPC] SetActive failed");
 
     public bool ClearActive()
-    {
-        if (!clearActive.HasFunction) return false;
-        try { return clearActive.InvokeFunc(); }
-        catch (Exception ex) { Svc.Log.Warning(ex, "[BossModIPC] ClearActive failed"); return false; }
-    }
+        => IpcGate.Invoke(clearActive.HasFunction, clearActive.InvokeFunc, false, "[BossModIPC] ClearActive failed");
 
     public string? GetActive()
-    {
-        if (!getActive.HasFunction) return null;
-        try { return getActive.InvokeFunc(); }
-        catch (Exception ex) { Svc.Log.Warning(ex, "[BossModIPC] GetActive failed"); return null; }
-    }
+        => IpcGate.Invoke<string?>(getActive.HasFunction, getActive.InvokeFunc, null, "[BossModIPC] GetActive failed");
 
     public string? GetPreset(string name)
-    {
-        if (!getPreset.HasFunction) return null;
-        try { return getPreset.InvokeFunc(name); }
-        catch (Exception ex) { Svc.Log.Warning(ex, "[BossModIPC] GetPreset failed"); return null; }
-    }
+        => IpcGate.Invoke<string?>(getPreset.HasFunction, () => getPreset.InvokeFunc(name), null, "[BossModIPC] GetPreset failed");
 
     public bool AddTransientStrategy(string preset, string module, string track, string option)
-    {
-        if (!addTransient.HasFunction) return false;
-        try { return addTransient.InvokeFunc(preset, module, track, option); }
-        catch (Exception ex) { Svc.Log.Warning(ex, "[BossModIPC] AddTransientStrategy failed"); return false; }
-    }
+        => IpcGate.Invoke(addTransient.HasFunction, () => addTransient.InvokeFunc(preset, module, track, option), false, "[BossModIPC] AddTransientStrategy failed");
 
     public bool CreatePreset(string serialized, bool overwrite)
-    {
-        if (!createPreset.HasFunction) return false;
-        try { return createPreset.InvokeFunc(serialized, overwrite); }
-        catch (Exception ex) { Svc.Log.Warning(ex, "[BossModIPC] CreatePreset failed"); return false; }
-    }
+        => IpcGate.Invoke(createPreset.HasFunction, () => createPreset.InvokeFunc(serialized, overwrite), false, "[BossModIPC] CreatePreset failed");
 
     public bool GenerateObstacleMap(Vector3 center, float radius, bool writeToFile = false)
-    {
-        if (!obstacleGenerate.HasFunction) return false;
-        try { return obstacleGenerate.InvokeFunc(center, radius, writeToFile); }
-        catch (Exception ex) { Svc.Log.Warning(ex, "[BossModIPC] GenerateObstacleMap failed"); return false; }
-    }
+        => IpcGate.Invoke(obstacleGenerate.HasFunction, () => obstacleGenerate.InvokeFunc(center, radius, writeToFile), false, "[BossModIPC] GenerateObstacleMap failed");
 
     public TaskStatus? GetObstacleMapStatus()
-    {
-        if (!obstacleGetStatus.HasFunction) return null;
-        try { return obstacleGetStatus.InvokeFunc(); }
-        catch (Exception ex) { Svc.Log.Warning(ex, "[BossModIPC] GetObstacleMapStatus failed"); return null; }
-    }
+        => IpcGate.Invoke<TaskStatus?>(obstacleGetStatus.HasFunction, () => obstacleGetStatus.InvokeFunc(), null, "[BossModIPC] GetObstacleMapStatus failed");
 
     public bool HasTempObstacleMap()
-    {
-        if (!obstacleHasTempMap.HasFunction) return false;
-        try { return obstacleHasTempMap.InvokeFunc(); }
-        catch (Exception ex) { Svc.Log.Warning(ex, "[BossModIPC] HasTempObstacleMap failed"); return false; }
-    }
+        => IpcGate.Invoke(obstacleHasTempMap.HasFunction, obstacleHasTempMap.InvokeFunc, false, "[BossModIPC] HasTempObstacleMap failed");
 
     public bool ClearTempObstacleMap()
-    {
-        if (!obstacleClearTempMap.HasFunction) return false;
-        try { return obstacleClearTempMap.InvokeFunc(); }
-        catch (Exception ex) { Svc.Log.Warning(ex, "[BossModIPC] ClearTempObstacleMap failed"); return false; }
-    }
+        => IpcGate.Invoke(obstacleClearTempMap.HasFunction, obstacleClearTempMap.InvokeFunc, false, "[BossModIPC] ClearTempObstacleMap failed");
 
-    // Read IsBad by reflection so a change to BossMod's quality struct can't break us; missing IPC
-    // or property is treated as "not bad" to preserve existing behavior.
+    // Reads IsBad by reflection; missing IPC or property is treated as "not bad" to preserve behavior.
     public bool EvaluateTempMapQualityIsBad()
-    {
-        if (!obstacleEvaluateQuality.HasFunction) return false;
-        try
+        => IpcGate.Invoke(obstacleEvaluateQuality.HasFunction, () =>
         {
             var result = obstacleEvaluateQuality.InvokeFunc();
             if (result is null) return false;
-            var prop = result.GetType().GetProperty("IsBad");
+            var prop = result.GetType().GetProperty(QualityIsBadProperty);
             if (prop is null) return false;
             return prop.GetValue(result) is bool b && b;
-        }
-        catch (Exception ex)
-        {
-            Svc.Log.Warning(ex, "[BossModIPC] EvaluateTempMapQuality failed");
-            return false;
-        }
-    }
+        }, false, "[BossModIPC] EvaluateTempMapQuality failed");
 }

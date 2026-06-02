@@ -13,6 +13,10 @@ internal static unsafe class FoodOps
     public const uint WellFedStatusId = 48;
     public const uint MedicatedStatusId = 49;
 
+    // HQ items are addressed as base id + 1,000,000; 65535 = "use from any slot".
+    private const uint HqItemIdOffset = 1_000_000;
+    private const uint UseActionAnySlotParam = 65535;
+
     private static List<ConsumableEntry>? catalog;
 
     public static IReadOnlyList<ConsumableEntry> Catalog => catalog ??= BuildCatalog();
@@ -52,7 +56,7 @@ internal static unsafe class FoodOps
     }
 
     public static bool IsAvailable(ConsumableEntry e)
-        => (e.CanBeHq && ItemCount(e.ItemId + 1_000_000) >= 1) || ItemCount(e.ItemId) >= 1;
+        => (e.CanBeHq && ItemCount(e.ItemId + HqItemIdOffset) >= 1) || ItemCount(e.ItemId) >= 1;
 
     public static bool HasStatus(uint statusId, float minSeconds)
     {
@@ -77,17 +81,17 @@ internal static unsafe class FoodOps
     // Throttled so a repeated-call loop can't spam UseAction faster than the game accepts it.
     public static bool UseConsumable(ConsumableEntry e)
     {
-        if (!EzThrottler.Throttle("AFG.Food.Use", 500)) return false;
+        if (!EzThrottler.Throttle(AfgConstants.ThrottleKeys.FoodUse, AfgConstants.AddonInteractThrottleMs)) return false;
         var am = ActionManager.Instance();
         if (am is null) return false;
 
-        var hqId = e.ItemId + 1_000_000;
+        var hqId = e.ItemId + HqItemIdOffset;
         var useId = e.CanBeHq && ItemCount(hqId) >= 1 ? hqId
                   : ItemCount(e.ItemId) >= 1 ? e.ItemId
                   : 0u;
         if (useId == 0) return false;
 
-        am->UseAction(ActionType.Item, useId, extraParam: 65535);
+        am->UseAction(ActionType.Item, useId, extraParam: UseActionAnySlotParam);
         return true;
     }
 }

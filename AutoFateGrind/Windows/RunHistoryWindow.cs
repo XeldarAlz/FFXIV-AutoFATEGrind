@@ -83,9 +83,9 @@ public sealed class RunHistoryWindow : Window, IDisposable
         var end = origin + size;
         var dl = ImGui.GetWindowDrawList();
 
-        dl.AddRectFilled(origin, end, ImGui.GetColorU32(Vector4.Lerp(Styling.CardBg, accent, 0.10f)), 7f);
-        dl.AddRect(origin, end, ImGui.GetColorU32(Styling.BorderDim), 7f, ImDrawFlags.None, 1f);
-        dl.AddRectFilled(origin, new Vector2(end.X, origin.Y + 3f * s), ImGui.GetColorU32(accent), 7f, ImDrawFlags.RoundCornersTop);
+        dl.AddRectFilled(origin, end, ImGui.GetColorU32(Vector4.Lerp(Styling.CardBg, accent, 0.10f)), Styling.CardRounding);
+        dl.AddRect(origin, end, ImGui.GetColorU32(Styling.BorderDim), Styling.CardRounding, ImDrawFlags.None, 1f);
+        dl.AddRectFilled(origin, new Vector2(end.X, origin.Y + 3f * s), ImGui.GetColorU32(accent), Styling.CardRounding, ImDrawFlags.RoundCornersTop);
 
         var pad = 10f * s;
         var iconStr = icon.ToIconString();

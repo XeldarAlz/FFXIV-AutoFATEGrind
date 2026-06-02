@@ -4,7 +4,6 @@ using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
 using ECommons.DalamudServices;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Numerics;
 
@@ -199,20 +198,9 @@ public sealed class AboutWindow : Window, IDisposable
 
         using (ImRaii.Tooltip())
             ImGui.TextUnformatted("Click to open · right-click to copy");
-        if (ImGui.IsMouseClicked(ImGuiMouseButton.Left)) OpenInBrowser(url);
+        if (ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+            UrlActions.OpenInBrowser(url, ex =>
+                Svc.Log.Warning(ex, "[AutoFateGrind] failed to launch browser for {0}, copied to clipboard instead", url));
         else if (ImGui.IsMouseClicked(ImGuiMouseButton.Right)) ImGui.SetClipboardText(url);
-    }
-
-    private static void OpenInBrowser(string url)
-    {
-        try
-        {
-            Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
-        }
-        catch (Exception ex)
-        {
-            Svc.Log.Warning(ex, "[AutoFateGrind] failed to launch browser for {0}, copied to clipboard instead", url);
-            ImGui.SetClipboardText(url);
-        }
     }
 }

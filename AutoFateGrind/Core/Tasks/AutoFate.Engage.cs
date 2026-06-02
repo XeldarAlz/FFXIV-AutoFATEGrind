@@ -106,8 +106,8 @@ public sealed partial class AutoFate
         if (arrived is null) return ExitReason.Continue;
         fate = arrived;
 
-        // Boss/event FATEs must be activated via their NPC before they go Running. 0xE0000000 = no NPC.
-        if (fate.State == FateState.Preparing && fate.MotivationNpcId != 0xE0000000)
+        // Boss/event FATEs must be activated via their NPC before they go Running.
+        if (fate.State == FateState.Preparing && fate.MotivationNpcId != NoMotivationNpcId)
             await ActivateFate(fate);
 
         if (returnToFateId == fate.Id && fate.State == FateState.Running)

@@ -1,13 +1,14 @@
+using AutoFateGrind.Core;
 using AutoFateGrind.Core.External;
 using AutoFateGrind.Core.Modes;
 using AutoFateGrind.Core.Tasks;
+using AutoFateGrind.Core.Trading;
 using AutoFateGrind.Core.Zones;
 using AutoFateGrind.Windows.Components;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
-using FFXIVClientStructs.FFXIV.Client.Game;
 using System.Numerics;
 
 namespace AutoFateGrind.Windows.Sections;
@@ -16,10 +17,10 @@ internal static class GoalSummary
 {
     private static readonly Dictionary<string, (FontAwesomeIcon Icon, string Label)> stopVisuals = new()
     {
-        ["maxgemstones"] = (FontAwesomeIcon.Gem,       "Gemstones"),
-        ["runcount"]     = (FontAwesomeIcon.ListOl,    "FATEs"),
-        ["timeboxed"]    = (FontAwesomeIcon.Stopwatch, "Time"),
-        ["endless"]      = (FontAwesomeIcon.Infinity,  "Endless"),
+        [MaxGemstonesMode.ModeId] = (FontAwesomeIcon.Gem,       "Gemstones"),
+        [RunCountMode.ModeId]     = (FontAwesomeIcon.ListOl,    "FATEs"),
+        [TimeBoxedMode.ModeId]    = (FontAwesomeIcon.Stopwatch, "Time"),
+        [EndlessMode.ModeId]      = (FontAwesomeIcon.Infinity,  "Endless"),
     };
 
     public static void Draw(Configuration cfg, AutoFateController controller)
@@ -45,7 +46,7 @@ internal static class GoalSummary
     {
         // Endless never auto-completes, so there is no "after" — hide the whole Then section rather than
         // show a disabled control implying one exists. The plan line below still explains Endless.
-        if (cfg.ActiveMode.Id != "endless")
+        if (cfg.ActiveMode.Id != EndlessMode.ModeId)
         {
             ImGui.Spacing();
             Styling.SectionLabel("Then");
@@ -94,15 +95,15 @@ internal static class GoalSummary
 
     private static string PlanSentence(Configuration cfg)
     {
-        if (cfg.ActiveMode.Id == "endless")
+        if (cfg.ActiveMode.Id == EndlessMode.ModeId)
             return "Grind the selected zones forever — until you press Stop.";
 
         var until = cfg.ActiveMode.Id switch
         {
-            "maxgemstones" => $"until you reach {cfg.TargetGemstoneCount} Bicolor Gemstones",
-            "runcount"     => $"for {cfg.TargetFateCount} FATEs",
-            "timeboxed"    => $"for {cfg.TargetMinutes} minutes",
-            _              => "until done",
+            MaxGemstonesMode.ModeId => $"until you reach {cfg.TargetGemstoneCount} Bicolor Gemstones",
+            RunCountMode.ModeId     => $"for {cfg.TargetFateCount} FATEs",
+            TimeBoxedMode.ModeId    => $"for {cfg.TargetMinutes} minutes",
+            _                       => "until done",
         };
         var then = cfg.AfterRun switch
         {
@@ -189,7 +190,7 @@ internal static class GoalSummary
         ImGui.AlignTextToFramePadding();
         switch (cfg.ActiveMode.Id)
         {
-            case "maxgemstones":
+            case MaxGemstonesMode.ModeId:
             {
                 Caption("Stop at");
                 ImGui.SameLine();
@@ -197,14 +198,14 @@ internal static class GoalSummary
                 var target = cfg.TargetGemstoneCount;
                 if (ImGui.InputInt("##gemcnt", ref target, 50, 250))
                 {
-                    cfg.TargetGemstoneCount = Math.Clamp(target, 1, 1500);
+                    cfg.TargetGemstoneCount = Math.Clamp(target, 1, AfgConstants.BicolorCap);
                     cfg.SaveDebounced();
                 }
                 ImGui.SameLine();
-                Dim($"gems  ·  have {GemstoneCount()}");
+                Dim($"gems  ·  have {GemstoneCatalog.CurrentWalletCount()}");
                 break;
             }
-            case "runcount":
+            case RunCountMode.ModeId:
             {
                 Caption("Stop after");
                 ImGui.SameLine();
@@ -219,7 +220,7 @@ internal static class GoalSummary
                 Dim("FATEs");
                 break;
             }
-            case "timeboxed":
+            case TimeBoxedMode.ModeId:
             {
                 Caption("Stop after");
                 ImGui.SameLine();
@@ -267,12 +268,5 @@ internal static class GoalSummary
     {
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
             ImGui.TextUnformatted(text);
-    }
-
-    private static unsafe int GemstoneCount()
-    {
-        const uint bicolorItemId = 26807;
-        var im = InventoryManager.Instance();
-        return im is null ? 0 : im->GetInventoryItemCount(bicolorItemId);
     }
 }

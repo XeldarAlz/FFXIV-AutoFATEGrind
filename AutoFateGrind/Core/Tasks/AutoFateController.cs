@@ -20,7 +20,17 @@ internal sealed class AutoFateController
     private static readonly Random rng = new();
 
     private static void Diag(string message)
-        => ECommons.DalamudServices.Svc.Log.Info($"[AFG] {message}");
+        => ECommons.DalamudServices.Svc.Log.Info($"{AfgConstants.LogPrefix} {message}");
+
+    // First active-zone index whose territory matches origin (first match wins), or fallback when origin is
+    // null / not in the current selection.
+    private int ResumeIndexFor(ZoneInfo? origin, int fallback = 0)
+    {
+        if (origin is null) return fallback;
+        for (var i = 0; i < activeZones.Count; i++)
+            if (activeZones[i].TerritoryId == origin.TerritoryId) return i;
+        return fallback;
+    }
 
     public void RunAll(IEnumerable<ZoneInfo> zones)
     {
@@ -191,10 +201,7 @@ internal sealed class AutoFateController
             // finished the trade phase. Resume the FATE grind if we ended on repair-only.
             if (Phase == AutoPhase.Repairing && activeZones.Count > 0)
             {
-                var resumeIndex = 0;
-                if (owningSession.PendingRepairFromZone is { } repairOrigin)
-                    for (var i = 0; i < activeZones.Count; i++)
-                        if (activeZones[i].TerritoryId == repairOrigin.TerritoryId) { resumeIndex = i; break; }
+                var resumeIndex = ResumeIndexFor(owningSession.PendingRepairFromZone);
                 owningSession.PendingRepairFromZone = null;
                 Diag($"Repair finished with no pending trade; resuming FATE grind at {activeZones[resumeIndex].Name}.");
                 ResumeGrindOrHumanize(owningSession, resumeIndex);
@@ -202,10 +209,7 @@ internal sealed class AutoFateController
             }
             if (owningSession.PendingHumanize && activeZones.Count > 0)
             {
-                var resumeIndex = 0;
-                if (owningSession.PendingHumanizeFromZone is { } humOrigin)
-                    for (var i = 0; i < activeZones.Count; i++)
-                        if (activeZones[i].TerritoryId == humOrigin.TerritoryId) { resumeIndex = i; break; }
+                var resumeIndex = ResumeIndexFor(owningSession.PendingHumanizeFromZone);
                 Diag($"Humanize triggered with no other hand-offs; entering break from {activeZones[resumeIndex].Name}.");
                 ResumeGrindOrHumanize(owningSession, resumeIndex);
                 return;
@@ -252,9 +256,7 @@ internal sealed class AutoFateController
                     return;
                 }
 
-                var resumeIndex = 0;
-                for (var i = 0; i < activeZones.Count; i++)
-                    if (activeZones[i].TerritoryId == origin.TerritoryId) { resumeIndex = i; break; }
+                var resumeIndex = ResumeIndexFor(origin);
 
                 Diag($"AutoTrade finished: resuming FATE grind at {activeZones[resumeIndex].Name}.");
                 ResumeGrindOrHumanize(owningSession, resumeIndex);
@@ -334,10 +336,7 @@ internal sealed class AutoFateController
 
         // If the origin zone was dropped from the selection (e.g. user edited zones during the break),
         // fall back to the resume index we already have.
-        var resumeIdx = resumeIndex;
-        if (origin is not null)
-            for (var i = 0; i < activeZones.Count; i++)
-                if (activeZones[i].TerritoryId == origin.TerritoryId) { resumeIdx = i; break; }
+        var resumeIdx = ResumeIndexFor(origin, resumeIndex);
 
         Phase = AutoPhase.Humanizing;
         Diag($"Humanize phase entering: city {cityId}, duration {minutes}m, resume zone {activeZones[resumeIdx].Name}.");

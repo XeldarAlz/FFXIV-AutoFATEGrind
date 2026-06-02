@@ -107,7 +107,7 @@ internal static class ClassSettings
         int? moveUp = null, moveDown = null, remove = null;
         var btnSize = ImGui.GetFrameHeight();
         var spacingX = 4f * ImGuiHelpers.GlobalScale;
-        var rowRightWidth = btnSize * 3 + spacingX * 2 + 8f * ImGuiHelpers.GlobalScale;
+        var rowRightWidth = btnSize * 3 + spacingX * 2 + Layout.RowRightMargin * ImGuiHelpers.GlobalScale;
 
         for (var i = 0; i < cfg.ClassQueue.Count; i++)
         {
@@ -118,21 +118,8 @@ internal static class ClassSettings
                 onRemove: () => remove = i);
         }
 
-        if (moveUp is int mu && mu > 0)
-        {
-            (cfg.ClassQueue[mu - 1], cfg.ClassQueue[mu]) = (cfg.ClassQueue[mu], cfg.ClassQueue[mu - 1]);
+        if (ListReorder.Apply(cfg.ClassQueue, cfg.ClassQueue.Count, moveUp, moveDown, remove))
             cfg.SaveDebounced();
-        }
-        else if (moveDown is int md && md < cfg.ClassQueue.Count - 1)
-        {
-            (cfg.ClassQueue[md + 1], cfg.ClassQueue[md]) = (cfg.ClassQueue[md], cfg.ClassQueue[md + 1]);
-            cfg.SaveDebounced();
-        }
-        else if (remove is int r)
-        {
-            cfg.ClassQueue.RemoveAt(r);
-            cfg.SaveDebounced();
-        }
     }
 
     private static void DrawClassQueueRow(
@@ -169,13 +156,13 @@ internal static class ClassSettings
             ImGui.SameLine(rightStart);
 
             using (ImRaii.Disabled(index == 0))
-                if (SettingsControls.DrawIconButton(FontAwesomeIcon.ArrowUp, $"##cls_up_{index}", btnSize)) onUp();
+                if (IconButton.Draw(FontAwesomeIcon.ArrowUp, $"##cls_up_{index}", btnSize)) onUp();
             ImGui.SameLine(0, spacingX);
             using (ImRaii.Disabled(index == total - 1))
-                if (SettingsControls.DrawIconButton(FontAwesomeIcon.ArrowDown, $"##cls_dn_{index}", btnSize)) onDown();
+                if (IconButton.Draw(FontAwesomeIcon.ArrowDown, $"##cls_dn_{index}", btnSize)) onDown();
             ImGui.SameLine(0, spacingX);
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentRose))
-                if (SettingsControls.DrawIconButton(FontAwesomeIcon.Times, $"##cls_rm_{index}", btnSize)) onRemove();
+                if (IconButton.Draw(FontAwesomeIcon.Times, $"##cls_rm_{index}", btnSize)) onRemove();
         }
     }
 }

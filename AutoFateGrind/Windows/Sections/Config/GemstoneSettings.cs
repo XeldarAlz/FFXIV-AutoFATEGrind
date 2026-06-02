@@ -36,8 +36,8 @@ internal static class GemstoneSettings
             {
                 var v = cfg.TradeThreshold;
                 ImGui.SetNextItemWidth(280);
-                if (ImGui.SliderInt("##tr_threshold", ref v, 100, 1500, "%d gems"))
-                { cfg.TradeThreshold = Math.Clamp(v, 100, 1500); cfg.SaveDebounced(); }
+                if (ImGui.SliderInt("##tr_threshold", ref v, 100, Core.AfgConstants.BicolorCap, "%d gems"))
+                { cfg.TradeThreshold = Math.Clamp(v, 100, Core.AfgConstants.BicolorCap); cfg.SaveDebounced(); }
             });
 
         SettingsRow.Draw("Item to buy", "Pulled live from game data. Cost shown in gems per one.", () =>
@@ -72,8 +72,8 @@ internal static class GemstoneSettings
                     ImGui.Indent(20f);
                     var g = cfg.SpendGemsAmount;
                     ImGui.SetNextItemWidth(220);
-                    if (ImGui.SliderInt("##tr_spend_gems", ref g, 50, 1500, "%d gems / trade"))
-                    { cfg.SpendGemsAmount = Math.Clamp(g, 50, 1500); cfg.SaveDebounced(); }
+                    if (ImGui.SliderInt("##tr_spend_gems", ref g, 50, Core.AfgConstants.BicolorCap, "%d gems / trade"))
+                    { cfg.SpendGemsAmount = Math.Clamp(g, 50, Core.AfgConstants.BicolorCap); cfg.SaveDebounced(); }
                     ImGui.Unindent(20f);
                 }
 
@@ -97,8 +97,8 @@ internal static class GemstoneSettings
             {
                 var v = cfg.KeepGemstonesReserve;
                 ImGui.SetNextItemWidth(280);
-                if (ImGui.SliderInt("##tr_reserve", ref v, 0, 1500, "%d gems"))
-                { cfg.KeepGemstonesReserve = Math.Clamp(v, 0, 1500); cfg.SaveDebounced(); }
+                if (ImGui.SliderInt("##tr_reserve", ref v, 0, Core.AfgConstants.BicolorCap, "%d gems"))
+                { cfg.KeepGemstonesReserve = Math.Clamp(v, 0, Core.AfgConstants.BicolorCap); cfg.SaveDebounced(); }
             });
 
         DrawSpendPreview(cfg);

@@ -26,9 +26,9 @@ public static class FateGrindModes
 
     public static string IdForLegacy(GrindMode legacy) => legacy switch
     {
-        GrindMode.MaxGemstones => "maxgemstones",
-        GrindMode.RunCount     => "runcount",
-        GrindMode.Endless      => "endless",
-        _                      => "maxgemstones",
+        GrindMode.MaxGemstones => MaxGemstonesMode.ModeId,
+        GrindMode.RunCount     => RunCountMode.ModeId,
+        GrindMode.Endless      => EndlessMode.ModeId,
+        _                      => MaxGemstonesMode.ModeId,
     };
 }

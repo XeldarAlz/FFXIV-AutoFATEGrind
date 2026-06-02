@@ -43,7 +43,7 @@ internal sealed class RunHistory
         }
         catch (Exception ex)
         {
-            Svc.Log.Warning(ex, "[AFG] RunHistory load failed; starting empty");
+            Svc.Log.Warning(ex, $"{AfgConstants.LogPrefix} RunHistory load failed; starting empty");
         }
     }
 
@@ -89,7 +89,7 @@ internal sealed class RunHistory
         }
         catch (Exception ex)
         {
-            Svc.Log.Warning(ex, "[AFG] RunHistory save failed");
+            Svc.Log.Warning(ex, $"{AfgConstants.LogPrefix} RunHistory save failed");
         }
     }
 

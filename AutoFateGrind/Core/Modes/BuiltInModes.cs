@@ -4,7 +4,8 @@ namespace AutoFateGrind.Core.Modes;
 
 public sealed class EndlessMode : IFateGrindMode
 {
-    public string Id => "endless";
+    public const string ModeId = "endless";
+    public string Id => ModeId;
     public string DisplayName => "Endless Grind";
     public string Description => "Runs forever, rotating between selected zones, until you press Stop.";
     public bool IsComplete(ModeContext ctx) => false;
@@ -13,7 +14,8 @@ public sealed class EndlessMode : IFateGrindMode
 
 public sealed class MaxGemstonesMode : IFateGrindMode
 {
-    public string Id => "maxgemstones";
+    public const string ModeId = "maxgemstones";
+    public string Id => ModeId;
     public string DisplayName => "Farm Gemstones";
     public string Description => "Stops when Bicolor Gemstones hit your target. Auto-trade resumes the grind.";
     public bool IsComplete(ModeContext ctx) => GemstoneCatalog.CurrentWalletCount() >= Plugin.Cfg.TargetGemstoneCount;
@@ -28,7 +30,8 @@ public sealed class MaxGemstonesMode : IFateGrindMode
 
 public sealed class TimeBoxedMode : IFateGrindMode
 {
-    public string Id => "timeboxed";
+    public const string ModeId = "timeboxed";
+    public string Id => ModeId;
     public string DisplayName => "Farm for Time";
     public string Description => "Runs for a set number of minutes, then stops. Always finishes the FATE in progress first.";
     public bool IsComplete(ModeContext ctx) => ctx.Elapsed >= TimeSpan.FromMinutes(Math.Max(1, Plugin.Cfg.TargetMinutes));
@@ -45,7 +48,8 @@ public sealed class TimeBoxedMode : IFateGrindMode
 
 public sealed class RunCountMode : IFateGrindMode
 {
-    public string Id => "runcount";
+    public const string ModeId = "runcount";
+    public string Id => ModeId;
     public string DisplayName => "Run N FATEs";
     public string Description => "Stops after a fixed number of FATE completions across all selected zones.";
     public bool IsComplete(ModeContext ctx) => ctx.CompletedCount >= Plugin.Cfg.TargetFateCount;

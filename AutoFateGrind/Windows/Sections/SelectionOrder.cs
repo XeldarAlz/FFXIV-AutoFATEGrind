@@ -1,10 +1,10 @@
 using AutoFateGrind.Core.Tasks;
 using AutoFateGrind.Core.Zones;
+using AutoFateGrind.Windows.Components;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
-using System.Numerics;
 
 namespace AutoFateGrind.Windows.Sections;
 
@@ -27,7 +27,7 @@ internal static class SelectionOrder
 
         var btnSize = ImGui.GetFrameHeight();
         var spacingX = 4f * ImGuiHelpers.GlobalScale;
-        var rightMargin = 8f * ImGuiHelpers.GlobalScale;
+        var rightMargin = Layout.RowRightMargin * ImGuiHelpers.GlobalScale;
         var rowRightWidth = btnSize * 3 + spacingX * 2 + rightMargin;
 
         for (var i = 0; i < ids.Count; i++)
@@ -39,21 +39,8 @@ internal static class SelectionOrder
                 onRemove: () => remove = i);
         }
 
-        if (moveUp is int mu && mu > 0)
-        {
-            (cfg.SelectedZones[mu - 1], cfg.SelectedZones[mu]) = (cfg.SelectedZones[mu], cfg.SelectedZones[mu - 1]);
+        if (ListReorder.Apply(cfg.SelectedZones, ids.Count, moveUp, moveDown, remove))
             cfg.SaveDebounced();
-        }
-        else if (moveDown is int md && md < ids.Count - 1)
-        {
-            (cfg.SelectedZones[md + 1], cfg.SelectedZones[md]) = (cfg.SelectedZones[md], cfg.SelectedZones[md + 1]);
-            cfg.SaveDebounced();
-        }
-        else if (remove is int r)
-        {
-            cfg.SelectedZones.RemoveAt(r);
-            cfg.SaveDebounced();
-        }
     }
 
     private static void DrawRow(
@@ -74,22 +61,16 @@ internal static class SelectionOrder
             ImGui.SameLine(rightStart);
 
             using (ImRaii.Disabled(index == 0))
-                if (DrawIconBtn(FontAwesomeIcon.ArrowUp, $"##up{index}_{zone.TerritoryId}", btnSize))
+                if (IconButton.Draw(FontAwesomeIcon.ArrowUp, $"##up{index}_{zone.TerritoryId}", btnSize))
                     onUp();
             ImGui.SameLine(0, spacingX);
             using (ImRaii.Disabled(index == total - 1))
-                if (DrawIconBtn(FontAwesomeIcon.ArrowDown, $"##dn{index}_{zone.TerritoryId}", btnSize))
+                if (IconButton.Draw(FontAwesomeIcon.ArrowDown, $"##dn{index}_{zone.TerritoryId}", btnSize))
                     onDown();
             ImGui.SameLine(0, spacingX);
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentRose))
-                if (DrawIconBtn(FontAwesomeIcon.Times, $"##rm{index}_{zone.TerritoryId}", btnSize))
+                if (IconButton.Draw(FontAwesomeIcon.Times, $"##rm{index}_{zone.TerritoryId}", btnSize))
                     onRemove();
         }
-    }
-
-    private static bool DrawIconBtn(FontAwesomeIcon icon, string id, float size)
-    {
-        using (ImRaii.PushFont(UiBuilder.IconFont))
-            return ImGui.Button(icon.ToIconString() + id, new Vector2(size, size));
     }
 }

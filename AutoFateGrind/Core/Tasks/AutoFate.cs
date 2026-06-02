@@ -35,7 +35,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private const int   MoveOpUnwindSlackMs = 10_000;
     private const int   DismountWatchdogMs = 30_000;
     private const int   MoveProgressLogMs = 15_000;
-    private const int   FollowUpWatchMs = 15_000;
+    private const int   FollowUpWatchMs = AfgConstants.FollowUpWaitMs;
     private const int   NpcSpawnTimeoutMs = 30_000;
     private const int   CollectExpiryTimeoutMs = 90_000;
     private const int   EngageStallTimeoutMs = 60_000;
@@ -56,12 +56,16 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private const int   HeartbeatMs = 30_000;
     private const int   MaxConsecutiveStateErrors = 20;
     private const int   GemstoneSettleTimeoutMs = 2_500;
+    // Obstacle-map generation poll deadline before proceeding without one.
+    private const int   ObstacleMapGenTimeoutMs = 5_000;
     // WrongZone give-up ladder: rotate zones, then (single-zone) fault into auto-resume — never re-issue
     // an impossible teleport forever (the 2026-05-30 wedge).
     private const int   WrongZoneSwapAfterFailures  = 2;
     private const int   WrongZoneFaultAfterFailures = 3;
     // Never-stuck backstop: zero forward progress for this long in a non-idle state faults into auto-resume.
     private const int   NoProgressFaultMs = 300_000;
+    // MotivationNpcId sentinel meaning the FATE has no activation NPC.
+    private const uint  NoMotivationNpcId = 0xE0000000;
 
     private uint? lastStuckFateId;
     private int consecutiveStuckRetries;

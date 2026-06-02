@@ -1,5 +1,4 @@
 using AutoFateGrind.Core.Game;
-using AutoFateGrind.Core.Ipc;
 using clib.TaskSystem;
 using Dalamud.Game.ClientState.Conditions;
 using ECommons;
@@ -15,12 +14,16 @@ namespace AutoFateGrind.Core.Tasks;
 
 public sealed class AutoReturnToInn : AutoCommon
 {
-    private const int TeleportWatchdogMs = 60_000;
-    private const int WalkWatchdogMs     = 120_000;
-    private const int DismountWatchdogMs = 30_000;
-    private const int NavmeshReadyWaitMs = 60_000;
-    private const int EnterInnTimeoutMs  = 60_000;
-    private const float ArrivalTolerance = 3.5f;
+    private const int   TeleportWatchdogMs        = 60_000;
+    private const int   WalkWatchdogMs            = 120_000;
+    private const int   DismountWatchdogMs        = 30_000;
+    private const int   NavmeshReadyWaitMs        = 60_000;
+    private const int   EnterInnTimeoutMs         = 60_000;
+    private const int   ApproachWatchdogMs        = 25_000;
+    private const int   InteractWatchdogMs        = 8_000;
+    private const float ArrivalTolerance          = 3.5f;
+    private const float InnkeeperApproachDistance = 5f;
+    private const float InnkeeperStepTolerance    = 2.5f;
 
     private readonly record struct Inn(uint CityTerritory, uint InnTerritory, uint InnkeeperDataId, Vector3 InnkeeperPos, string City);
 
@@ -30,9 +33,9 @@ public sealed class AutoReturnToInn : AutoCommon
         var gc = ps is null ? 0 : ps->GrandCompany;
         return gc switch
         {
-            2 => new Inn(132, 179, 1000102, new Vector3(25.6627f, -8f, 99.74237f), "Gridania"),
-            3 => new Inn(130, 178, 1001976, new Vector3(28.85994f, 6.999999f, -80.12716f), "Ul'dah"),
-            _ => new Inn(128, 177, 1000974, new Vector3(15.42688f, 39.99999f, 12.466553f), "Limsa Lominsa"),
+            GrandCompanyId.TwinAdder      => new Inn(132, 179, 1000102, new Vector3(25.6627f, -8f, 99.74237f), "Gridania"),
+            GrandCompanyId.ImmortalFlames => new Inn(130, 178, 1001976, new Vector3(28.85994f, 6.999999f, -80.12716f), "Ul'dah"),
+            _                             => new Inn(128, 177, 1000974, new Vector3(15.42688f, 39.99999f, 12.466553f), "Limsa Lominsa"),
         };
     }
 
@@ -61,7 +64,7 @@ public sealed class AutoReturnToInn : AutoCommon
             }
         }
 
-        await WaitForNavmeshReady();
+        await WaitForNavmeshReady(NavmeshReadyWaitMs);
         if (CancelToken.IsCancellationRequested) return;
 
         if (Svc.Condition[ConditionFlag.Mounted])
@@ -98,19 +101,19 @@ public sealed class AutoReturnToInn : AutoCommon
             if (npc is null) { await NextFrame(250); continue; }
 
             var player = Svc.Objects.LocalPlayer;
-            if (player is not null && Vector3.Distance(player.Position, npc.Position) > 5f)
+            if (player is not null && Vector3.Distance(player.Position, npc.Position) > InnkeeperApproachDistance)
             {
                 var step = new MoveOp(o => o.Move(inn.CityTerritory, npc.Position,
-                    MovementConfig.Everything.WithTolerance(2.5f),
+                    MovementConfig.Everything.WithTolerance(InnkeeperStepTolerance),
                     allowTeleportIfFaster: false,
                     stopCondition: () => CancelToken.IsCancellationRequested,
                     allowAethernetWithinTerritory: false));
-                await RunCancellable(step, 25_000, "inn-approach", IdleStallAbort(IdleStallTimeoutMs));
+                await RunCancellable(step, ApproachWatchdogMs, "inn-approach", IdleStallAbort(IdleStallTimeoutMs));
                 continue;
             }
 
             var interact = new MoveOp(o => o.Interact(npc, waitUntil: null, skip: UiSkipOptions.Talk));
-            await RunCancellable(interact, 8_000, "inn-interact");
+            await RunCancellable(interact, InteractWatchdogMs, "inn-interact");
             await NextFrame(500);
         }
         Diag("Return to inn: timed out before entering the inn room.");
@@ -119,7 +122,7 @@ public sealed class AutoReturnToInn : AutoCommon
     // Returns true if a relevant dialog was present this tick, so the caller waits instead of re-interacting.
     private static unsafe bool DriveInnDialogs()
     {
-        if (GenericHelpers.TryGetAddonByName<AtkUnitBase>("SelectString", out var ss) && GenericHelpers.IsAddonReady(ss))
+        if (GenericHelpers.TryGetAddonByName<AtkUnitBase>(AfgConstants.AddonNames.SelectString, out var ss) && GenericHelpers.IsAddonReady(ss))
         {
             if (EzThrottler.Throttle("AFG.InnSelectString", 600))
             {
@@ -128,7 +131,7 @@ public sealed class AutoReturnToInn : AutoCommon
             }
             return true;
         }
-        if (GenericHelpers.TryGetAddonByName<AtkUnitBase>("SelectYesno", out var yn) && GenericHelpers.IsAddonReady(yn))
+        if (GenericHelpers.TryGetAddonByName<AtkUnitBase>(AfgConstants.AddonNames.SelectYesno, out var yn) && GenericHelpers.IsAddonReady(yn))
         {
             if (EzThrottler.Throttle("AFG.InnSelectYesno", 600))
                 new AddonMaster.SelectYesno((nint)yn).Yes();
@@ -141,25 +144,5 @@ public sealed class AutoReturnToInn : AutoCommon
             return true;
         }
         return false;
-    }
-
-    private async Task WaitForNavmeshReady()
-    {
-        if (NavmeshIPC.Instance.IsReady()) return;
-        var deadline = Environment.TickCount64 + NavmeshReadyWaitMs;
-        while (!NavmeshIPC.Instance.IsReady())
-        {
-            if (CancelToken.IsCancellationRequested) return;
-            if (Environment.TickCount64 >= deadline)
-            {
-                Diag($"WAIT TIMEOUT: navmesh not ready within {NavmeshReadyWaitMs / 1000}s; proceeding anyway");
-                return;
-            }
-            var progress = NavmeshIPC.Instance.BuildProgress();
-            Status = progress is >= 0f and <= 1f
-                ? $"Please wait — navmesh is loading ({progress * 100f:F0}%)"
-                : "Please wait — navmesh is loading…";
-            await NextFrame(120);
-        }
     }
 }

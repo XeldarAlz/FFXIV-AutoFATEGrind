@@ -9,6 +9,8 @@ internal static unsafe class ClassSwitcher
 {
     // 0xFF = no gearset equipped.
     private const byte InvalidGearsetIndex = 0xFF;
+    // In-game Gear Set list capacity.
+    private const int MaxGearsetCount = 100;
 
     public static int CurrentGearsetIndex
     {
@@ -85,7 +87,7 @@ internal static unsafe class ClassSwitcher
         var mod = RaptureGearsetModule.Instance();
         if (mod is null) return result;
 
-        for (var i = 0; i < 100; i++)
+        for (var i = 0; i < MaxGearsetCount; i++)
         {
             if (!mod->IsValidGearset(i)) continue;
             var entry = mod->GetGearset(i);

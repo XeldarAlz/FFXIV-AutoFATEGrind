@@ -10,6 +10,9 @@ internal sealed class NavmeshIPC
     private static NavmeshIPC? instance;
     public static NavmeshIPC Instance => instance ??= new NavmeshIPC();
 
+    // BuildProgress idle sentinel: -1 = no build running.
+    private const float BuildIdle = -1f;
+
     private readonly ICallGateSubscriber<bool> pathIsRunning;
     private readonly ICallGateSubscriber<bool> simpleMovePathfindInProgress;
     private readonly ICallGateSubscriber<bool> navPathfindInProgress;
@@ -31,29 +34,17 @@ internal sealed class NavmeshIPC
 
     public bool IsAvailable => pathIsRunning.HasFunction;
 
-    // True once the navmesh for the current zone is fully built and queryable. While false, obstacle-map
-    // and pathfind IPC calls race against vnavmesh's background build and throw "navmesh creation is in progress".
+    // True once the current zone's navmesh is fully built and queryable; obstacle-map/pathfind IPC throw
+    // "navmesh creation is in progress" while false. Older vnavmesh lacks the gate → assume ready, don't block.
     public bool IsReady()
-    {
-        if (!navIsReady.HasFunction) return true; // older vnavmesh without the gate: assume ready, don't block.
-        try { return navIsReady.InvokeFunc(); }
-        catch (Exception ex) { Svc.Log.Warning(ex, "[NavmeshIPC] IsReady failed"); return true; }
-    }
+        => IpcGate.Invoke(navIsReady.HasFunction, navIsReady.InvokeFunc, true, "[NavmeshIPC] IsReady failed");
 
-    // 0..1 while a build is in progress; -1 when idle/complete. Used only for a user-facing progress hint.
+    // 0..1 while a build is in progress; -1 when idle/complete. User-facing progress hint only.
     public float BuildProgress()
-    {
-        if (!navBuildProgress.HasFunction) return -1f;
-        try { return navBuildProgress.InvokeFunc(); }
-        catch (Exception ex) { Svc.Log.Warning(ex, "[NavmeshIPC] BuildProgress failed"); return -1f; }
-    }
+        => IpcGate.Invoke(navBuildProgress.HasFunction, navBuildProgress.InvokeFunc, BuildIdle, "[NavmeshIPC] BuildProgress failed");
 
     public bool IsRunning()
-    {
-        if (!pathIsRunning.HasFunction) return false;
-        try { return pathIsRunning.InvokeFunc(); }
-        catch (Exception ex) { Svc.Log.Warning(ex, "[NavmeshIPC] IsRunning failed"); return false; }
-    }
+        => IpcGate.Invoke(pathIsRunning.HasFunction, pathIsRunning.InvokeFunc, false, "[NavmeshIPC] IsRunning failed");
 
     public bool IsBusy()
     {
@@ -72,16 +63,10 @@ internal sealed class NavmeshIPC
     }
 
     public Vector3? NearestPointReachable(Vector3 position, float halfExtentXZ = 5f, float halfExtentY = 5f)
-    {
-        if (!nearestPointReachable.HasFunction) return null;
-        try { return nearestPointReachable.InvokeFunc(position, halfExtentXZ, halfExtentY); }
-        catch (Exception ex) { Svc.Log.Warning(ex, "[NavmeshIPC] NearestPointReachable failed"); return null; }
-    }
+        => IpcGate.Invoke(nearestPointReachable.HasFunction,
+            () => nearestPointReachable.InvokeFunc(position, halfExtentXZ, halfExtentY),
+            (Vector3?)null, "[NavmeshIPC] NearestPointReachable failed");
 
     public void Stop()
-    {
-        if (!pathStop.HasFunction) return;
-        try { pathStop.InvokeAction(); }
-        catch (Exception ex) { Svc.Log.Warning(ex, "[NavmeshIPC] Stop failed"); }
-    }
+        => IpcGate.Run(pathStop.HasFunction, pathStop.InvokeAction, "[NavmeshIPC] Stop failed");
 }

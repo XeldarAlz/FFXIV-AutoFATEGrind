@@ -42,6 +42,11 @@ internal static class Styling
     public static readonly Vector4 TextDim       = new(0.55f, 0.58f, 0.62f, 1.00f);
     public static readonly Vector4 TextMuted     = new(0.40f, 0.42f, 0.46f, 1.00f);
 
+    // Corner radii shared between the ImGui style pushes and hand-drawn cards/tiles (single retune point).
+    public const float CardRounding = 7f;
+    public const float FrameRounding = 5f;
+    public const float WindowRounding = 7f;
+
     public const double PulseFast = 600.0;
     public const double PulseMedium = 800.0;
     public const double PulseSlow = 1100.0;
@@ -57,18 +62,18 @@ internal static class Styling
 
     public static IDisposable PushCardStyle()
     {
-        var p = ImRaii.PushStyle(ImGuiStyleVar.ChildRounding, 7f * ImGuiHelpers.GlobalScale);
+        var p = ImRaii.PushStyle(ImGuiStyleVar.ChildRounding, CardRounding * ImGuiHelpers.GlobalScale);
         p.Push(ImGuiStyleVar.ChildBorderSize, 1f);
         p.Push(ImGuiStyleVar.WindowPadding, new Vector2(11, 9) * ImGuiHelpers.GlobalScale);
-        p.Push(ImGuiStyleVar.FrameRounding, 5f);
+        p.Push(ImGuiStyleVar.FrameRounding, FrameRounding);
         return p;
     }
 
     public static IDisposable PushWindowStyle()
     {
-        var p = ImRaii.PushStyle(ImGuiStyleVar.FrameRounding, 5f);
-        p.Push(ImGuiStyleVar.WindowRounding, 7f);
-        p.Push(ImGuiStyleVar.ChildRounding, 7f);
+        var p = ImRaii.PushStyle(ImGuiStyleVar.FrameRounding, FrameRounding);
+        p.Push(ImGuiStyleVar.WindowRounding, WindowRounding);
+        p.Push(ImGuiStyleVar.ChildRounding, CardRounding);
         p.Push(ImGuiStyleVar.ItemSpacing, new Vector2(8, 7) * ImGuiHelpers.GlobalScale);
         return p;
     }

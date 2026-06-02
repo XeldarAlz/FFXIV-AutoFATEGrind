@@ -16,6 +16,9 @@ public sealed class AutoRepair : AutoCommon
     private const int YesnoWaitMs          = 5_000;
     private const int RepairCompleteWaitMs = 30_000;
     private const int DismountWatchdogMs   = 30_000;
+    // Margin above the user threshold that counts self-repair as a success (else fall through to the NPC mender).
+    private const float SelfRepairSuccessMarginPct = 5f;
+    private const float RepairCompleteConditionPct = 95f;
 
     protected override async Task Execute()
     {
@@ -178,11 +181,11 @@ public sealed class AutoRepair : AutoCommon
             if (Svc.Condition[ConditionFlag.Occupied39]) { sawAnim = true; }
             else if (sawAnim) break;
             // Belt-and-braces: if the addon closed and condition is high, we're done.
-            if (!RepairOps.RepairAddonOpen() && RepairOps.LowestEquippedConditionPct() > 95f) break;
+            if (!RepairOps.RepairAddonOpen() && RepairOps.LowestEquippedConditionPct() > RepairCompleteConditionPct) break;
             await NextFrame(60);
         }
 
         RepairOps.HideRepairAgent();
-        return RepairOps.LowestEquippedConditionPct() > Plugin.Cfg.AutoRepairThresholdPct + 5;
+        return RepairOps.LowestEquippedConditionPct() > Plugin.Cfg.AutoRepairThresholdPct + SelfRepairSuccessMarginPct;
     }
 }

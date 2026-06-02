@@ -118,9 +118,9 @@ public static class GemstoneTrader
 
         var totalShops = accum.Count;
         var totalMapped = perTraderCount.Count(kv => kv.Value > 0);
-        Svc.Log.Info($"[AFG] Bicolor catalog: {totalMapped}/{Traders.Length} traders mapped, {totalShops} unique shops.");
+        Svc.Log.Info($"{AfgConstants.LogPrefix} Bicolor catalog: {totalMapped}/{Traders.Length} traders mapped, {totalShops} unique shops.");
         foreach (var kv in perTraderCount.Where(kv => kv.Value == 0))
-            Svc.Log.Warning($"[AFG] Bicolor trader {kv.Key.Name} (ENpcBase {kv.Key.EnpcBaseId}) mapped to 0 shops.");
+            Svc.Log.Warning($"{AfgConstants.LogPrefix} Bicolor trader {kv.Key.Name} (ENpcBase {kv.Key.EnpcBaseId}) mapped to 0 shops.");
 
         return accum.ToDictionary(kv => kv.Key, kv => kv.Value.ToArray());
     }

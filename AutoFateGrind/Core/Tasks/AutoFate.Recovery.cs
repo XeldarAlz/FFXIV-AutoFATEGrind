@@ -254,29 +254,6 @@ public sealed partial class AutoFate
 
     private enum MoveStopReason { None, StuckRetry, StuckTeleport, StuckInCombat, HigherPriority, NpcSpawned, FateInvalid }
 
-    // After a teleport the destination zone's navmesh is still building; any obstacle-map or pathfind IPC
-    // issued now races vnavmesh and faults with "navmesh creation is in progress". Hold here until ready.
-    private async Task WaitForNavmeshReady()
-    {
-        if (NavmeshIPC.Instance.IsReady()) return;
-
-        var deadline = Environment.TickCount64 + NavmeshReadyWaitMs;
-        while (!NavmeshIPC.Instance.IsReady())
-        {
-            if (CancelToken.IsCancellationRequested) return;
-            if (Environment.TickCount64 >= deadline)
-            {
-                Diag($"WAIT TIMEOUT: navmesh not ready within {NavmeshReadyWaitMs / 1000}s; proceeding anyway");
-                return;
-            }
-            var progress = NavmeshIPC.Instance.BuildProgress();
-            Status = progress is >= 0f and <= 1f
-                ? $"Please wait — navmesh is loading ({progress * 100f:F0}%)"
-                : "Please wait — navmesh is loading…";
-            await NextFrame(60);
-        }
-    }
-
     private async Task GenerateObstacleMap(PublicEvent fate)
     {
         if (obstacleMapBlacklist.Contains(fate.Id)) return;
@@ -295,7 +272,7 @@ public sealed partial class AutoFate
             return;
         }
 
-        var deadline = Environment.TickCount64 + 5_000;
+        var deadline = Environment.TickCount64 + ObstacleMapGenTimeoutMs;
         while (Environment.TickCount64 < deadline)
         {
             if (CancelToken.IsCancellationRequested) return;

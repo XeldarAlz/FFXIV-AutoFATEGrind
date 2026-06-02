@@ -6,40 +6,40 @@ using FFXIVClientStructs.FFXIV.Component.GUI;
 
 namespace AutoFateGrind.Core.Game;
 
-// 500ms throttle prevents addon spam.
+// AddonInteractThrottleMs prevents addon spam.
 internal static unsafe class ShopInteraction
 {
     public static bool ShopOpen()
-        => GenericHelpers.TryGetAddonByName<AtkUnitBase>("Shop", out var addon)
+        => GenericHelpers.TryGetAddonByName<AtkUnitBase>(AfgConstants.AddonNames.Shop, out var addon)
         && GenericHelpers.IsAddonReady(addon);
 
     public static bool ShopExchangeCurrencyOpen()
-        => GenericHelpers.TryGetAddonByName<AtkUnitBase>("ShopExchangeCurrency", out var addon)
+        => GenericHelpers.TryGetAddonByName<AtkUnitBase>(AfgConstants.AddonNames.ShopExchangeCurrency, out var addon)
         && GenericHelpers.IsAddonReady(addon);
 
     public static bool InclusionShopOpen()
-        => GenericHelpers.TryGetAddonByName<AtkUnitBase>("InclusionShop", out var addon)
+        => GenericHelpers.TryGetAddonByName<AtkUnitBase>(AfgConstants.AddonNames.InclusionShop, out var addon)
         && GenericHelpers.IsAddonReady(addon);
 
     public static bool SelectIconStringOpen()
-        => GenericHelpers.TryGetAddonByName<AtkUnitBase>("SelectIconString", out var addon)
+        => GenericHelpers.TryGetAddonByName<AtkUnitBase>(AfgConstants.AddonNames.SelectIconString, out var addon)
         && GenericHelpers.IsAddonReady(addon);
 
     public static bool SelectYesnoOpen()
-        => GenericHelpers.TryGetAddonByName<AtkUnitBase>("SelectYesno", out var addon)
+        => GenericHelpers.TryGetAddonByName<AtkUnitBase>(AfgConstants.AddonNames.SelectYesno, out var addon)
         && GenericHelpers.IsAddonReady(addon);
 
     public static int SelectIconStringEntryCount()
     {
-        if (!GenericHelpers.TryGetAddonByName<AtkUnitBase>("SelectIconString", out var addon)) return 0;
+        if (!GenericHelpers.TryGetAddonByName<AtkUnitBase>(AfgConstants.AddonNames.SelectIconString, out var addon)) return 0;
         if (!GenericHelpers.IsAddonReady(addon)) return 0;
         return new AddonMaster.SelectIconString(addon).Entries.Length;
     }
 
     public static bool ClickSelectIconString(int index)
     {
-        if (!EzThrottler.Throttle("AFG.ClickSelectIconString", 500)) return false;
-        if (!GenericHelpers.TryGetAddonByName<AtkUnitBase>("SelectIconString", out var addon)) return false;
+        if (!EzThrottler.Throttle(AfgConstants.ThrottleKeys.ShopClickIconString, AfgConstants.AddonInteractThrottleMs)) return false;
+        if (!GenericHelpers.TryGetAddonByName<AtkUnitBase>(AfgConstants.AddonNames.SelectIconString, out var addon)) return false;
         if (!GenericHelpers.IsAddonReady(addon)) return false;
         var entries = new AddonMaster.SelectIconString(addon).Entries;
         if (index < 0 || index >= entries.Length) return false;
@@ -49,8 +49,8 @@ internal static unsafe class ShopInteraction
 
     public static bool ClickSelectYesno()
     {
-        if (!EzThrottler.Throttle("AFG.ClickSelectYesno", 500)) return false;
-        if (!GenericHelpers.TryGetAddonByName<AtkUnitBase>("SelectYesno", out var addon)) return false;
+        if (!EzThrottler.Throttle(AfgConstants.ThrottleKeys.ShopClickYesno, AfgConstants.AddonInteractThrottleMs)) return false;
+        if (!GenericHelpers.TryGetAddonByName<AtkUnitBase>(AfgConstants.AddonNames.SelectYesno, out var addon)) return false;
         if (!GenericHelpers.IsAddonReady(addon)) return false;
         new AddonMaster.SelectYesno(addon).Yes();
         return true;
@@ -58,7 +58,7 @@ internal static unsafe class ShopInteraction
 
     public static int FindCurrencyShopSlot(uint targetItemId)
     {
-        if (!GenericHelpers.TryGetAddonByName<AtkUnitBase>("ShopExchangeCurrency", out var addon)) return -1;
+        if (!GenericHelpers.TryGetAddonByName<AtkUnitBase>(AfgConstants.AddonNames.ShopExchangeCurrency, out var addon)) return -1;
         if (!GenericHelpers.IsAddonReady(addon)) return -1;
 
         var master = new AddonMaster.ShopExchangeCurrency(addon);
@@ -70,8 +70,8 @@ internal static unsafe class ShopInteraction
 
     public static bool BuyFromCurrencyShop(uint targetItemId, int quantity)
     {
-        if (!EzThrottler.Throttle("AFG.BuyFromCurrencyShop", 500)) return false;
-        if (!GenericHelpers.TryGetAddonByName<AtkUnitBase>("ShopExchangeCurrency", out var addon)) return false;
+        if (!EzThrottler.Throttle(AfgConstants.ThrottleKeys.ShopBuyCurrency, AfgConstants.AddonInteractThrottleMs)) return false;
+        if (!GenericHelpers.TryGetAddonByName<AtkUnitBase>(AfgConstants.AddonNames.ShopExchangeCurrency, out var addon)) return false;
         if (!GenericHelpers.IsAddonReady(addon)) return false;
 
         var master = new AddonMaster.ShopExchangeCurrency(addon);
@@ -87,8 +87,8 @@ internal static unsafe class ShopInteraction
 
     public static bool BuyFromShop(int slotIndex, int quantity)
     {
-        if (!EzThrottler.Throttle("AFG.BuyFromShop", 500)) return false;
-        if (!GenericHelpers.TryGetAddonByName<AtkUnitBase>("Shop", out var addon)) return false;
+        if (!EzThrottler.Throttle(AfgConstants.ThrottleKeys.ShopBuy, AfgConstants.AddonInteractThrottleMs)) return false;
+        if (!GenericHelpers.TryGetAddonByName<AtkUnitBase>(AfgConstants.AddonNames.Shop, out var addon)) return false;
         if (!GenericHelpers.IsAddonReady(addon)) return false;
 
         var values = stackalloc AtkValue[3];
@@ -102,13 +102,13 @@ internal static unsafe class ShopInteraction
 
     public static bool CloseShop()
     {
-        if (GenericHelpers.TryGetAddonByName<AtkUnitBase>("ShopExchangeCurrency", out var exch)
+        if (GenericHelpers.TryGetAddonByName<AtkUnitBase>(AfgConstants.AddonNames.ShopExchangeCurrency, out var exch)
             && GenericHelpers.IsAddonReady(exch))
         {
             exch->Close(true);
             return true;
         }
-        if (GenericHelpers.TryGetAddonByName<AtkUnitBase>("Shop", out var addon)
+        if (GenericHelpers.TryGetAddonByName<AtkUnitBase>(AfgConstants.AddonNames.Shop, out var addon)
             && GenericHelpers.IsAddonReady(addon))
         {
             addon->Close(true);
@@ -119,7 +119,12 @@ internal static unsafe class ShopInteraction
 
     public static string? CurrentAddonName()
     {
-        string[] candidates = ["Shop", "ShopExchangeCurrency", "InclusionShop", "SelectIconString", "SelectString", "SelectYesno", "InputNumeric", "InputString"];
+        string[] candidates =
+        [
+            AfgConstants.AddonNames.Shop, AfgConstants.AddonNames.ShopExchangeCurrency, AfgConstants.AddonNames.InclusionShop,
+            AfgConstants.AddonNames.SelectIconString, AfgConstants.AddonNames.SelectString, AfgConstants.AddonNames.SelectYesno,
+            AfgConstants.AddonNames.InputNumeric, AfgConstants.AddonNames.InputString,
+        ];
         foreach (var name in candidates)
         {
             if (GenericHelpers.TryGetAddonByName<AtkUnitBase>(name, out var addon)

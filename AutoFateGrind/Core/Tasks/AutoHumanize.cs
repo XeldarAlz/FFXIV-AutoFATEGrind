@@ -67,7 +67,7 @@ public sealed class AutoHumanize(uint cityTerritoryId, int durationMs) : AutoCom
         }
 
         BreakTaken = true;
-        await WaitForNavmeshReady();
+        await WaitForNavmeshReady(NavmeshReadyWaitMs);
         if (CancelToken.IsCancellationRequested) return;
 
         if (Svc.Condition[ConditionFlag.Mounted])
@@ -127,26 +127,6 @@ public sealed class AutoHumanize(uint cityTerritoryId, int durationMs) : AutoCom
         while (Environment.TickCount64 < cappedDeadline)
         {
             if (CancelToken.IsCancellationRequested) return;
-            await NextFrame(120);
-        }
-    }
-
-    private async Task WaitForNavmeshReady()
-    {
-        if (NavmeshIPC.Instance.IsReady()) return;
-        var deadline = Environment.TickCount64 + NavmeshReadyWaitMs;
-        while (!NavmeshIPC.Instance.IsReady())
-        {
-            if (CancelToken.IsCancellationRequested) return;
-            if (Environment.TickCount64 >= deadline)
-            {
-                Diag($"WAIT TIMEOUT: navmesh not ready within {NavmeshReadyWaitMs / 1000}s; proceeding anyway");
-                return;
-            }
-            var progress = NavmeshIPC.Instance.BuildProgress();
-            Status = progress is >= 0f and <= 1f
-                ? $"Please wait — navmesh is loading ({progress * 100f:F0}%)"
-                : "Please wait — navmesh is loading…";
             await NextFrame(120);
         }
     }

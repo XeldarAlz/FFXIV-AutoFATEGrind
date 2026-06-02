@@ -21,7 +21,7 @@ public sealed partial class AutoFate
 {
     private async Task<MoveStopReason> MoveToFate(PublicEvent fate)
     {
-        await WaitForNavmeshReady();
+        await WaitForNavmeshReady(NavmeshReadyWaitMs, 60);
         await GenerateObstacleMap(fate);
 
         var rnd = RandomPointInsideRadius(fate.Position, fate.Radius * 0.5f);
@@ -316,16 +316,23 @@ public sealed partial class AutoFate
         mgr->LevelSync();
     }
 
+    // BossMod MaxTargets per role: tanks pull everything (0 = unlimited), healers stay conservative.
+    private const byte RoleTank = 1;
+    private const byte RoleHealer = 4;
+    private const int  TankMaxTargets = 0;
+    private const int  HealerMaxTargets = 5;
+    private const int  DefaultMaxTargets = 3;
+
     private static int PullSize()
     {
         var player = Svc.Objects.LocalPlayer;
-        if (player is null) return 3;
+        if (player is null) return DefaultMaxTargets;
         var role = player.ClassJob.Value.Role;
         return role switch
         {
-            1 => 0,
-            4 => 5,
-            _ => 3,
+            RoleTank   => TankMaxTargets,
+            RoleHealer => HealerMaxTargets,
+            _          => DefaultMaxTargets,
         };
     }
 
@@ -371,7 +378,7 @@ public sealed partial class AutoFate
     }
 
     private static bool textAdvanceArmed;
-    private const string TextAdvanceScope = "AutoFateGrind";
+    private const string TextAdvanceScope = AfgConstants.TextAdvanceCallerName;
 
     private static void EnableTextAdvanceForCollect()
     {

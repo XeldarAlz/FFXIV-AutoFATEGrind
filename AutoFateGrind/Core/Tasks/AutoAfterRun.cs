@@ -14,6 +14,8 @@ public sealed class AutoAfterRun(AfterRunAction action) : AutoCommon
 
     private const int ReadyWaitMs = 20_000;
     private const int YesnoWaitMs = 6_000;
+    // Settle delay before issuing each chat command so it isn't eaten mid-transition.
+    private const int PreCommandSettleMs = 800;
 
     protected override async Task Execute()
     {
@@ -26,7 +28,7 @@ public sealed class AutoAfterRun(AfterRunAction action) : AutoCommon
             case AfterRunAction.Logout:
                 Status = "Logging out";
                 Diag("After-run: logging out.");
-                await NextFrame(800);
+                await NextFrame(PreCommandSettleMs);
                 Chat.ExecuteCommand("/logout");
                 if (await WaitUntilTimed(SelectYesnoOpen, YesnoWaitMs, "logout-yesno"))
                 {
@@ -38,7 +40,7 @@ public sealed class AutoAfterRun(AfterRunAction action) : AutoCommon
                     // The confirmation can fail to surface if the command was eaten (lag, a blocking
                     // addon); re-issue once before giving up so we don't silently stay logged in.
                     Warn($"Logout confirmation did not appear within {YesnoWaitMs / 1000}s; re-issuing /logout.");
-                    await NextFrame(800);
+                    await NextFrame(PreCommandSettleMs);
                     Chat.ExecuteCommand("/logout");
                     if (await WaitUntilTimed(SelectYesnoOpen, YesnoWaitMs, "logout-yesno-retry"))
                         ClickYes();
@@ -50,7 +52,7 @@ public sealed class AutoAfterRun(AfterRunAction action) : AutoCommon
             case AfterRunAction.CloseGame:
                 Status = "Closing the game";
                 Diag("After-run: closing the game (/xlkill).");
-                await NextFrame(800);
+                await NextFrame(PreCommandSettleMs);
                 Chat.ExecuteCommand("/xlkill");
                 break;
         }
@@ -63,11 +65,11 @@ public sealed class AutoAfterRun(AfterRunAction action) : AutoCommon
         && !Svc.Condition[ConditionFlag.Casting];
 
     private static unsafe bool SelectYesnoOpen()
-        => GenericHelpers.TryGetAddonByName<AtkUnitBase>("SelectYesno", out var a) && GenericHelpers.IsAddonReady(a);
+        => GenericHelpers.TryGetAddonByName<AtkUnitBase>(AfgConstants.AddonNames.SelectYesno, out var a) && GenericHelpers.IsAddonReady(a);
 
     private static unsafe void ClickYes()
     {
-        if (GenericHelpers.TryGetAddonByName<AtkUnitBase>("SelectYesno", out var a) && GenericHelpers.IsAddonReady(a))
+        if (GenericHelpers.TryGetAddonByName<AtkUnitBase>(AfgConstants.AddonNames.SelectYesno, out var a) && GenericHelpers.IsAddonReady(a))
             new AddonMaster.SelectYesno((nint)a).Yes();
     }
 }

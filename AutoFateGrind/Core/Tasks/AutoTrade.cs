@@ -3,7 +3,6 @@ using AutoFateGrind.Core.Trading;
 using AutoFateGrind.Core.Zones;
 using clib.TaskSystem;
 using ECommons.DalamudServices;
-using System.Numerics;
 using System.Threading.Tasks;
 
 namespace AutoFateGrind.Core.Tasks;
@@ -56,7 +55,7 @@ public sealed class AutoTrade(uint targetItemId, uint originTerritoryId, Expansi
             await RunCancellable(move, MoveWatchdogMs, "trade-walk");
         });
 
-        var npc = FindTraderObject(trader.EnpcBaseId);
+        var npc = RepairOps.FindNearestObjectByBaseId(trader.EnpcBaseId);
         ErrorIf(npc is null, $"Could not find {trader.Name} (ENpcBase {trader.EnpcBaseId}) near {trader.Position}.");
 
         Status = $"Talking to {trader.Name}";
@@ -138,22 +137,6 @@ public sealed class AutoTrade(uint targetItemId, uint originTerritoryId, Expansi
                 ShopInteraction.SelectIconStringOpen,
                 SubmenuWaitMs, $"wait-submenu-reopen-{i}");
         }
-    }
-
-    private static Dalamud.Game.ClientState.Objects.Types.IGameObject? FindTraderObject(uint enpcBaseId)
-    {
-        Dalamud.Game.ClientState.Objects.Types.IGameObject? best = null;
-        var bestDist = float.MaxValue;
-        var player = Svc.Objects.LocalPlayer;
-        var playerPos = player?.Position ?? Vector3.Zero;
-
-        foreach (var obj in Svc.Objects)
-        {
-            if (obj.BaseId != enpcBaseId) continue;
-            var d = player is null ? 0 : Vector3.Distance(obj.Position, playerPos);
-            if (d < bestDist) { best = obj; bestDist = d; }
-        }
-        return best;
     }
 
     private static int GemstoneCount() => GemstoneCatalog.CurrentWalletCount();

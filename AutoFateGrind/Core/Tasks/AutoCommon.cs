@@ -285,20 +285,11 @@ public abstract class AutoCommon : TaskBase
         catch (Exception ex) { Warn($"RunCancellable '{label}' Cancel threw: {ex.Message}"); }
     }
 
-    protected void Diag(string message)
-    {
-        Svc.Log.Info($"[AFG] {message}");
-    }
+    protected void Diag(string message) => Svc.Log.Info($"{AfgConstants.LogPrefix} {message}");
 
-    protected void Warn(string message)
-    {
-        Svc.Log.Warning($"[AFG] {message}");
-    }
+    protected void Warn(string message) => Svc.Log.Warning($"{AfgConstants.LogPrefix} {message}");
 
-    protected void Trace(string message)
-    {
-        Svc.Log.Debug($"[AFG] {message}");
-    }
+    protected void Trace(string message) => Svc.Log.Debug($"{AfgConstants.LogPrefix} {message}");
 
     // Pins Status every frame to override clib's internal coordinate strings during teleport/aethernet.
     protected async Task RunWithStatusPinned(string label, Func<Task> work)
@@ -329,5 +320,28 @@ public abstract class AutoCommon : TaskBase
         }
         Diag($"WAIT TIMEOUT: '{scope}' not satisfied within {timeoutMs / 1000}s");
         return false;
+    }
+
+    // Holds until vnavmesh finishes building the current zone's navmesh, surfacing a loading hint. After a
+    // teleport the destination mesh is still building; obstacle-map/pathfind IPC issued now races it and
+    // faults. pollMs lets each caller keep its own cadence.
+    protected async Task WaitForNavmeshReady(int timeoutMs, int pollMs = 120)
+    {
+        if (NavmeshIPC.Instance.IsReady()) return;
+        var deadline = Environment.TickCount64 + timeoutMs;
+        while (!NavmeshIPC.Instance.IsReady())
+        {
+            if (CancelToken.IsCancellationRequested) return;
+            if (Environment.TickCount64 >= deadline)
+            {
+                Diag($"WAIT TIMEOUT: navmesh not ready within {timeoutMs / 1000}s; proceeding anyway");
+                return;
+            }
+            var progress = NavmeshIPC.Instance.BuildProgress();
+            Status = progress is >= 0f and <= 1f
+                ? $"Please wait — navmesh is loading ({progress * 100f:F0}%)"
+                : "Please wait — navmesh is loading…";
+            await NextFrame(pollMs);
+        }
     }
 }
