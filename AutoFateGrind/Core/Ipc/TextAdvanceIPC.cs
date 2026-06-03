@@ -5,30 +5,15 @@ namespace AutoFateGrind.Core.Ipc;
 
 // Structural copy of TextAdvance's config type — its documented contract is "copy
 // ExternalTerritoryConfig to your plugin". Null fields keep the user's setting; true/false force it.
-public enum RequestFillQualityPreference
-{
-    NQ = 0,
-    HQ = 1,
-    Any = 2,
-}
-
 public class ExternalTerritoryConfig
 {
-    public bool? EnableQuestAccept = null;
-    public bool? EnableQuestComplete = null;
-    public bool? EnableRewardPick = null;
-    public bool? EnableRequestHandin = null;
-    public bool? EnableCutsceneEsc = null;
-    public bool? EnableCutsceneSkipConfirm = null;
     public bool? EnableTalkSkip = null;
     public bool? EnableRequestFill = null;
-    public RequestFillQualityPreference? RequestFillQualityPreference = null;
-    public bool? EnableAutoInteract = null;
+    public bool? EnableRequestHandin = null;
 }
 
 internal static class TextAdvanceIPC
 {
-    private static ICallGateSubscriber<bool>? isInExternalControl;
     private static ICallGateSubscriber<bool>? isEnabled;
     private static ICallGateSubscriber<string, ExternalTerritoryConfig, bool>? enableExternalControl;
     private static ICallGateSubscriber<string, bool>? disableExternalControl;
@@ -40,7 +25,6 @@ internal static class TextAdvanceIPC
         initialized = true;
         try
         {
-            isInExternalControl    = Svc.PluginInterface.GetIpcSubscriber<bool>("TextAdvance.IsInExternalControl");
             isEnabled              = Svc.PluginInterface.GetIpcSubscriber<bool>("TextAdvance.IsEnabled");
             enableExternalControl  = Svc.PluginInterface.GetIpcSubscriber<string, ExternalTerritoryConfig, bool>("TextAdvance.EnableExternalControl");
             disableExternalControl = Svc.PluginInterface.GetIpcSubscriber<string, bool>("TextAdvance.DisableExternalControl");
@@ -51,15 +35,6 @@ internal static class TextAdvanceIPC
         }
     }
 
-    public static bool IsAvailable
-    {
-        get
-        {
-            EnsureInit();
-            return enableExternalControl?.HasFunction ?? false;
-        }
-    }
-
     // TextAdvance's own "Enable plugin" toggle. AFG drives talk-skip via EnableExternalControl,
     // so this is advisory — returns true when the gate is absent/errors to avoid false warnings.
     public static bool IsPluginEnabled()
@@ -67,13 +42,6 @@ internal static class TextAdvanceIPC
         EnsureInit();
         try { return isEnabled?.HasFunction != true || isEnabled.InvokeFunc(); }
         catch (Exception ex) { Svc.Log.Warning(ex, "[TextAdvanceIPC] IsEnabled failed"); return true; }
-    }
-
-    public static bool IsInExternalControl()
-    {
-        EnsureInit();
-        try { return isInExternalControl?.HasFunction == true && isInExternalControl.InvokeFunc(); }
-        catch (Exception ex) { Svc.Log.Warning(ex, "[TextAdvanceIPC] IsInExternalControl failed"); return false; }
     }
 
     public static bool EnableExternalControl(string callerName, bool talkSkip, bool requestFill, bool requestHandin)

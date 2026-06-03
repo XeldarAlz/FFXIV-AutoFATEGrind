@@ -9,16 +9,8 @@ namespace AutoFateGrind.Core.Game;
 // AddonInteractThrottleMs prevents addon spam.
 internal static unsafe class ShopInteraction
 {
-    public static bool ShopOpen()
-        => GenericHelpers.TryGetAddonByName<AtkUnitBase>(AfgConstants.AddonNames.Shop, out var addon)
-        && GenericHelpers.IsAddonReady(addon);
-
     public static bool ShopExchangeCurrencyOpen()
         => GenericHelpers.TryGetAddonByName<AtkUnitBase>(AfgConstants.AddonNames.ShopExchangeCurrency, out var addon)
-        && GenericHelpers.IsAddonReady(addon);
-
-    public static bool InclusionShopOpen()
-        => GenericHelpers.TryGetAddonByName<AtkUnitBase>(AfgConstants.AddonNames.InclusionShop, out var addon)
         && GenericHelpers.IsAddonReady(addon);
 
     public static bool SelectIconStringOpen()
@@ -85,21 +77,6 @@ internal static unsafe class ShopInteraction
         return false;
     }
 
-    public static bool BuyFromShop(int slotIndex, int quantity)
-    {
-        if (!EzThrottler.Throttle(AfgConstants.ThrottleKeys.ShopBuy, AfgConstants.AddonInteractThrottleMs)) return false;
-        if (!GenericHelpers.TryGetAddonByName<AtkUnitBase>(AfgConstants.AddonNames.Shop, out var addon)) return false;
-        if (!GenericHelpers.IsAddonReady(addon)) return false;
-
-        var values = stackalloc AtkValue[3];
-        values[0].Type = AtkValueType.Int; values[0].Int = 0;
-        values[1].Type = AtkValueType.Int; values[1].Int = slotIndex;
-        values[2].Type = AtkValueType.Int; values[2].Int = quantity;
-        addon->FireCallback(3, values);
-        Svc.Log.Info($"[AFG] Shop.FireCallback(buy slot={slotIndex} qty={quantity})");
-        return true;
-    }
-
     public static bool CloseShop()
     {
         if (GenericHelpers.TryGetAddonByName<AtkUnitBase>(AfgConstants.AddonNames.ShopExchangeCurrency, out var exch)
@@ -115,22 +92,5 @@ internal static unsafe class ShopInteraction
             return true;
         }
         return false;
-    }
-
-    public static string? CurrentAddonName()
-    {
-        string[] candidates =
-        [
-            AfgConstants.AddonNames.Shop, AfgConstants.AddonNames.ShopExchangeCurrency, AfgConstants.AddonNames.InclusionShop,
-            AfgConstants.AddonNames.SelectIconString, AfgConstants.AddonNames.SelectString, AfgConstants.AddonNames.SelectYesno,
-            AfgConstants.AddonNames.InputNumeric, AfgConstants.AddonNames.InputString,
-        ];
-        foreach (var name in candidates)
-        {
-            if (GenericHelpers.TryGetAddonByName<AtkUnitBase>(name, out var addon)
-                && GenericHelpers.IsAddonReady(addon))
-                return name;
-        }
-        return null;
     }
 }

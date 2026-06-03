@@ -18,8 +18,6 @@ public static class GemstoneCatalog
 
     public static GemstoneTradeItem[] All => cached ??= LoadFromLumina();
 
-    public static void Invalidate() => cached = null;
-
     public static GemstoneTradeItem? FindById(uint itemId)
         => Array.Find(All, i => i.ItemId == itemId);
 

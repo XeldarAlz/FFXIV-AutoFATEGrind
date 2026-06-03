@@ -32,8 +32,6 @@ internal sealed class NavmeshIPC
         pathStop                    = Svc.PluginInterface.GetIpcSubscriber<object>("vnavmesh.Path.Stop");
     }
 
-    public bool IsAvailable => pathIsRunning.HasFunction;
-
     // True once the current zone's navmesh is fully built and queryable; obstacle-map/pathfind IPC throw
     // "navmesh creation is in progress" while false. Older vnavmesh lacks the gate → assume ready, don't block.
     public bool IsReady()

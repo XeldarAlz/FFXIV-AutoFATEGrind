@@ -17,7 +17,6 @@
     <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/XeldarAlz/FFXIV-AutoFATEGrind</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <NeutralLanguage>en-US</NeutralLanguage>
   </PropertyGroup>
 
   <PropertyGroup Label="Determinism" Condition="'$(GITHUB_ACTIONS)' == 'true'">

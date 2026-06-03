@@ -7,8 +7,6 @@ namespace AutoFateGrind;
 [Serializable]
 public sealed class Configuration : IPluginConfiguration
 {
-    public int Version { get; set; } = 1;
-
     public bool AutoShowOnLogin { get; set; } = false;
 
     public List<uint> SelectedZones { get; set; } = [];
@@ -31,9 +29,6 @@ public sealed class Configuration : IPluginConfiguration
     public int TargetFateCount { get; set; } = 30;
     public int TargetGemstoneCount { get; set; } = 1500;
     public int TargetMinutes { get; set; } = 60;
-
-    public bool ShowAllZonesOverride { get; set; } = false;
-    public ExpansionFilter RegionFilter { get; set; } = ExpansionFilter.All;
 
     public string CombatPresetName { get; set; } = Core.AfgConstants.BundledCombatPresetName;
 
@@ -130,17 +125,6 @@ public enum GrindMode
     MaxFates,
     MaxGemstones,
     RunCount,
-}
-
-public enum ExpansionFilter
-{
-    All,
-    ARR,
-    HW,
-    SB,
-    ShB,
-    EW,
-    DT,
 }
 
 public enum AfterTradeAction

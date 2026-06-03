@@ -46,15 +46,7 @@ public static class GemstoneTrader
         new("Beryl",           1049082, 1186, new Vector3(-198.779f,   0.9002f,   -4.3314f), ExpansionKind.DT,  IsHub: true),
     ];
 
-    public static TraderLocation? PickForTerritory(uint territoryId) =>
-        Array.Find(Traders, t => t.TerritoryId == territoryId);
-
-    public static TraderLocation? PickHub(ExpansionKind expansion) =>
-        Array.Find(Traders, t => t.Expansion == expansion && t.IsHub);
-
     private static Dictionary<uint, TraderLocation[]>? shopToTraders;
-
-    public static void Invalidate() => shopToTraders = null;
 
     private static Dictionary<uint, TraderLocation[]> ShopToTraders =>
         shopToTraders ??= BuildShopToTraders();

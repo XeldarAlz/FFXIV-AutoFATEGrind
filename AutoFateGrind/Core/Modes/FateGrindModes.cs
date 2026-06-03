@@ -18,12 +18,6 @@ public static class FateGrindModes
     public static IFateGrindMode? GetById(string? id)
         => id is null ? null : registered.FirstOrDefault(m => m.Id == id);
 
-    public static void Register(IFateGrindMode mode)
-    {
-        if (registered.Any(m => m.Id == mode.Id)) return;
-        registered.Add(mode);
-    }
-
     public static string IdForLegacy(GrindMode legacy) => legacy switch
     {
         GrindMode.MaxGemstones => MaxGemstonesMode.ModeId,
