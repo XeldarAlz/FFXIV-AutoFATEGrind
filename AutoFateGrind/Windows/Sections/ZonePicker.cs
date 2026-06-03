@@ -13,10 +13,16 @@ internal static class ZonePicker
 {
     public static void Draw(Configuration cfg, AutoFateController controller)
     {
+        QueueStrip.Draw(cfg, controller);
+        ImGui.Spacing();
+
+        Styling.SectionLabel("Browse zones");
+        using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
+            ImGui.TextUnformatted("Tick a zone to add it to the grind order above.");
+        ImGui.Spacing();
+
         using var tabBar = ImRaii.TabBar("##afg_main_tabs", ImGuiTabBarFlags.NoTooltip | ImGuiTabBarFlags.FittingPolicyScroll);
         if (!tabBar) return;
-
-        DrawQueueTab(cfg, controller);
 
         foreach (var exp in Enum.GetValues<ExpansionKind>().Reverse())
         {
@@ -25,19 +31,6 @@ internal static class ZonePicker
 
             DrawExpansionTab(exp, zones, cfg, controller);
         }
-    }
-
-    private static void DrawQueueTab(Configuration cfg, AutoFateController controller)
-    {
-        var byId = ZoneRegistry.Zones.ToDictionary(z => z.TerritoryId);
-        var queueCount = cfg.SelectedZones.Count(byId.ContainsKey);
-        var label = queueCount > 0 ? $"Queue  {queueCount}###tab_queue" : "Queue###tab_queue";
-
-        using var tab = ImRaii.TabItem(label);
-        if (!tab) return;
-
-        ImGui.Spacing();
-        SelectionOrder.Draw(cfg, controller);
     }
 
     private static void DrawExpansionTab(ExpansionKind exp, ZoneInfo[] zones, Configuration cfg, AutoFateController controller)
@@ -54,10 +47,15 @@ internal static class ZonePicker
         DrawExpansionToolbar(exp, zones, territoryIds, selected, cfg, controller);
         ImGui.Spacing();
 
+        var byId = ZoneRegistry.Zones.ToDictionary(z => z.TerritoryId);
+        var queued = cfg.SelectedZones.Where(byId.ContainsKey).ToList();
+        var positions = new Dictionary<uint, int>();
+        for (var i = 0; i < queued.Count; i++) positions[queued[i]] = i + 1;
+
         foreach (var zone in zones)
         {
             ZoneStateReader.Refresh(zone);
-            DrawRow(zone, cfg, controller);
+            DrawRow(zone, cfg, controller, positions.GetValueOrDefault(zone.TerritoryId));
         }
     }
 
@@ -86,7 +84,7 @@ internal static class ZonePicker
             }
     }
 
-    private static void DrawRow(ZoneInfo zone, Configuration cfg, AutoFateController controller)
+    private static void DrawRow(ZoneInfo zone, Configuration cfg, AutoFateController controller, int queuePos)
     {
         var sel = cfg.SelectedZones.Contains(zone.TerritoryId);
         var disabled = controller.Running || !zone.Unlocked;
@@ -116,6 +114,15 @@ internal static class ZonePicker
         using (ImRaii.PushColor(ImGuiCol.Text, nameColor))
             ImGui.TextUnformatted(zone.Name);
 
+        if (queuePos > 0)
+        {
+            ImGui.SameLine(0, 6f);
+            using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentVioletSoft))
+                ImGui.TextUnformatted($"#{queuePos}");
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip($"Position {queuePos} in the grind order.");
+        }
+
         DrawActiveFatePill(zone);
 
         ImGui.Unindent(6f);
@@ -133,5 +140,9 @@ internal static class ZonePicker
         ImGui.SameLine(0, 4f);
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentAmber))
             ImGui.TextUnformatted(pill);
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip(zone.ActiveFateCount == 1
+                ? "1 FATE active here right now."
+                : $"{zone.ActiveFateCount} FATEs active here right now.");
     }
 }

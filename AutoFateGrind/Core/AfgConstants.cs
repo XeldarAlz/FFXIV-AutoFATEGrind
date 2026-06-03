@@ -32,7 +32,6 @@ internal static class AfgConstants
         public const string ShopClickIconString = "AFG.ClickSelectIconString";
         public const string ShopClickYesno = "AFG.ClickSelectYesno";
         public const string ShopBuyCurrency = "AFG.BuyFromCurrencyShop";
-        public const string ShopBuy = "AFG.BuyFromShop";
         public const string FoodUse = "AFG.Food.Use";
     }
 
@@ -46,9 +45,6 @@ internal static class AfgConstants
         public const string SelectString = "SelectString";
         public const string Shop = "Shop";
         public const string ShopExchangeCurrency = "ShopExchangeCurrency";
-        public const string InclusionShop = "InclusionShop";
         public const string Repair = "Repair";
-        public const string InputNumeric = "InputNumeric";
-        public const string InputString = "InputString";
     }
 }

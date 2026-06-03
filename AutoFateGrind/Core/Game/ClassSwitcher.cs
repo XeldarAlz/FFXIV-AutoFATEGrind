@@ -12,17 +12,6 @@ internal static unsafe class ClassSwitcher
     // In-game Gear Set list capacity.
     private const int MaxGearsetCount = 100;
 
-    public static int CurrentGearsetIndex
-    {
-        get
-        {
-            var mod = RaptureGearsetModule.Instance();
-            if (mod is null) return -1;
-            var idx = mod->CurrentGearsetIndex;
-            return idx == InvalidGearsetIndex ? -1 : idx;
-        }
-    }
-
     public static bool IsValidGearset(int index)
         => RaptureGearsetModule.Instance()->IsValidGearset(index);
 

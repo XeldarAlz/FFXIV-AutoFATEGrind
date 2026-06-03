@@ -1,4 +1,3 @@
-using AutoFateGrind.Core.Zones;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
@@ -23,19 +22,10 @@ internal static class Styling
     public static readonly Vector4 AccentTeal     = AccentViolet;
     public static readonly Vector4 AccentTealSoft = AccentVioletSoft;
 
-    public static readonly Vector4 ExpARR = new(0.92f, 0.78f, 0.42f, 0.10f);
-    public static readonly Vector4 ExpHW  = new(0.58f, 0.72f, 0.92f, 0.10f);
-    public static readonly Vector4 ExpSB  = new(0.95f, 0.55f, 0.48f, 0.10f);
-    public static readonly Vector4 ExpShB = new(0.62f, 0.42f, 0.96f, 0.10f);
-    public static readonly Vector4 ExpEW  = new(0.78f, 0.42f, 0.86f, 0.10f);
-    public static readonly Vector4 ExpDT  = new(0.95f, 0.55f, 0.78f, 0.10f);
-
     public static readonly Vector4 CardBg        = new(0.075f, 0.090f, 0.105f, 0.85f);
     public static readonly Vector4 CardBgSoft    = new(0.090f, 0.105f, 0.120f, 0.55f);
     public static readonly Vector4 CardBgHover   = new(0.105f, 0.125f, 0.145f, 0.95f);
     public static readonly Vector4 BorderDim     = new(0.22f, 0.25f, 0.30f, 1.00f);
-    public static readonly Vector4 BorderActive  = new(0.62f, 0.42f, 0.96f, 1.00f);
-    public static readonly Vector4 BorderLocked  = new(0.18f, 0.18f, 0.22f, 1.00f);
 
     public static readonly Vector4 TextStrong    = new(0.96f, 0.96f, 0.97f, 1.00f);
     public static readonly Vector4 TextSecondary = new(0.78f, 0.80f, 0.84f, 1.00f);
@@ -49,7 +39,6 @@ internal static class Styling
 
     public const double PulseFast = 600.0;
     public const double PulseMedium = 800.0;
-    public const double PulseSlow = 1100.0;
 
     public static float Pulse(double periodMs = PulseMedium)
     {
@@ -83,15 +72,4 @@ internal static class Styling
         using (ImRaii.PushColor(ImGuiCol.Text, TextDim))
             ImGui.TextUnformatted(label.ToUpperInvariant());
     }
-
-    public static Vector4 ExpansionTint(ExpansionKind exp) => exp switch
-    {
-        ExpansionKind.ARR => ExpARR,
-        ExpansionKind.HW  => ExpHW,
-        ExpansionKind.SB  => ExpSB,
-        ExpansionKind.ShB => ExpShB,
-        ExpansionKind.EW  => ExpEW,
-        ExpansionKind.DT  => ExpDT,
-        _ => CardBg,
-    };
 }

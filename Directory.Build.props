@@ -10,14 +10,13 @@
   -->
 
   <PropertyGroup Label="Identity">
-    <Version>1.1.4.0</Version>
+    <Version>1.2.0.0</Version>
     <Authors>XeldarAlz</Authors>
     <Copyright>Copyright (c) XeldarAlz</Copyright>
     <PackageProjectUrl>https://github.com/XeldarAlz/FFXIV-AutoFATEGrind</PackageProjectUrl>
     <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/XeldarAlz/FFXIV-AutoFATEGrind</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <NeutralLanguage>en-US</NeutralLanguage>
   </PropertyGroup>
 
   <PropertyGroup Label="Determinism" Condition="'$(GITHUB_ACTIONS)' == 'true'">
