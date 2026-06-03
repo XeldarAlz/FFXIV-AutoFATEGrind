@@ -7,6 +7,8 @@ namespace AutoFateGrind;
 [Serializable]
 public sealed class Configuration : IPluginConfiguration
 {
+    public int Version { get; set; }
+
     public bool AutoShowOnLogin { get; set; } = false;
 
     public List<uint> SelectedZones { get; set; } = [];
