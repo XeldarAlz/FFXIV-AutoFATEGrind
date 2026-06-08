@@ -32,6 +32,8 @@ internal static class Styling
     public static readonly Vector4 TextDim       = new(0.55f, 0.58f, 0.62f, 1.00f);
     public static readonly Vector4 TextMuted     = new(0.40f, 0.42f, 0.46f, 1.00f);
 
+    public static readonly Vector4 Hairline = new(1f, 1f, 1f, 0.055f);
+
     // Corner radii shared between the ImGui style pushes and hand-drawn cards/tiles (single retune point).
     public const float CardRounding = 7f;
     public const float FrameRounding = 5f;
@@ -39,6 +41,10 @@ internal static class Styling
 
     public const double PulseFast = 600.0;
     public const double PulseMedium = 800.0;
+
+    public const double PulseBreath = 2600.0;
+    public const double PulseCalm = 1900.0;
+    public const double PulseOrbit = 3400.0;
 
     public static float Pulse(double periodMs = PulseMedium)
     {
@@ -48,6 +54,31 @@ internal static class Styling
 
     public static Vector4 PulseColor(Vector4 a, Vector4 b, double periodMs = PulseMedium)
         => Vector4.Lerp(a, b, Pulse(periodMs));
+
+    public static float Phase(double periodMs)
+        => (float)((Environment.TickCount % periodMs) / periodMs);
+
+    public static Vector4 WithAlpha(Vector4 c, float a) => c with { W = a };
+
+    public static void TextCentered(string text, Vector4 color, float fontScale = 1f)
+    {
+        if (fontScale != 1f) ImGui.SetWindowFontScale(fontScale);
+        var w = ImGui.CalcTextSize(text).X;
+        var avail = ImGui.GetContentRegionAvail().X;
+        if (avail > w) ImGui.SetCursorPosX(ImGui.GetCursorPosX() + (avail - w) * 0.5f);
+        using (ImRaii.PushColor(ImGuiCol.Text, color))
+            ImGui.TextUnformatted(text);
+        if (fontScale != 1f) ImGui.SetWindowFontScale(1f);
+    }
+
+    public static void VSpace(float pixels)
+        => ImGui.Dummy(new Vector2(0, pixels * ImGuiHelpers.GlobalScale));
+
+    public static void CenterNextItem(float width)
+    {
+        var avail = ImGui.GetContentRegionAvail().X;
+        ImGui.SetCursorPosX(ImGui.GetCursorPosX() + MathF.Max(0f, (avail - width) * 0.5f));
+    }
 
     public static IDisposable PushCardStyle()
     {
