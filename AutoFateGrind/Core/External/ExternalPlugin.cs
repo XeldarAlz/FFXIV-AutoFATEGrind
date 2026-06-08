@@ -35,7 +35,8 @@ public static class ExternalPlugins
             DisplayName: "BossMod",
             RepoUrl: "https://puni.sh/api/repository/veyn",
             Purpose: "Auto-rotation, targeting, and dodging during FATE combat.",
-            Required: true),
+            Required: true,
+            Aliases: ["BossModReborn"]),
         [ExternalPlugin.TextAdvance] = new(
             InternalName: "TextAdvance",
             DisplayName: "TextAdvance",

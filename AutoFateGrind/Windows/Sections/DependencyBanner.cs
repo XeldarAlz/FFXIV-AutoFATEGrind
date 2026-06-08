@@ -19,9 +19,9 @@ internal static class DependencyBanner
             return;
         }
 
-        if (Plugin.Cfg.TradeOnCap && ExternalPlugins.IsInstalledButDisabled(ExternalPlugin.TextAdvance))
+        if (ExternalPlugins.IsInstalledButDisabled(ExternalPlugin.TextAdvance))
             DrawRow(plugin, "##depbanner_disabled", Styling.AccentAmber,
-                "TextAdvance is disabled — gemstone auto-trade may stall at the trader.");
+                "TextAdvance is installed but disabled — Collect hand-ins and auto-trade may stall.");
     }
 
     private static void DrawRow(Plugin plugin, string id, System.Numerics.Vector4 color, string message)
