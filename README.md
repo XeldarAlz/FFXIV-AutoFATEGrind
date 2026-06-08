@@ -33,7 +33,7 @@ Lists every FATE zone from A Realm Reborn through Dawntrail in one window. Tick 
 ## Features
 
 - **Zone picker**: pick any FATE zones from ARR through DT, with live active-FATE counts.
-- **Three grind modes**: farm to a Gemstone target, run N FATEs, or go endless.
+- **Four grind modes**: farm to a Gemstone target, run N FATEs, run for a set time, or go endless.
 - **FATE filters & priority**: skip by type, time left, or progress, and reorder how the next FATE is chosen.
 - **Live FATE tracker**: shown inline, or as a separate HUD overlay.
 - **Class queue**: cycle gearsets in order with per-class level caps.
