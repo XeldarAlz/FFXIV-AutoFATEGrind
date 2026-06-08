@@ -9,7 +9,7 @@ body:
       value: |
         Thanks for taking the time to file a bug. Please fill out as much as you can; it makes a huge difference.
 
-        If you're not sure whether it's a bug or expected behavior, prefer [Help & troubleshooting discussions](https://github.com/XeldarAlz/FFXIV-AutoFATEGrind/discussions/new?category=help-troubleshooting); triage is faster there.
+        If you're not sure whether it's a bug or expected behavior, prefer the [Q&A discussions](https://github.com/XeldarAlz/FFXIV-AutoFATEGrind/discussions/new?category=q-a); triage is faster there.
 
         For security issues, please use [private vulnerability reporting](https://github.com/XeldarAlz/FFXIV-AutoFATEGrind/security/advisories/new) instead.
 
@@ -41,6 +41,10 @@ body:
       label: Plugin version
       description: Shown in `/xlplugins` next to "Auto FATE Grind".
       options:
+        - 1.2.1.0
+        - 1.2.0.0
+        - 1.1.4.0
+        - 1.1.3.0
         - 1.1.1.0
         - Older / not sure
     validations:
@@ -52,6 +56,9 @@ body:
       label: Expansion of the affected zone(s)
       description: FATE pacing, level sync, and reward addons shift between expansions, so expansion is a frequent root cause.
       options:
+        - ARR (A Realm Reborn)
+        - HW (Heavensward)
+        - StB (Stormblood)
         - ShB (Shadowbringers)
         - EW (Endwalker)
         - DT (Dawntrail)
