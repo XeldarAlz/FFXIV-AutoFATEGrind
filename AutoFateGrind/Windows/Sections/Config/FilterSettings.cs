@@ -13,31 +13,42 @@ internal static class FilterSettings
 {
     public static void Draw(Configuration cfg)
     {
+        DrawEligibilityGroup(cfg);
+        DrawSkipTypesGroup(cfg);
+        DrawPriorityGroup(cfg);
+    }
+
+    private static void DrawEligibilityGroup(Configuration cfg)
+    {
+        using var group = SettingsGroup.Begin("Eligibility");
+
         SettingsRow.Draw("Minimum time remaining",
             "Skip FATEs that have less than this many seconds left. Keeps you off corpse-FATEs other players are finishing.",
-            () =>
-            {
-                var v = cfg.MinTimeRemainingSec;
-                ImGui.SetNextItemWidth(280);
-                if (ImGui.SliderInt("##filt_mintime", ref v, 30, 600, "%d seconds"))
-                { cfg.MinTimeRemainingSec = v; cfg.SaveDebounced(); }
-            });
+            SettingsControls.RowSliderWidth,
+            () => SettingsControls.DrawIntSlider(cfg, "##filt_mintime",
+                () => cfg.MinTimeRemainingSec, v => cfg.MinTimeRemainingSec = v, 30, 600, "%d s"));
 
         SettingsRow.Draw("Maximum progress",
             "Skip FATEs already past this percent. Keeps you off near-finished FATEs others are clearing.",
-            () =>
-            {
-                var v = cfg.MaxProgressPct;
-                ImGui.SetNextItemWidth(280);
-                if (ImGui.SliderInt("##filt_maxprog", ref v, 50, 99, "%d %%"))
-                { cfg.MaxProgressPct = v; cfg.SaveDebounced(); }
-            });
+            SettingsControls.RowSliderWidth,
+            () => SettingsControls.DrawIntSlider(cfg, "##filt_maxprog",
+                () => cfg.MaxProgressPct, v => cfg.MaxProgressPct = v, 50, 99, "%d%%"));
+    }
 
-        SettingsRow.Draw("Skip FATE types",
+    private static void DrawSkipTypesGroup(Configuration cfg)
+    {
+        using var group = SettingsGroup.Begin("FATE types");
+
+        SettingsRow.DrawBlock("Skip FATE types",
             "Toggle on a type to skip every FATE of that kind. Useful if you don't enjoy escorts or collect hand-ins.",
             () => DrawFateRuleSkipList(cfg));
+    }
 
-        SettingsRow.Draw("FATE priority",
+    private static void DrawPriorityGroup(Configuration cfg)
+    {
+        using var group = SettingsGroup.Begin("Priority");
+
+        SettingsRow.DrawBlock("FATE priority",
             "Order the rules used to pick the next FATE. Top rule wins; ties fall through to the next. Reset restores the recommended order.",
             () => DrawSortOrderList(cfg));
     }
@@ -82,9 +93,8 @@ internal static class FilterSettings
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextStrong))
                 ImGui.TextUnformatted(LabelFor(entry.Criterion));
 
-            var rowRightWidth = btnSize * 4 + spacingX * 3 + Layout.RowRightMargin * ImGuiHelpers.GlobalScale;
-            var rightStart = ImGui.GetContentRegionAvail().X + ImGui.GetCursorPosX() - rowRightWidth;
-            ImGui.SameLine(rightStart);
+            var rowRightWidth = btnSize * 4 + spacingX * 3;
+            ImGui.SameLine(SettingsGroup.InnerRightLocalX() - rowRightWidth);
 
             var dirIcon = entry.Descending ? FontAwesomeIcon.SortAmountDown : FontAwesomeIcon.SortAmountUp;
             if (IconButton.Draw(dirIcon, $"##sort_dir_{i}", btnSize))
@@ -110,8 +120,7 @@ internal static class FilterSettings
             ImGui.Spacing();
             var labels = missing.Select(m => m.Label).ToArray();
             sortAddSelection = Math.Clamp(sortAddSelection, 0, labels.Length - 1);
-            ImGui.SetNextItemWidth(260);
-            ImGui.Combo("##sort_add_pick", ref sortAddSelection, labels, labels.Length);
+            SettingsControls.DrawPlainCombo("##sort_add_pick", ref sortAddSelection, labels, 260f);
             ImGui.SameLine();
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentMint))
                 if (ImGui.SmallButton("Add##sort_add"))
@@ -157,7 +166,7 @@ internal static class FilterSettings
                 ImGui.TextUnformatted(label);
             ImGui.SameLine();
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
-                ImGui.TextUnformatted("— " + helper);
+                ImGui.TextUnformatted(helper);
 
             if (rule == PublicEvent.FateRule.Collect && !skipped
                 && ExternalPlugins.IsInstalledButDisabled(ExternalPlugin.TextAdvance))

@@ -14,33 +14,49 @@ internal static class ConsumableSettings
 
     public static void Draw(Configuration cfg)
     {
+        DrawConsumableGroup(cfg);
+        if (!cfg.AutoConsume)
+        {
+            return;
+        }
+
+        DrawItemsGroup(cfg);
+    }
+
+    private static void DrawConsumableGroup(Configuration cfg)
+    {
+        using var group = SettingsGroup.Begin("Consumables");
+
         SettingsRow.Draw("Auto-consume food & medicine",
-            "Use food and medicine between FATEs to keep their buffs up — Well Fed alone is a free +3% EXP. Items are consumed only when out of combat, and refreshed before the buff runs out.",
-            () => SettingsControls.DrawToggle(cfg, () => cfg.AutoConsume, v => cfg.AutoConsume = v, "##con_on"));
+            "Use food and medicine between FATEs to keep their buffs up; Well Fed alone is a free +3% EXP. Items are consumed only when out of combat, and refreshed before the buff runs out.",
+            SettingsControls.ToggleWidth,
+            () => SettingsControls.DrawToggle(cfg, () => cfg.AutoConsume, v => cfg.AutoConsume = v, "##con_on"),
+            SettingsRow.ToggleHeight);
 
         if (!cfg.AutoConsume)
         {
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
-                ImGui.TextWrapped("Auto-consume is off. Enable the toggle above to pick items.");
+            SettingsRow.Note("Auto-consume is off. Enable it to pick items.");
             return;
         }
 
         SettingsRow.Draw("Refresh when under",
             "Re-consume once the buff has fewer than this many minutes left. 0 only re-applies after it fully wears off. Food and medicine last 30 minutes.",
-            () =>
-            {
-                var v = cfg.AutoConsumeMinMinutes;
-                ImGui.SetNextItemWidth(280);
-                if (ImGui.SliderInt("##con_min", ref v, 0, 29, v == 0 ? "only when worn off" : "%d min left"))
-                { cfg.AutoConsumeMinMinutes = Math.Clamp(v, 0, 29); cfg.SaveDebounced(); }
-            });
+            SettingsControls.RowSliderWidth,
+            () => SettingsControls.DrawIntSlider(cfg, "##con_min",
+                () => cfg.AutoConsumeMinMinutes, v => cfg.AutoConsumeMinMinutes = Math.Clamp(v, 0, 29),
+                0, 29, cfg.AutoConsumeMinMinutes == 0 ? "only when worn off" : "%d min left"));
+    }
 
-        SettingsRow.Draw("Add an item",
+    private static void DrawItemsGroup(Configuration cfg)
+    {
+        using var group = SettingsGroup.Begin("Items");
+
+        SettingsRow.DrawBlock("Add an item",
             "Pick from the food and medicine in your bag. HQ is used automatically when you have it.",
             () => DrawAddConsumableRow(cfg));
 
-        SettingsRow.Draw("Items",
-            "Each is kept active in order — the next available one is consumed if the first runs out.",
+        SettingsRow.DrawBlock("Active items",
+            "Each is kept active in order; the next available one is consumed if the first runs out.",
             () => DrawConsumableList(cfg));
     }
 
@@ -51,8 +67,7 @@ internal static class ConsumableSettings
         var catalog = FoodOps.Catalog.Where(FoodOps.IsAvailable).ToArray();
         if (catalog.Length == 0)
         {
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
-                ImGui.TextUnformatted("No food or medicine in your bag. Stock some, then add it here.");
+            SettingsRow.Note("No food or medicine in your bag. Stock some, then add it here.");
             return;
         }
 
@@ -65,8 +80,7 @@ internal static class ConsumableSettings
         }).ToArray();
 
         consumablePickerSelection = Math.Clamp(consumablePickerSelection, 0, catalog.Length - 1);
-        ImGui.SetNextItemWidth(340);
-        ImGui.Combo("##con_picker", ref consumablePickerSelection, labels, labels.Length);
+        SettingsControls.DrawPlainCombo("##con_picker", ref consumablePickerSelection, labels, 340f);
 
         var picked = catalog[consumablePickerSelection];
         var duplicate = queued.Contains(picked.ItemId);
@@ -89,15 +103,18 @@ internal static class ConsumableSettings
 
         if (duplicate)
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
+            {
+                ImGui.SameLine();
+                ImGui.AlignTextToFramePadding();
                 ImGui.TextUnformatted("Already added.");
+            }
     }
 
     private static void DrawConsumableList(Configuration cfg)
     {
         if (cfg.AutoConsumeItems.Count == 0)
         {
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
-                ImGui.TextUnformatted("No items added — nothing will be consumed.");
+            SettingsRow.Note("No items added - nothing will be consumed.");
             return;
         }
 
@@ -117,10 +134,9 @@ internal static class ConsumableSettings
             var kind = e.StatusId == FoodOps.WellFedStatusId ? "Well Fed" : "Medicated";
             var inBag = FoodOps.IsAvailable(e);
             using (ImRaii.PushColor(ImGuiCol.Text, inBag ? Styling.TextMuted : Styling.AccentRose))
-                ImGui.TextUnformatted(inBag ? $"  — {kind}" : $"  — {kind}, none in bag");
+                ImGui.TextUnformatted(inBag ? $"  {kind}" : $"  {kind}, none in bag");
 
-            var rightStart = ImGui.GetContentRegionAvail().X + ImGui.GetCursorPosX() - btnSize - 8f * ImGuiHelpers.GlobalScale;
-            ImGui.SameLine(rightStart);
+            ImGui.SameLine(SettingsGroup.InnerRightLocalX() - btnSize);
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentRose))
             using (ImRaii.PushFont(UiBuilder.IconFont))
                 if (ImGui.Button(FontAwesomeIcon.Times.ToIconString() + $"##con_rm_{i}", new Vector2(btnSize, btnSize)))

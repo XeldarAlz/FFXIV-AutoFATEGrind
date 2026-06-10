@@ -16,7 +16,7 @@ public sealed class ConfigWindow : Window, IDisposable
     private readonly Plugin plugin;
     private Tab activeTab = Tab.General;
 
-    public ConfigWindow(Plugin plugin) : base("Auto FATE Grind — Settings###AutoFateGrindConfig")
+    public ConfigWindow(Plugin plugin) : base("Auto FATE Grind - Settings###AutoFateGrindConfig")
     {
         this.plugin = plugin;
         Flags = ImGuiWindowFlags.NoCollapse;

@@ -25,6 +25,7 @@ internal static class Styling
     public static readonly Vector4 CardBg        = new(0.075f, 0.090f, 0.105f, 0.85f);
     public static readonly Vector4 CardBgSoft    = new(0.090f, 0.105f, 0.120f, 0.55f);
     public static readonly Vector4 CardBgHover   = new(0.105f, 0.125f, 0.145f, 0.95f);
+    public static readonly Vector4 SliderBg      = new(0.20f,  0.22f,  0.26f,  1.00f);
     public static readonly Vector4 BorderDim     = new(0.22f, 0.25f, 0.30f, 1.00f);
 
     public static readonly Vector4 TextStrong    = new(0.96f, 0.96f, 0.97f, 1.00f);

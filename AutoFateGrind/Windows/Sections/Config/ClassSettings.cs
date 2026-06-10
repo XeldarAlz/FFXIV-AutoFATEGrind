@@ -4,7 +4,6 @@ using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
-using System.Numerics;
 
 namespace AutoFateGrind.Windows.Sections.Config;
 
@@ -12,35 +11,66 @@ internal static class ClassSettings
 {
     private static int classPickerSelection;
 
+    private static readonly SettingsControls.Choices.Choice[] afterDoneChoices =
+    [
+        new("Keep grinding on the last class", "When every queued class is capped, keep going on the last one."),
+        new("Stop the run", "When every queued class is capped, end the run."),
+    ];
+
     public static void Draw(Configuration cfg)
     {
-        SettingsRow.Draw("Switch class when run starts",
-            "Equip the first eligible gearset below when you press Start. Disable to leave the run on whatever class you're currently on.",
-            () => SettingsControls.DrawToggle(cfg, () => cfg.ApplyClassOnStart, v => cfg.ApplyClassOnStart = v, "##cls_apply"));
-
+        DrawSwitchingGroup(cfg);
         if (!cfg.ApplyClassOnStart)
         {
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
-                ImGui.TextWrapped("Class switching is off. Enable the toggle above to configure the queue.");
             return;
         }
 
-        SettingsRow.Draw("When all classes are done",
-            "After every queued class has hit its level cap, either keep grinding on the last one or stop the run.",
-            () =>
-            {
-                var keep = cfg.AfterClassQueueDone == AfterClassQueueDone.KeepGrindingOnLast;
-                if (ImGui.RadioButton("Keep grinding on the last class", keep))
-                { cfg.AfterClassQueueDone = AfterClassQueueDone.KeepGrindingOnLast; cfg.SaveDebounced(); }
-                if (ImGui.RadioButton("Stop the run", !keep))
-                { cfg.AfterClassQueueDone = AfterClassQueueDone.StopRun; cfg.SaveDebounced(); }
-            });
+        DrawDoneGroup(cfg);
+        DrawQueueGroup(cfg);
+    }
 
-        SettingsRow.Draw("Add a gearset",
-            "Use the gear-set number shown in your in-game Gear Set list (1–100). Class is resolved automatically.",
+    private static void DrawSwitchingGroup(Configuration cfg)
+    {
+        using var group = SettingsGroup.Begin("Class switching");
+
+        SettingsRow.Draw("Switch class when run starts",
+            "Equip the first eligible gearset below when you press Start. Disable to leave the run on whatever class you're currently on.",
+            SettingsControls.ToggleWidth,
+            () => SettingsControls.DrawToggle(cfg, () => cfg.ApplyClassOnStart, v => cfg.ApplyClassOnStart = v, "##cls_apply"),
+            SettingsRow.ToggleHeight);
+
+        if (!cfg.ApplyClassOnStart)
+        {
+            SettingsRow.Note("Class switching is off. Enable it to configure the queue.");
+        }
+    }
+
+    private static void DrawDoneGroup(Configuration cfg)
+    {
+        using var group = SettingsGroup.Begin("When the queue is done");
+
+        var selected = cfg.AfterClassQueueDone == AfterClassQueueDone.StopRun ? 1 : 0;
+        SettingsRow.Draw("All classes capped",
+            "What to do after every queued class has hit its level cap.",
+            SettingsControls.RowComboWidth,
+            () => SettingsControls.Choices.DrawCombo("##cls_done", afterDoneChoices, selected, choice =>
+            {
+                cfg.AfterClassQueueDone = choice == 1 ? AfterClassQueueDone.StopRun : AfterClassQueueDone.KeepGrindingOnLast;
+                cfg.SaveDebounced();
+            }));
+
+        SettingsRow.Caption(afterDoneChoices[selected].Detail);
+    }
+
+    private static void DrawQueueGroup(Configuration cfg)
+    {
+        using var group = SettingsGroup.Begin("Queue");
+
+        SettingsRow.DrawBlock("Add a gearset",
+            "Use the gear-set number shown in your in-game Gear Set list (1-100). Class is resolved automatically.",
             () => DrawAddClassRow(cfg));
 
-        SettingsRow.Draw("Queue",
+        SettingsRow.DrawBlock("Queue order",
             "Order matters: top entry runs first, then advances when its level cap is hit.",
             () => DrawClassQueueList(cfg));
     }
@@ -50,8 +80,7 @@ internal static class ClassSettings
         var gearsets = ClassSwitcher.EnumerateGearsets();
         if (gearsets.Count == 0)
         {
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
-                ImGui.TextUnformatted("No gearsets found. Save one in-game (Character → Gear Set List) first.");
+            SettingsRow.Note("No gearsets found. Save one in-game (Character -> Gear Set List) first.");
             return;
         }
 
@@ -59,15 +88,14 @@ internal static class ClassSettings
         var labels = gearsets.Select(g =>
         {
             var job = ClassSwitcher.JobNameForJobId(g.JobId);
-            var name = string.IsNullOrWhiteSpace(g.Name) ? "" : $" — {g.Name}";
+            var name = string.IsNullOrWhiteSpace(g.Name) ? "" : $" - {g.Name}";
             var taken = alreadyQueued.Contains(g.UserIndex) ? "  (queued)" : "";
             return $"{g.UserIndex,3}. {job}{name}{taken}";
         }).ToArray();
 
         classPickerSelection = Math.Clamp(classPickerSelection, 0, gearsets.Count - 1);
 
-        ImGui.SetNextItemWidth(360);
-        ImGui.Combo("##cls_picker", ref classPickerSelection, labels, labels.Length);
+        SettingsControls.DrawPlainCombo("##cls_picker", ref classPickerSelection, labels, 360f);
 
         var picked = gearsets[classPickerSelection];
         var duplicate = alreadyQueued.Contains(picked.UserIndex);
@@ -92,22 +120,25 @@ internal static class ClassSettings
 
         if (duplicate)
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
+            {
+                ImGui.SameLine();
+                ImGui.AlignTextToFramePadding();
                 ImGui.TextUnformatted("Already in the queue.");
+            }
     }
 
     private static void DrawClassQueueList(Configuration cfg)
     {
         if (cfg.ClassQueue.Count == 0)
         {
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
-                ImGui.TextUnformatted("No classes queued. Automation will use whatever class you're on.");
+            SettingsRow.Note("No classes queued. Automation will use whatever class you're on.");
             return;
         }
 
         int? moveUp = null, moveDown = null, remove = null;
         var btnSize = ImGui.GetFrameHeight();
         var spacingX = 4f * ImGuiHelpers.GlobalScale;
-        var rowRightWidth = btnSize * 3 + spacingX * 2 + Layout.RowRightMargin * ImGuiHelpers.GlobalScale;
+        var rowRightWidth = btnSize * 3 + spacingX * 2;
 
         for (var i = 0; i < cfg.ClassQueue.Count; i++)
         {
@@ -136,7 +167,7 @@ internal static class ClassSettings
             ImGui.SameLine();
             var jobName = ClassSwitcher.JobNameForUserIndex(entry.GearsetIndex);
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextStrong))
-                ImGui.TextUnformatted($"{jobName} · gearset {entry.GearsetIndex}");
+                ImGui.TextUnformatted($"{jobName} - gearset {entry.GearsetIndex}");
 
             ImGui.SameLine();
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
@@ -149,11 +180,11 @@ internal static class ClassSettings
             ImGui.SameLine();
             ImGui.SetNextItemWidth(140);
             var cap = entry.StopAtLevel;
-            if (ImGui.SliderInt($"##cls_cap_{index}", ref cap, 0, ClassSwitcher.GameMaxLevel, cap == 0 ? "no cap" : "Stop at %d Level"))
-            { entry.StopAtLevel = cap; cfg.SaveDebounced(); }
+            using (SettingsControls.PushFrameColors())
+                if (ImGui.SliderInt($"##cls_cap_{index}", ref cap, 0, ClassSwitcher.GameMaxLevel, cap == 0 ? "no cap" : "Stop at %d Level"))
+                { entry.StopAtLevel = cap; cfg.SaveDebounced(); }
 
-            var rightStart = ImGui.GetContentRegionAvail().X + ImGui.GetCursorPosX() - rowRightWidth;
-            ImGui.SameLine(rightStart);
+            ImGui.SameLine(SettingsGroup.InnerRightLocalX() - rowRightWidth);
 
             using (ImRaii.Disabled(index == 0))
                 if (IconButton.Draw(FontAwesomeIcon.ArrowUp, $"##cls_up_{index}", btnSize)) onUp();
