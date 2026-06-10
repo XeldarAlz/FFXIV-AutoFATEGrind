@@ -2,6 +2,8 @@ using AutoFateGrind.Windows.Components;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility;
+using Dalamud.Interface.Utility.Raii;
+using System;
 using System.Numerics;
 
 namespace AutoFateGrind.Windows.Sections;
@@ -33,7 +35,20 @@ internal static class GoalGrid
 
     private static void DrawHeaderRow(Plugin plugin)
     {
-        ImGui.Dummy(new Vector2(0, ImGui.GetFrameHeight()));
+        ImGui.AlignTextToFramePadding();
+        using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextStrong))
+            ImGui.TextUnformatted(Greeting());
         TopToolbar.DrawIconsInline(plugin);
+    }
+
+    private static string Greeting()
+    {
+        return DateTime.Now.Hour switch
+        {
+            >= 5 and < 12 => "Good morning, ready to grind?",
+            >= 12 and < 17 => "Good afternoon, ready to grind?",
+            >= 17 and < 22 => "Good evening, ready to grind?",
+            _ => "Late night grind session?",
+        };
     }
 }
