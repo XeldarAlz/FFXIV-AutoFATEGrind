@@ -1,5 +1,4 @@
 using AutoFateGrind.Core.Game.Fates;
-using AutoFateGrind.Core.Game.Player;
 using AutoFateGrind.Core.Tasks;
 using AutoFateGrind.Core.Zones;
 using AutoFateGrind.Windows.Components;
@@ -215,27 +214,15 @@ internal static class RunningPanel
         var hours = s?.Elapsed.TotalHours ?? 0;
         var gph = hours > 0 ? gems / hours : 0;
 
-        string expVal, expSub;
-        if (s is { ExpPerHour: > 0 })
-        {
-            expVal = Formatting.Exp((long)s.ExpPerHour);
-            expSub = CapEta(s.ExpPerHour);
-        }
-        else
-        {
-            expVal = "—";
-            expSub = ExpReader.ExpToCap() is null ? "at cap" : "";
-        }
-
         var info = GoalProgress.Resolve(cfg, s);
         var elapsedVal = s is null ? "0m 00s" : Formatting.Elapsed(s.Elapsed);
         var elapsedSub = info.Endless ? "" : info.Remaining;
 
-        StatTile.Draw("FATEs", completed.ToString(), fph > 0 ? $"{fph:F1} /h" : null, Styling.AccentBlue, tileW);
+        StatTile.Draw("FATEs", completed.ToString(), null, Styling.AccentBlue, tileW);
         ImGui.SameLine(0, gap);
         StatTile.Draw("Gems", gems.ToString(), gph >= 1 ? $"{gph:F0} /h" : null, Styling.AccentAmber, tileW);
         ImGui.SameLine(0, gap);
-        StatTile.Draw("Exp/h", expVal, string.IsNullOrEmpty(expSub) ? null : expSub, Styling.AccentMint, tileW);
+        StatTile.Draw("FATEs/h", fph > 0 ? $"{fph:F1}" : "—", null, Styling.AccentMint, tileW);
         ImGui.SameLine(0, gap);
         StatTile.Draw("Elapsed", elapsedVal, string.IsNullOrEmpty(elapsedSub) ? null : elapsedSub, Styling.AccentViolet, tileW);
     }
@@ -311,17 +298,6 @@ internal static class RunningPanel
         var queued = cfg.SelectedZones.Count;
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
             ImGui.TextUnformatted($"{name}   ·   {queued} zone{(queued == 1 ? "" : "s")} in rotation");
-    }
-
-    private static string CapEta(double expPerHour)
-    {
-        if (expPerHour <= 0) return "";
-        if (ExpReader.ExpToCap() is not { } toCap || toCap <= 0) return "";
-        var hours = toCap / expPerHour;
-        if (hours <= 0 || double.IsInfinity(hours)) return "";
-        var span = TimeSpan.FromHours(hours);
-        var eta = span.TotalHours >= 1 ? $"~{(int)span.TotalHours}h {span.Minutes:D2}m" : $"~{span.Minutes}m";
-        return $"{eta} to cap";
     }
 
     private static void DrawBar(Vector2 origin, float width, float height, float fraction, Vector4 color, float rounding)
