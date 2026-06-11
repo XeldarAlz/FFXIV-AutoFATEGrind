@@ -19,12 +19,11 @@ public sealed class ConfigWindow : Window, IDisposable
     public ConfigWindow(Plugin plugin) : base("Auto FATE Grind - Settings###AutoFateGrindConfig")
     {
         this.plugin = plugin;
-        Flags = ImGuiWindowFlags.NoCollapse;
         Size = new Vector2(620, 520);
         SizeCondition = ImGuiCond.FirstUseEver;
         SizeConstraints = new WindowSizeConstraints
         {
-            MinimumSize = new Vector2(520, 380),
+            MinimumSize = new Vector2(100, 100),
             MaximumSize = new Vector2(2000, 1600),
         };
     }

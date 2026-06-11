@@ -14,12 +14,11 @@ public sealed class RunHistoryWindow : Window, IDisposable
 
     public RunHistoryWindow() : base("Auto FATE Grind — Run History###AutoFateGrindHistory")
     {
-        Flags = ImGuiWindowFlags.NoCollapse;
         Size = new Vector2(660, 480);
         SizeCondition = ImGuiCond.FirstUseEver;
         SizeConstraints = new WindowSizeConstraints
         {
-            MinimumSize = new Vector2(520, 320),
+            MinimumSize = new Vector2(100, 100),
             MaximumSize = new Vector2(2000, 1600),
         };
     }

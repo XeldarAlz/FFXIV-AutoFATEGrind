@@ -1,10 +1,6 @@
 using AutoFateGrind.Core;
-using AutoFateGrind.Core.External;
 using AutoFateGrind.Core.Modes;
-using AutoFateGrind.Core.Tasks;
 using AutoFateGrind.Core.Trading;
-using AutoFateGrind.Core.Zones;
-using AutoFateGrind.Windows.Components;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility;
@@ -13,6 +9,8 @@ using System.Numerics;
 
 namespace AutoFateGrind.Windows.Sections;
 
+// Body of the "Run until" step: the stop-condition selector, its target, and the compact "Then" action.
+// The START hero lives in MainWindow; this section no longer owns it.
 internal static class GoalSummary
 {
     private static readonly Dictionary<string, (FontAwesomeIcon Icon, string Label)> stopVisuals = new()
@@ -23,56 +21,36 @@ internal static class GoalSummary
         [EndlessMode.ModeId]      = (FontAwesomeIcon.Infinity,  "Endless"),
     };
 
-    public static void Draw(Configuration cfg, AutoFateController controller)
+    public static void Draw(Configuration cfg)
     {
-        ImGui.Spacing();
-        Styling.SectionLabel("Run until");
-        ImGui.Spacing();
-
         DrawSelector(cfg);
         ImGui.Spacing();
         DrawTargetRow(cfg);
 
-        DrawAfterRunRow(cfg);
-
-        ImGui.Spacing();
-        DrawStartButton(cfg, controller);
+        if (cfg.ActiveMode.Id != EndlessMode.ModeId)
+            DrawThenRow(cfg);
     }
 
     private static readonly AfterRunAction[] afterRunOrder =
         [AfterRunAction.StayLoggedIn, AfterRunAction.ReturnToInn, AfterRunAction.Logout, AfterRunAction.CloseGame];
 
-    private static void DrawAfterRunRow(Configuration cfg)
+    private static void DrawThenRow(Configuration cfg)
     {
-        // Endless never auto-completes, so there is no "after" — hide the whole Then section rather than
-        // show a disabled control implying one exists. The plan line below still explains Endless.
-        if (cfg.ActiveMode.Id != EndlessMode.ModeId)
-        {
-            ImGui.Spacing();
-            Styling.SectionLabel("Then");
-            ImGui.Spacing();
-
-            ImGui.SetNextItemWidth(220f * ImGuiHelpers.GlobalScale);
-            using (var combo = ImRaii.Combo("##afterrun", AfterRunLabel(cfg.AfterRun)))
-                if (combo)
-                    foreach (var a in afterRunOrder)
-                    {
-                        if (ImGui.Selectable(AfterRunLabel(a), a == cfg.AfterRun))
-                        {
-                            cfg.AfterRun = a;
-                            cfg.SaveDebounced();
-                        }
-                        if (ImGui.IsItemHovered()) ImGui.SetTooltip(AfterRunTooltip(a));
-                    }
-        }
-
-        ImGui.Spacing();
-        using (ImRaii.PushFont(UiBuilder.IconFont))
-        using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
-            ImGui.TextUnformatted(FontAwesomeIcon.InfoCircle.ToIconString());
+        ImGui.AlignTextToFramePadding();
+        Caption("Then");
         ImGui.SameLine();
-        using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextSecondary))
-            ImGui.TextWrapped(PlanSentence(cfg));
+        ImGui.SetNextItemWidth(220f * ImGuiHelpers.GlobalScale);
+        using var combo = ImRaii.Combo("##afterrun", AfterRunLabel(cfg.AfterRun));
+        if (!combo) return;
+        foreach (var a in afterRunOrder)
+        {
+            if (ImGui.Selectable(AfterRunLabel(a), a == cfg.AfterRun))
+            {
+                cfg.AfterRun = a;
+                cfg.SaveDebounced();
+            }
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip(AfterRunTooltip(a));
+        }
     }
 
     private static string AfterRunLabel(AfterRunAction a) => a switch
@@ -92,28 +70,6 @@ internal static class GoalSummary
         AfterRunAction.CloseGame    => "Close FFXIV entirely (via XIVLauncher's /xlkill).",
         _                           => "",
     };
-
-    private static string PlanSentence(Configuration cfg)
-    {
-        if (cfg.ActiveMode.Id == EndlessMode.ModeId)
-            return "Grind the selected zones forever — until you press Stop.";
-
-        var until = cfg.ActiveMode.Id switch
-        {
-            MaxGemstonesMode.ModeId => $"until you reach {cfg.TargetGemstoneCount} Bicolor Gemstones",
-            RunCountMode.ModeId     => $"for {cfg.TargetFateCount} FATEs",
-            TimeBoxedMode.ModeId    => $"for {cfg.TargetMinutes} minutes",
-            _                       => "until done",
-        };
-        var then = cfg.AfterRun switch
-        {
-            AfterRunAction.ReturnToInn => "head to the inn",
-            AfterRunAction.Logout      => "log out to the title screen",
-            AfterRunAction.CloseGame   => "close the game",
-            _                          => "stop and stay where you are",
-        };
-        return $"Grind {until}, then {then}.";
-    }
 
     private static void DrawSelector(Configuration cfg)
     {
@@ -239,23 +195,6 @@ internal static class GoalSummary
                 Dim("Rotates the selected zones until you press Stop.");
                 break;
         }
-    }
-
-    private static void DrawStartButton(Configuration cfg, AutoFateController controller)
-    {
-        var startList = ZoneSelection.ResolveStartList(cfg);
-        var runnable = startList.Count;
-        var depsOk = ExternalPlugins.AllRequiredInstalled();
-        var canStart = runnable > 0 && !controller.Running && depsOk;
-        var label = canStart ? $"START   ({runnable} zone{(runnable == 1 ? "" : "s")})" : "START";
-
-        if (PrimaryButton.Draw(label, Styling.AccentViolet, canStart))
-            controller.RunAll(startList);
-
-        if (!canStart && !depsOk)
-            Tooltip.For("Install all required plugins first (see the plug icon).");
-        else if (!canStart && runnable == 0)
-            Tooltip.For("Pick at least one zone below.");
     }
 
     private static void Caption(string text)

@@ -112,12 +112,11 @@ public sealed class AboutWindow : Window, IDisposable
 
     public AboutWindow() : base($"{Name}: About###{WindowId}")
     {
-        Flags = ImGuiWindowFlags.NoCollapse;
         Size = new Vector2(540, 700);
         SizeCondition = ImGuiCond.FirstUseEver;
         SizeConstraints = new WindowSizeConstraints
         {
-            MinimumSize = new Vector2(430, 580),
+            MinimumSize = new Vector2(100, 100),
             MaximumSize = new Vector2(float.MaxValue, float.MaxValue),
         };
     }

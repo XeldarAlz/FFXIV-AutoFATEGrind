@@ -2,8 +2,9 @@ namespace AutoFateGrind.Windows;
 
 internal static class Layout
 {
-    public const float GoalCardHeight = 78f;
-    public const float GoalCardGap = 8f;
+    public const float IdleStatusHeight = 62f;
+    public const float HeroButtonHeight = 52f;
+    public const float ZoneListHeight = 196f;
 
     public const float PrimaryButtonHeight = 44f;
 

@@ -18,13 +18,11 @@ internal static class QueueStrip
         var byId = ZoneRegistry.Zones.ToDictionary(z => z.TerritoryId);
         var ids = cfg.SelectedZones.Where(byId.ContainsKey).ToList();
 
-        DrawHeader(ids.Count);
-
         if (ids.Count == 0)
         {
             dragIndex = null;
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
-                ImGui.TextWrapped("No zones yet — tick zones in the tabs below to build your grind order.");
+                ImGui.TextUnformatted("No zones picked yet — tick zones below to build your grind order.");
             return;
         }
 
@@ -108,30 +106,6 @@ internal static class QueueStrip
     private static bool Contains(Vector2 min, Vector2 max, Vector2 p)
         => p.X >= min.X && p.X <= max.X && p.Y >= min.Y && p.Y <= max.Y;
 
-    private static void DrawHeader(int count)
-    {
-        Styling.SectionLabel(count > 0 ? $"Grind order  ·  {count}" : "Grind order");
-        ImGui.SameLine();
-        using (ImRaii.PushFont(UiBuilder.IconFont))
-        using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
-            ImGui.TextUnformatted(FontAwesomeIcon.InfoCircle.ToIconString());
-        if (ImGui.IsItemHovered())
-            ImGui.SetTooltip(
-                "The bot starts at #1 and works down the list, moving on when a zone runs out of FATEs, then loops back to the top.\n" +
-                "Drag a chip to reorder · click × to remove.\n\n" +
-                "Rotating between zones requires \"Switch zones when empty\" in settings.");
-
-        if (count > 0)
-        {
-            var hint = "first → last, loops ↻";
-            var w = ImGui.CalcTextSize(hint).X;
-            ImGui.SameLine(ImGui.GetContentRegionAvail().X + ImGui.GetCursorPosX() - w);
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
-                ImGui.TextUnformatted(hint);
-        }
-        ImGui.Spacing();
-    }
-
     private readonly record struct ChipMetrics(
         float Total, float BodyW, float PadX, float NumW, float NameW, bool HasBonus,
         float BoltW, float Gap, float Height, string Num, string Name, string Count);
@@ -168,6 +142,8 @@ internal static class QueueStrip
         if (!running && ImGui.IsItemActivated()) dragIndex = index;
         var beingDragged = dragIndex == index;
         if (!running && (bodyHovered || beingDragged)) ImGui.SetMouseCursor(ImGuiMouseCursor.ResizeAll);
+        if (!running && bodyHovered && !beingDragged && !ImGui.IsMouseDown(ImGuiMouseButton.Left))
+            ImGui.SetTooltip("Drag to reorder");
 
         ImGui.SetCursorScreenPos(new Vector2(origin.X + m.BodyW, origin.Y));
         var xClicked = ImGui.InvisibleButton($"##qx{zone.TerritoryId}", new Vector2(end.X - origin.X - m.BodyW, m.Height));

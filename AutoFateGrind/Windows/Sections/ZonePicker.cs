@@ -15,10 +15,7 @@ internal static class ZonePicker
     {
         QueueStrip.Draw(cfg, controller);
         ImGui.Spacing();
-
-        Styling.SectionLabel("Browse zones");
-        using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
-            ImGui.TextUnformatted("Tick a zone to add it to the grind order above.");
+        Divider();
         ImGui.Spacing();
 
         using var tabBar = ImRaii.TabBar("##afg_main_tabs", ImGuiTabBarFlags.NoTooltip | ImGuiTabBarFlags.FittingPolicyScroll);
@@ -52,6 +49,8 @@ internal static class ZonePicker
         var positions = new Dictionary<uint, int>();
         for (var i = 0; i < queued.Count; i++) positions[queued[i]] = i + 1;
 
+        // Cap the checklist height so a long expansion doesn't push the Run-until step and START off-screen.
+        using var list = ImRaii.Child($"##zlist_{exp}", new Vector2(-1, Layout.ZoneListHeight * ImGuiHelpers.GlobalScale), false);
         foreach (var zone in zones)
         {
             ZoneStateReader.Refresh(zone);
@@ -65,13 +64,10 @@ internal static class ZonePicker
     {
         var allSelected = selected == zones.Length;
 
-        using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
-            ImGui.TextUnformatted($"{selected} of {zones.Length} selected");
-
         var rightLabel = allSelected ? "Clear all" : "Select all";
         var rightWidth = ImGui.CalcTextSize(rightLabel).X + ImGui.GetStyle().FramePadding.X * 2;
 
-        ImGui.SameLine(ImGui.GetContentRegionAvail().X + ImGui.GetCursorPosX() - rightWidth);
+        ImGui.SetCursorPosX(ImGui.GetCursorPosX() + ImGui.GetContentRegionAvail().X - rightWidth);
 
         using (ImRaii.Disabled(controller.Running))
         using (ImRaii.PushColor(ImGuiCol.Text, allSelected ? Styling.AccentRose : Styling.AccentVioletSoft))
@@ -144,5 +140,14 @@ internal static class ZonePicker
             ImGui.SetTooltip(zone.ActiveFateCount == 1
                 ? "1 FATE active here right now."
                 : $"{zone.ActiveFateCount} FATEs active here right now.");
+    }
+
+    private static void Divider()
+    {
+        var dl = ImGui.GetWindowDrawList();
+        var p = ImGui.GetCursorScreenPos();
+        var w = ImGui.GetContentRegionAvail().X;
+        dl.AddLine(p, p + new Vector2(w, 0), ImGui.GetColorU32(Styling.Hairline));
+        ImGui.Dummy(new Vector2(w, 1f));
     }
 }

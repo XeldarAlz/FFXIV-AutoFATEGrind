@@ -18,10 +18,10 @@ public sealed class LiveFateWindow : Window, IDisposable
     public LiveFateWindow(Plugin plugin) : base("Live FATEs###AutoFateGrindLive")
     {
         this.plugin = plugin;
-        Flags = ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.AlwaysAutoResize;
+        Flags = ImGuiWindowFlags.AlwaysAutoResize;
         SizeConstraints = new WindowSizeConstraints
         {
-            MinimumSize = new Vector2(280, 120),
+            MinimumSize = new Vector2(100, 100),
             MaximumSize = new Vector2(520, 600),
         };
         Size = new Vector2(320, 0);

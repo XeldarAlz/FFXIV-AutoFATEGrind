@@ -12,12 +12,11 @@ public sealed class DependenciesWindow : Window, IDisposable
 {
     public DependenciesWindow() : base("Auto FATE Grind — Dependencies###AutoFateGrindDeps")
     {
-        Flags = ImGuiWindowFlags.NoCollapse;
         Size = new Vector2(580, 460);
         SizeCondition = ImGuiCond.FirstUseEver;
         SizeConstraints = new WindowSizeConstraints
         {
-            MinimumSize = new Vector2(420, 280),
+            MinimumSize = new Vector2(100, 100),
             MaximumSize = new Vector2(float.MaxValue, float.MaxValue),
         };
     }
