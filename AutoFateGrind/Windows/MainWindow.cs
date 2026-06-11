@@ -35,8 +35,6 @@ public sealed class MainWindow : Window, IDisposable
 
         if (ctrl.Running) RunningPanel.Draw(cfg, ctrl);
         else              DrawIdle(cfg, ctrl);
-
-        Footer.Draw();
     }
 
     private void DrawIdle(Configuration cfg, Core.Tasks.AutoFateController ctrl)
