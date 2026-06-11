@@ -1,4 +1,4 @@
-using AutoFateGrind.Core.Game;
+using AutoFateGrind.Core.Game.Ops;
 using AutoFateGrind.Core.Trading;
 using AutoFateGrind.Core.Zones;
 using clib.TaskSystem;

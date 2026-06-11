@@ -3,7 +3,7 @@ using ECommons.DalamudServices;
 using FFXIVClientStructs.FFXIV.Client.Game.Fate;
 using System.Numerics;
 
-namespace AutoFateGrind.Core.Game;
+namespace AutoFateGrind.Core.Game.Fates;
 
 internal static class FateScanner
 {

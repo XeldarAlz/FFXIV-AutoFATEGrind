@@ -1,6 +1,6 @@
 using AutoFateGrind.Core;
 using AutoFateGrind.Core.Debug;
-using AutoFateGrind.Core.Game;
+using AutoFateGrind.Core.Game.Watchers;
 using AutoFateGrind.Core.Stats;
 using AutoFateGrind.Core.Tasks;
 using AutoFateGrind.Windows;

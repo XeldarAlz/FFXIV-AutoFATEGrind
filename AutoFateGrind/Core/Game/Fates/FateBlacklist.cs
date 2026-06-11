@@ -1,7 +1,7 @@
 using clib.Utils;
 using FFXIVClientStructs.FFXIV.Client.Game.Fate;
 
-namespace AutoFateGrind.Core.Game;
+namespace AutoFateGrind.Core.Game.Fates;
 
 internal static class FateBlacklist
 {

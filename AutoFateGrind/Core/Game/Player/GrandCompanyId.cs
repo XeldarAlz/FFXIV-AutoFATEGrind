@@ -1,4 +1,4 @@
-namespace AutoFateGrind.Core.Game;
+namespace AutoFateGrind.Core.Game.Player;
 
 // PlayerState.GrandCompany discriminants (0 = unaffiliated).
 internal static class GrandCompanyId

@@ -1,5 +1,6 @@
 using AutoFateGrind.Core.External;
-using AutoFateGrind.Core.Game;
+using AutoFateGrind.Core.Game.Fates;
+using AutoFateGrind.Core.Game.Player;
 using AutoFateGrind.Core.Ipc;
 using AutoFateGrind.Core.Modes;
 using AutoFateGrind.Core.Trading;
@@ -111,7 +112,7 @@ public sealed partial class AutoFate
                 ? $"Move to FATE {targetId} ({fate.Name}) stalled in combat ({kind}); cancelling to clear aggro (teleport is blocked in combat)"
                 : kind == StallKind.NavWedge
                     ? $"Move to FATE {targetId} ({fate.Name}) wedged: vnav following but no progress in {HardStuckTimeoutMs/1000}s; cancelling to retry"
-                    : $"Move to FATE {targetId} ({fate.Name}) idle: no nav/cast/mount progress in {IdleStallTimeoutMs/1000}s (clib teleport likely never started); cancelling to retry");
+                    : $"Move to FATE {targetId} ({fate.Name}) idle: no nav/cast/mount progress in {StuckDetector.IdleStallTimeoutMs/1000}s (clib teleport likely never started); cancelling to retry");
             return true;
         }
 
@@ -170,10 +171,10 @@ public sealed partial class AutoFate
         // Same-zone teleport to the aetheryte nearest the FATE. Idle-stall guard catches a teleport that
         // never starts casting in ~8s instead of the full watchdog.
         var tp = new MoveOp(o => o.Teleport(zone.TerritoryId, fatePos, allowSameZoneTeleport: true));
-        if (!await RunCancellable(tp, TeleportWatchdogMs, $"teleport-recovery-{fate.Id}", IdleStallAbort(IdleStallTimeoutMs)))
+        if (!await RunCancellable(tp, TeleportWatchdogMs, $"teleport-recovery-{fate.Id}", StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs)))
             return false;
         var aeth = new MoveOp(o => o.Aethernet(zone.TerritoryId, fatePos));
-        await RunCancellable(aeth, AethernetWatchdogMs, $"aethernet-recovery-{fate.Id}", IdleStallAbort(IdleStallTimeoutMs));
+        await RunCancellable(aeth, AethernetWatchdogMs, $"aethernet-recovery-{fate.Id}", StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs));
 
         var after = Svc.Objects.LocalPlayer?.Position;
         if (before is null || after is null) return false;
@@ -256,7 +257,7 @@ public sealed partial class AutoFate
             // because <1.5m moves between 67ms polls never cleared the threshold, false-firing the wedge
             // timer mid-flight.) Real displacement resets both timers; "stuck" is measured from the
             // anchor.
-            if (lastPos is null || Vector3.Distance(lastPos.Value, pos) > StuckMoveThresholdMeters)
+            if (lastPos is null || Vector3.Distance(lastPos.Value, pos) > StuckDetector.StuckMoveThresholdMeters)
             {
                 lastPos = pos;
                 navWedgeSinceMs = now;
@@ -264,7 +265,7 @@ public sealed partial class AutoFate
                 return StallKind.None;
             }
 
-            var legitFrozen = IsPositionFrozenLegit();
+            var legitFrozen = StuckDetector.IsPositionFrozenLegit();
             var navRunning = NavmeshIPC.Instance.IsRunning();
             var navBusy = NavmeshIPC.Instance.IsBusy(); // running OR pathfind-in-progress
 
@@ -274,7 +275,7 @@ public sealed partial class AutoFate
 
             // No displacement and nothing legitimate in progress → wedged pre-pathfind phase.
             if (legitFrozen || navBusy) idleSinceMs = now;
-            else if (now - idleSinceMs >= IdleStallTimeoutMs) return StallKind.Idle;
+            else if (now - idleSinceMs >= StuckDetector.IdleStallTimeoutMs) return StallKind.Idle;
 
             return StallKind.None;
         }

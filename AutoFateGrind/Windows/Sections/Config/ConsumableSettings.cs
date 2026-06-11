@@ -1,4 +1,4 @@
-using AutoFateGrind.Core.Game;
+using AutoFateGrind.Core.Game.Ops;
 using AutoFateGrind.Windows.Components;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;

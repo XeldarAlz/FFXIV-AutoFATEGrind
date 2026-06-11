@@ -4,7 +4,7 @@ using ECommons.Throttlers;
 using ECommons.UIHelpers.AddonMasterImplementations;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 
-namespace AutoFateGrind.Core.Game;
+namespace AutoFateGrind.Core.Game.Ops;
 
 // AddonInteractThrottleMs prevents addon spam.
 internal static unsafe class ShopInteraction

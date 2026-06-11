@@ -1,7 +1,7 @@
 using ECommons.DalamudServices;
 using Lumina.Excel.Sheets;
 
-namespace AutoFateGrind.Core.Game;
+namespace AutoFateGrind.Core.Game.Player;
 
 // Reads current-job level/experience through Dalamud's IPlayerState (a stable managed API) plus the
 // ParamGrow sheet for the per-level curve — no raw struct offsets, so a patch can't silently corrupt it.

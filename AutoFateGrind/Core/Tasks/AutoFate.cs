@@ -1,5 +1,6 @@
 using AutoFateGrind.Core.External;
-using AutoFateGrind.Core.Game;
+using AutoFateGrind.Core.Game.Fates;
+using AutoFateGrind.Core.Game.Ops;
 using AutoFateGrind.Core.Ipc;
 using AutoFateGrind.Core.Modes;
 using AutoFateGrind.Core.Trading;
@@ -282,7 +283,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
         var advanced = noProgressCompleted < 0
                     || session.CompletedCount != noProgressCompleted
                     || terr != noProgressTerritory
-                    || Vector3.Distance(pos, noProgressPos) > StuckMoveThresholdMeters
+                    || Vector3.Distance(pos, noProgressPos) > StuckDetector.StuckMoveThresholdMeters
                     || state is GrindState.Engaging or GrindState.WaitingForFates;
 
         if (advanced)

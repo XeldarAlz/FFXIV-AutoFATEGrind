@@ -4,7 +4,7 @@ using ECommons.Automation;
 using ECommons.DalamudServices;
 using System.Threading.Tasks;
 
-namespace AutoFateGrind.Core.Game;
+namespace AutoFateGrind.Core.Game.Watchers;
 
 // Fires alerts when a player with a GM OnlineStatus enters the object table.
 // "fired" latches on the rising edge so each appearance triggers exactly once;

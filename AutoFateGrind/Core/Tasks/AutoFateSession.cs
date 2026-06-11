@@ -33,7 +33,7 @@ public sealed class AutoFateSession
 
     public void CaptureStartExp()
     {
-        if (Core.Game.ExpReader.Read() is not { } s) return;
+        if (Core.Game.Player.ExpReader.Read() is not { } s) return;
         JobId = s.JobId;
         JobAbbr = s.JobAbbr;
         StartLevel = s.Level;
@@ -44,7 +44,7 @@ public sealed class AutoFateSession
 
     public void UpdateExp()
     {
-        if (Core.Game.ExpReader.Read() is not { } s) return;
+        if (Core.Game.Player.ExpReader.Read() is not { } s) return;
 
         if (!startCaptured)
         {
@@ -62,7 +62,7 @@ public sealed class AutoFateSession
             return;
         }
 
-        var cur = Core.Game.ExpReader.Cumulative(s);
+        var cur = Core.Game.Player.ExpReader.Cumulative(s);
         if (cur > segmentBaselineExp) ExpEarned += cur - segmentBaselineExp;
         segmentBaselineExp = cur;
 
@@ -74,10 +74,10 @@ public sealed class AutoFateSession
         JobAbbr = s.JobAbbr;
     }
 
-    private void RebaselineTo(Core.Game.ExpReader.Snapshot s)
+    private void RebaselineTo(Core.Game.Player.ExpReader.Snapshot s)
     {
         trackedJobId = s.JobId;
-        segmentBaselineExp = Core.Game.ExpReader.Cumulative(s);
+        segmentBaselineExp = Core.Game.Player.ExpReader.Cumulative(s);
         segmentBaselineLevel = s.Level;
         JobId = s.JobId;
         JobAbbr = s.JobAbbr;

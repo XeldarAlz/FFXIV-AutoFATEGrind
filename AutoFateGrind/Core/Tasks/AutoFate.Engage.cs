@@ -1,5 +1,6 @@
 using AutoFateGrind.Core.External;
-using AutoFateGrind.Core.Game;
+using AutoFateGrind.Core.Game.Fates;
+using AutoFateGrind.Core.Game.Ops;
 using AutoFateGrind.Core.Ipc;
 using AutoFateGrind.Core.Modes;
 using AutoFateGrind.Core.Trading;

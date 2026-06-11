@@ -99,8 +99,8 @@ public sealed class LiveFateWindow : Window, IDisposable
         var current = PublicEvent.CurrentFate;
         var eligible = (PublicEvent.Fates ?? Enumerable.Empty<PublicEvent>())
             .Where(f => current is null || f.Id != current.Id)
-            .Where(f => Core.Game.FateScanner.IsEligible(f, cfg, null));
-        var fates = Core.Game.FateScanner.ApplySort(eligible, cfg.FateSortOrder, player.Position)
+            .Where(f => Core.Game.Fates.FateScanner.IsEligible(f, cfg, null));
+        var fates = Core.Game.Fates.FateScanner.ApplySort(eligible, cfg.FateSortOrder, player.Position)
             .Take(3)
             .ToArray();
 
@@ -139,7 +139,7 @@ public sealed class LiveFateWindow : Window, IDisposable
         using (ImRaii.PushFont(UiBuilder.IconFont))
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentRose))
             if (ImGui.SmallButton(FontAwesomeIcon.Ban.ToIconString() + $"##ban_{fate.Id}"))
-                Core.Game.FateBlacklist.ToggleId(Plugin.Cfg, fate);
+                Core.Game.Fates.FateBlacklist.ToggleId(Plugin.Cfg, fate);
         if (ImGui.IsItemHovered())
             ImGui.SetTooltip("Blacklist this FATE for this character (skips it while grinding).");
     }

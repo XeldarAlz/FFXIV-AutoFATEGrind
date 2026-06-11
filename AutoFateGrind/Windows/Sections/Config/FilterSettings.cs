@@ -1,5 +1,5 @@
 using AutoFateGrind.Core.External;
-using AutoFateGrind.Core.Game;
+using AutoFateGrind.Core.Game.Fates;
 using AutoFateGrind.Windows.Components;
 using clib.Utils;
 using Dalamud.Bindings.ImGui;

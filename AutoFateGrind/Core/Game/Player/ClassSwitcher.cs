@@ -3,7 +3,7 @@ using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using Lumina.Excel.Sheets;
 
-namespace AutoFateGrind.Core.Game;
+namespace AutoFateGrind.Core.Game.Player;
 
 internal static unsafe class ClassSwitcher
 {

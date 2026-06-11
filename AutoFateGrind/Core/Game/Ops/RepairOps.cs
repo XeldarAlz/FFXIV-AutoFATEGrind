@@ -1,3 +1,4 @@
+using AutoFateGrind.Core.Game.Player;
 using ECommons;
 using ECommons.DalamudServices;
 using ECommons.Throttlers;
@@ -10,7 +11,7 @@ using FFXIVClientStructs.FFXIV.Component.GUI;
 using Lumina.Excel.Sheets;
 using System.Numerics;
 
-namespace AutoFateGrind.Core.Game;
+namespace AutoFateGrind.Core.Game.Ops;
 
 internal static unsafe class RepairOps
 {

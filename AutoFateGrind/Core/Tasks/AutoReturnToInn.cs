@@ -1,4 +1,5 @@
-using AutoFateGrind.Core.Game;
+using AutoFateGrind.Core.Game.Ops;
+using AutoFateGrind.Core.Game.Player;
 using clib.TaskSystem;
 using Dalamud.Game.ClientState.Conditions;
 using ECommons;
@@ -76,7 +77,7 @@ public sealed class AutoReturnToInn : AutoCommon
             allowTeleportIfFaster: false,
             stopCondition: () => CancelToken.IsCancellationRequested,
             allowAethernetWithinTerritory: true));
-        await RunCancellable(walk, WalkWatchdogMs, "inn-walk", IdleStallAbort(IdleStallTimeoutMs));
+        await RunCancellable(walk, WalkWatchdogMs, "inn-walk", StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs));
         if (CancelToken.IsCancellationRequested) return;
 
         await EnterInn(inn);
@@ -108,7 +109,7 @@ public sealed class AutoReturnToInn : AutoCommon
                     allowTeleportIfFaster: false,
                     stopCondition: () => CancelToken.IsCancellationRequested,
                     allowAethernetWithinTerritory: false));
-                await RunCancellable(step, ApproachWatchdogMs, "inn-approach", IdleStallAbort(IdleStallTimeoutMs));
+                await RunCancellable(step, ApproachWatchdogMs, "inn-approach", StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs));
                 continue;
             }
 

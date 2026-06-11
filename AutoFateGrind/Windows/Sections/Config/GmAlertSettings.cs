@@ -75,7 +75,7 @@ internal static class GmAlertSettings
         {
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentAmber))
                 if (ImGui.SmallButton("Preview##gm_beep_preview"))
-                    Core.Game.GmAlertWatcher.PlayBeeps(cfg.GmAlertBeepCount, cfg.GmAlertBeepFrequencyHz, cfg.GmAlertBeepDurationMs);
+                    Core.Game.Watchers.GmAlertWatcher.PlayBeeps(cfg.GmAlertBeepCount, cfg.GmAlertBeepFrequencyHz, cfg.GmAlertBeepDurationMs);
         });
     }
 

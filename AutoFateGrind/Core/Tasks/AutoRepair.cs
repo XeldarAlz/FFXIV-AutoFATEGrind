@@ -1,4 +1,4 @@
-using AutoFateGrind.Core.Game;
+using AutoFateGrind.Core.Game.Ops;
 using clib.TaskSystem;
 using Dalamud.Game.ClientState.Conditions;
 using ECommons.DalamudServices;

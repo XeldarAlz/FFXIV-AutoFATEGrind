@@ -3,7 +3,7 @@ using ECommons.Throttlers;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using Lumina.Excel.Sheets;
 
-namespace AutoFateGrind.Core.Game;
+namespace AutoFateGrind.Core.Game.Ops;
 
 // Consume convention: UseAction(ActionType.Item, id, extraParam 65535), with HQ addressed as id + 1,000,000.
 internal static unsafe class FoodOps

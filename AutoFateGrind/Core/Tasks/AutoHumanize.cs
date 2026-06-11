@@ -108,7 +108,7 @@ public sealed class AutoHumanize(uint cityTerritoryId, int durationMs) : AutoCom
                 allowTeleportIfFaster: false,
                 stopCondition: () => Environment.TickCount64 >= deadline || CancelToken.IsCancellationRequested,
                 allowAethernetWithinTerritory: false));
-            await RunCancellable(move, perHopBudget, $"humanize-walk-{hops}", IdleStallAbort(IdleStallTimeoutMs));
+            await RunCancellable(move, perHopBudget, $"humanize-walk-{hops}", StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs));
 
             if (CancelToken.IsCancellationRequested) return;
             if (Environment.TickCount64 >= deadline) break;

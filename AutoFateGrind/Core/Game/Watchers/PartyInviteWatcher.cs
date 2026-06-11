@@ -10,7 +10,7 @@ using FFXIVClientStructs.FFXIV.Client.UI.Info;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using Lumina.Excel.Sheets;
 
-namespace AutoFateGrind.Core.Game;
+namespace AutoFateGrind.Core.Game.Watchers;
 
 // Auto-declines incoming player party invites while a grind run is active. An invite shows as a stock
 // SelectYesno dialog, so we hook its PostSetup and gate on AgentPartyInvite being active — that agent is

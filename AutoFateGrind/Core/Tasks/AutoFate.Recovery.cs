@@ -1,5 +1,4 @@
 using AutoFateGrind.Core.External;
-using AutoFateGrind.Core.Game;
 using AutoFateGrind.Core.Ipc;
 using AutoFateGrind.Core.Modes;
 using AutoFateGrind.Core.Trading;
@@ -86,10 +85,10 @@ public sealed partial class AutoFate
             if (CancelToken.IsCancellationRequested) return;
             var retPos = retFate.Position;
             var tp = new MoveOp(o => o.Teleport(zone.TerritoryId, retPos, allowSameZoneTeleport: true));
-            if (await RunCancellable(tp, TeleportWatchdogMs, $"revive-return-tp-{retId}", IdleStallAbort(IdleStallTimeoutMs)))
+            if (await RunCancellable(tp, TeleportWatchdogMs, $"revive-return-tp-{retId}", StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs)))
             {
                 var aeth = new MoveOp(o => o.Aethernet(zone.TerritoryId, retPos));
-                await RunCancellable(aeth, AethernetWatchdogMs, $"revive-return-aethernet-{retId}", IdleStallAbort(IdleStallTimeoutMs));
+                await RunCancellable(aeth, AethernetWatchdogMs, $"revive-return-aethernet-{retId}", StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs));
             }
         }
         else if (Svc.ClientState.TerritoryType != startZoneId && startPos is not null)

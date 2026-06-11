@@ -1,4 +1,4 @@
-using AutoFateGrind.Core.Game;
+using AutoFateGrind.Core.Game.Fates;
 using AutoFateGrind.Core.Tasks;
 using AutoFateGrind.Core.Zones;
 using AutoFateGrind.Windows.Components;
@@ -141,7 +141,7 @@ internal static class RunningPanel
     private static string FormatTimeToCap(double expPerHour)
     {
         if (expPerHour <= 0) return "";
-        if (Core.Game.ExpReader.ExpToCap() is not { } toCap || toCap <= 0) return "";
+        if (Core.Game.Player.ExpReader.ExpToCap() is not { } toCap || toCap <= 0) return "";
         var hours = toCap / expPerHour;
         if (hours <= 0 || double.IsInfinity(hours)) return "";
         var span = TimeSpan.FromHours(hours);
