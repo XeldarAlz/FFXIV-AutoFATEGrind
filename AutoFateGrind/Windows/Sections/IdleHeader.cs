@@ -10,7 +10,7 @@ using System.Numerics;
 
 namespace AutoFateGrind.Windows.Sections;
 
-// Resting-state header: an activity teaser + toolbar strip, then an always-on status card that tells the
+// Resting-state header: a time-of-day greeting + toolbar strip, then an always-on status card that tells the
 // user at a glance whether they're ready, what's blocking them, and how the last run went.
 internal static class IdleHeader
 {
@@ -22,23 +22,28 @@ internal static class IdleHeader
 
     private static void DrawTopStrip(Plugin plugin)
     {
+        var (icon, color, greeting, tagline) = Greeting();
+
         ImGui.AlignTextToFramePadding();
         using (ImRaii.PushFont(UiBuilder.IconFont))
-        using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentViolet))
-            ImGui.TextUnformatted(FontAwesomeIcon.Bolt.ToIconString());
+        using (ImRaii.PushColor(ImGuiCol.Text, color))
+            ImGui.TextUnformatted(icon.ToIconString());
 
-        ImGui.SameLine(0, 6f);
+        ImGui.SameLine(0, 7f);
         ImGui.AlignTextToFramePadding();
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextSecondary))
-            ImGui.TextUnformatted("Open-World FATEs");
-
-        ImGui.SameLine(0, 8f);
-        ImGui.AlignTextToFramePadding();
-        using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
-            ImGui.TextUnformatted("· Field Operations soon");
+            ImGui.TextUnformatted($"{greeting}, {tagline}");
 
         TopToolbar.DrawIconsInline(plugin);
     }
+
+    private static (FontAwesomeIcon icon, Vector4 color, string greeting, string tagline) Greeting() => DateTime.Now.Hour switch
+    {
+        >= 5 and < 12  => (FontAwesomeIcon.Sun,       Styling.AccentAmber,      "Good morning",   "ready to grind?"),
+        >= 12 and < 17 => (FontAwesomeIcon.Sun,       Styling.AccentAmber,      "Good afternoon", "ready to grind?"),
+        >= 17 and < 22 => (FontAwesomeIcon.CloudMoon, Styling.AccentVioletSoft, "Good evening",   "ready to grind?"),
+        _              => (FontAwesomeIcon.Moon,      Styling.AccentBlue,       "Late night",     "still grinding?"),
+    };
 
     private static void DrawStatusCard(Configuration cfg)
     {
