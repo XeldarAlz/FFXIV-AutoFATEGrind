@@ -52,7 +52,11 @@ internal static class IdleHeader
         var (accent, icon, label, sub) = Resolve(cfg);
 
         dl.AddRectFilled(origin, end, ImGui.GetColorU32(Vector4.Lerp(Styling.CardBg, accent, 0.10f)), Styling.CardRounding);
-        dl.AddRect(origin, end, ImGui.GetColorU32(Styling.WithAlpha(accent, 0.55f)), Styling.CardRounding, ImDrawFlags.None, 1.5f);
+        // Ready breathes gently (armed-to-launch, echoing the running hero); warning states stay static.
+        var border = accent.Equals(Styling.AccentMint)
+            ? Styling.PulseColor(Styling.WithAlpha(accent, 0.45f), Styling.AccentMintSoft, Styling.PulseBreath)
+            : Styling.WithAlpha(accent, 0.55f);
+        dl.AddRect(origin, end, ImGui.GetColorU32(border), Styling.CardRounding, ImDrawFlags.None, 1.5f);
 
         var padX = 14f * scale;
         var midY = origin.Y + height * 0.5f;

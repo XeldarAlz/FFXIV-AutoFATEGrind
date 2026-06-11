@@ -1,4 +1,5 @@
 using AutoFateGrind.Core.Game.Fates;
+using AutoFateGrind.Core.Game.Player;
 using AutoFateGrind.Core.Tasks;
 using AutoFateGrind.Core.Zones;
 using AutoFateGrind.Windows.Components;
@@ -13,52 +14,175 @@ using System.Numerics;
 
 namespace AutoFateGrind.Windows.Sections;
 
+// The live "mission control" view shown while a grind is running: a goal-progress ring + current-activity
+// hero, a STOP hero, a scannable stat strip, the up-next queue, and the current zone.
 internal static class RunningPanel
 {
     public static void Draw(Configuration cfg, AutoFateController controller)
     {
-        DrawHeaderStrip();
-        DrawStatusCard(controller);
-        ImGui.Spacing();
+        var fate = PublicEvent.CurrentFate;
+        var inFate = fate is not null && fate.State == FateState.Running;
+        var (accent, accentSoft, label) = PhasePalette(controller, inFate);
 
-        if (PrimaryButton.Draw("STOP", Styling.AccentRose, true))
-            controller.Stop();
+        DrawHeaderStrip(accent, accentSoft);
+        DrawHeroCard(cfg, controller, fate, inFate, accent, accentSoft, label);
 
-        ImGui.Spacing();
-        ImGui.Spacing();
+        Styling.VSpace(3f);
+        var s = controller.SessionSnapshot;
+        var stopSub = s is null ? "running" : $"running · {Formatting.Elapsed(s.Elapsed)}";
+        if (StopButton.Draw(stopSub)) controller.Stop();
+
+        Styling.VSpace(7f);
+        DrawStatTiles(cfg, controller);
+
+        Styling.VSpace(5f);
         DrawQueue(cfg);
-        ImGui.Spacing();
+
+        Styling.VSpace(4f);
         DrawFooter(cfg);
     }
 
-    private static void DrawHeaderStrip()
+    private static void DrawHeaderStrip(Vector4 accent, Vector4 accentSoft)
     {
+        var scale = ImGuiHelpers.GlobalScale;
+        var dl = ImGui.GetWindowDrawList();
+        var dot = Styling.PulseColor(accent, accentSoft, Styling.PulseMedium);
+
+        var cur = ImGui.GetCursorScreenPos();
+        var fh = ImGui.GetFrameHeight();
+        var r = 4f * scale;
+        var center = new Vector2(cur.X + r + 3f * scale, cur.Y + fh * 0.5f);
+        dl.AddCircleFilled(center, r * 2.2f, ImGui.GetColorU32(Styling.WithAlpha(dot, 0.22f)));
+        dl.AddCircleFilled(center, r, ImGui.GetColorU32(dot));
+        ImGui.Dummy(new Vector2(r * 2f + 8f * scale, fh));
+
+        ImGui.SameLine(0, 4f);
         ImGui.AlignTextToFramePadding();
-        using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
-            ImGui.TextUnformatted("STATUS");
+        using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextSecondary))
+            ImGui.TextUnformatted("RUNNING");
+
         TopToolbar.DrawIconsInline(Plugin.Instance);
     }
 
-    private static void DrawStatusCard(AutoFateController controller)
+    private static void DrawHeroCard(
+        Configuration cfg, AutoFateController controller, PublicEvent? fate, bool inFate,
+        Vector4 accent, Vector4 accentSoft, string label)
     {
-        var height = Layout.StatusCardHeight * ImGuiHelpers.GlobalScale;
-        var fate = PublicEvent.CurrentFate;
-        var inFate = fate is not null && fate.State == FateState.Running;
-
-        var (accent, accentSoft, label) = PhasePalette(controller, inFate);
+        var scale = ImGuiHelpers.GlobalScale;
+        var height = Layout.HeroCardHeight * scale;
+        var width = ImGui.GetContentRegionAvail().X;
+        var origin = ImGui.GetCursorScreenPos();
+        var end = origin + new Vector2(width, height);
+        var dl = ImGui.GetWindowDrawList();
         var active = controller.Running;
 
         var border = active
             ? Styling.PulseColor(accent, accentSoft, inFate ? Styling.PulseFast : Styling.PulseMedium)
             : Styling.BorderDim;
         var bg = active ? Vector4.Lerp(Styling.CardBg, accent, 0.08f) : Styling.CardBgSoft;
+        dl.AddRectFilled(origin, end, ImGui.GetColorU32(bg), Styling.CardRounding);
+        dl.AddRect(origin, end, ImGui.GetColorU32(border), Styling.CardRounding, ImDrawFlags.None, active ? 2f : 1f);
 
-        using (Card.Begin("##afg_status", new Vector2(-1, height), bg, border, active ? 2f : 1.0f))
+        var info = GoalProgress.Resolve(cfg, controller.SessionSnapshot);
+
+        var padX = 16f * scale;
+        var ringRadius = height * 0.5f - 15f * scale;
+        var ringCenter = new Vector2(origin.X + padX + ringRadius, origin.Y + height * 0.5f);
+        DrawGoalRing(ringCenter, ringRadius, accent, active, info);
+
+        var colX = ringCenter.X + ringRadius + 18f * scale;
+        var colRight = end.X - padX;
+        var colW = colRight - colX;
+        var y = origin.Y + 13f * scale;
+
+        var chipH = DrawPhaseChip(colX, y, label, accent, accentSoft, inFate && (fate?.HasBonus ?? false));
+        y += chipH + 9f * scale;
+
+        if (inFate)
         {
-            DrawPhaseLabel(label, accent, active);
-            if (inFate) DrawActive(fate!, controller, accent);
-            else DrawTransitioning(controller);
+            var name = Truncate($"L{fate!.Level}   {fate.Name}", colW, 1.18f);
+            PutScaled(name, colX, y, Styling.TextStrong, 1.18f);
+            y += MeasureHeight(name, 1.18f) + 8f * scale;
+
+            var barH = 13f * scale;
+            DrawBar(new Vector2(colX, y), colW, barH, fate.Progress / 100f, accent, 4f);
+            y += barH + 6f * scale;
+
+            PutScaled($"{fate.Progress}%   ·   {Formatting.Time(fate.TimeRemaining)} left", colX, y, Styling.TextDim, 0.92f);
+            PutRightScaled(info.Remaining, colRight, y, Styling.WithAlpha(accentSoft, 0.9f), 0.92f);
         }
+        else
+        {
+            var status = Truncate(string.IsNullOrWhiteSpace(controller.Status) ? "Working…" : controller.Status, colW, 1.05f);
+            PutScaled(status, colX, y, Styling.TextSecondary, 1.05f);
+            y += MeasureHeight(status, 1.05f) + 10f * scale;
+
+            var barH = 9f * scale;
+            if (active) DrawIndeterminateBar(new Vector2(colX, y), colW, barH, accent);
+            else DrawBar(new Vector2(colX, y), colW, barH, 0f, accent, 4f);
+            y += barH + 7f * scale;
+
+            PutScaled(info.Remaining, colX, y, Styling.WithAlpha(accentSoft, 0.9f), 0.92f);
+        }
+
+        ImGui.SetCursorScreenPos(origin);
+        ImGui.Dummy(new Vector2(width, height));
+    }
+
+    private static void DrawGoalRing(Vector2 center, float radius, Vector4 accent, bool active, GoalProgress.Info info)
+    {
+        var thickness = 5f * ImGuiHelpers.GlobalScale;
+        ProgressRing.Track(center, radius, thickness, Styling.WithAlpha(Styling.BorderDim, 0.8f));
+
+        if (info.Endless)
+        {
+            if (active)
+                ProgressRing.Sweep(center, radius, thickness, accent, Styling.PulseOrbit, MathF.PI * 0.6f, 1f);
+        }
+        else
+        {
+            ProgressRing.Fill(center, radius, thickness, info.Fraction ?? 0f, accent);
+        }
+
+        ProgressRing.CenterValue(center, info.CenterBig, info.CenterSmall, Styling.TextStrong, Styling.TextDim, 1.5f);
+    }
+
+    private static float DrawPhaseChip(float x, float y, string text, Vector4 accent, Vector4 accentSoft, bool bonus)
+    {
+        var scale = ImGuiHelpers.GlobalScale;
+        var dl = ImGui.GetWindowDrawList();
+        const float chipScale = 0.84f;
+        var padX = 8f * scale;
+        var padY = 3f * scale;
+
+        ImGui.SetWindowFontScale(chipScale);
+        var textSize = ImGui.CalcTextSize(text);
+        var star = bonus ? FontAwesomeIcon.Star.ToIconString() : "";
+        var starGap = bonus ? 6f * scale : 0f;
+        float starW = 0f;
+        if (bonus)
+            using (ImRaii.PushFont(UiBuilder.IconFont))
+                starW = ImGui.CalcTextSize(star).X;
+        ImGui.SetWindowFontScale(1f);
+
+        var chipW = padX * 2 + textSize.X + (bonus ? starGap + starW : 0f);
+        var chipH = textSize.Y + padY * 2;
+        var origin = new Vector2(x, y);
+        var end = origin + new Vector2(chipW, chipH);
+
+        dl.AddRectFilled(origin, end, ImGui.GetColorU32(Vector4.Lerp(Styling.CardBg, accent, 0.30f)), 4f);
+        dl.AddRect(origin, end, ImGui.GetColorU32(Styling.WithAlpha(accent, 0.65f)), 4f);
+
+        PutScaled(text, x + padX, y + padY, accentSoft, chipScale);
+        if (bonus)
+        {
+            ImGui.SetWindowFontScale(chipScale);
+            using (ImRaii.PushFont(UiBuilder.IconFont))
+                Put(star, x + padX + textSize.X + starGap, y + padY, Styling.AccentAmber);
+            ImGui.SetWindowFontScale(1f);
+        }
+
+        return chipH;
     }
 
     private static (Vector4 accent, Vector4 accentSoft, string label) PhasePalette(AutoFateController controller, bool inFate)
@@ -77,87 +201,53 @@ internal static class RunningPanel
         };
     }
 
-    private static void DrawPhaseLabel(string label, Vector4 accent, bool active)
-    {
-        ImGui.SetWindowFontScale(0.9f);
-        using (ImRaii.PushColor(ImGuiCol.Text, active ? accent : Styling.TextDim))
-            ImGui.TextUnformatted(label);
-        ImGui.SetWindowFontScale(1.0f);
-    }
-
-    private static void DrawActive(PublicEvent fate, AutoFateController controller, Vector4 accent)
-    {
-        ImGui.SetWindowFontScale(1.45f);
-        using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextStrong))
-            ImGui.TextUnformatted($"L{fate.Level}   {fate.Name}");
-        ImGui.SetWindowFontScale(1.0f);
-
-        if (fate.HasBonus)
-        {
-            ImGui.SameLine();
-            using (ImRaii.PushFont(UiBuilder.IconFont))
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentAmber))
-                ImGui.TextUnformatted(FontAwesomeIcon.Star.ToIconString());
-        }
-
-        ImGui.Spacing();
-        DrawFatProgressBar(fate.Progress / 100f, accent);
-        using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
-            ImGui.TextUnformatted($"{fate.Progress}%   ·   {Formatting.Time(fate.TimeRemaining)} remaining");
-
-        ImGui.Spacing();
-        DrawSessionLine(controller);
-    }
-
-    private static void DrawTransitioning(AutoFateController controller)
-    {
-        ImGui.SetWindowFontScale(1.30f);
-        using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextSecondary))
-            ImGui.TextUnformatted(string.IsNullOrWhiteSpace(controller.Status) ? "Waiting..." : controller.Status);
-        ImGui.SetWindowFontScale(1.0f);
-
-        ImGui.Spacing();
-        DrawSessionLine(controller);
-    }
-
-    private static void DrawSessionLine(AutoFateController controller)
+    private static void DrawStatTiles(Configuration cfg, AutoFateController controller)
     {
         var s = controller.SessionSnapshot;
-        if (s is null) return;
-        ImGui.SetCursorPosY(ImGui.GetCursorPosY() - 4f * ImGuiHelpers.GlobalScale);
+        var scale = ImGuiHelpers.GlobalScale;
+        var avail = ImGui.GetContentRegionAvail().X;
+        var gap = 6f * scale;
+        var tileW = (avail - gap * 3f) / 4f;
 
-        var remaining = Plugin.Cfg.ActiveMode.GetRemainingDisplay(
-            new Core.Modes.ModeContext { CompletedCount = s.CompletedCount, Zones = [], Elapsed = s.Elapsed });
-        var remainingSuffix = remaining is null ? "" : $"  ·  {remaining}";
+        var completed = s?.CompletedCount ?? 0;
+        var fph = s?.FatesPerHour ?? 0;
+        var gems = s?.GemstonesEarned ?? 0;
+        var hours = s?.Elapsed.TotalHours ?? 0;
+        var gph = hours > 0 ? gems / hours : 0;
 
-        using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
-            ImGui.TextUnformatted($"Session:  {s.CompletedCount} FATEs  ·  {s.GemstonesEarned} gems  ·  {Formatting.Elapsed(s.Elapsed)}  ·  {s.FatesPerHour:F1}/h{remainingSuffix}");
+        string expVal, expSub;
+        if (s is { ExpPerHour: > 0 })
+        {
+            expVal = Formatting.Exp((long)s.ExpPerHour);
+            expSub = CapEta(s.ExpPerHour);
+        }
+        else
+        {
+            expVal = "—";
+            expSub = ExpReader.ExpToCap() is null ? "at cap" : "";
+        }
 
-        if (s.ExpEarned > 0)
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
-                ImGui.TextUnformatted($"Exp:  {Formatting.Exp(s.ExpEarned)} earned  ·  {Formatting.Exp((long)s.ExpPerHour)}/h{FormatTimeToCap(s.ExpPerHour)}");
-    }
+        var info = GoalProgress.Resolve(cfg, s);
+        var elapsedVal = s is null ? "0m 00s" : Formatting.Elapsed(s.Elapsed);
+        var elapsedSub = info.Endless ? "" : info.Remaining;
 
-    private static string FormatTimeToCap(double expPerHour)
-    {
-        if (expPerHour <= 0) return "";
-        if (Core.Game.Player.ExpReader.ExpToCap() is not { } toCap || toCap <= 0) return "";
-        var hours = toCap / expPerHour;
-        if (hours <= 0 || double.IsInfinity(hours)) return "";
-        var span = TimeSpan.FromHours(hours);
-        var eta = span.TotalHours >= 1 ? $"{(int)span.TotalHours}h {span.Minutes:D2}m" : $"{span.Minutes}m";
-        return $"  ·  ~{eta} to cap";
+        StatTile.Draw("FATEs", completed.ToString(), fph > 0 ? $"{fph:F1} /h" : null, Styling.AccentBlue, tileW);
+        ImGui.SameLine(0, gap);
+        StatTile.Draw("Gems", gems.ToString(), gph >= 1 ? $"{gph:F0} /h" : null, Styling.AccentAmber, tileW);
+        ImGui.SameLine(0, gap);
+        StatTile.Draw("Exp/h", expVal, string.IsNullOrEmpty(expSub) ? null : expSub, Styling.AccentMint, tileW);
+        ImGui.SameLine(0, gap);
+        StatTile.Draw("Elapsed", elapsedVal, string.IsNullOrEmpty(elapsedSub) ? null : elapsedSub, Styling.AccentViolet, tileW);
     }
 
     private static void DrawQueue(Configuration cfg)
     {
         Styling.SectionLabel("Up Next");
+        Styling.VSpace(2f);
+
         var player = Svc.Objects.LocalPlayer;
-        if (player is null)
-        {
-            EmptyHint("Player not loaded.");
-            return;
-        }
+        if (player is null) { EmptyHint("Player not loaded."); return; }
+
         var current = PublicEvent.CurrentFate;
         var eligible = (PublicEvent.Fates ?? Enumerable.Empty<PublicEvent>())
             .Where(f => current is null || f.Id != current.Id)
@@ -167,48 +257,49 @@ internal static class RunningPanel
             .ToArray();
         if (fates.Length == 0) { EmptyHint("No other eligible FATEs in this zone."); return; }
 
-        foreach (var f in fates)
+        for (var i = 0; i < fates.Length; i++)
         {
-            DrawQueueRow(f, player.Position);
+            DrawQueueRow(fates[i], player.Position, i == 0);
             ImGui.Spacing();
         }
     }
 
-    private static void DrawQueueRow(PublicEvent fate, Vector3 playerPos)
+    private static void DrawQueueRow(PublicEvent fate, Vector3 playerPos, bool emphasize)
     {
-        var rowHeight = Layout.QueueRowHeight * ImGuiHelpers.GlobalScale;
+        var scale = ImGuiHelpers.GlobalScale;
+        var rowHeight = Layout.QueueRowHeight * scale;
         var origin = ImGui.GetCursorScreenPos();
         var width = ImGui.GetContentRegionAvail().X;
         var end = origin + new Vector2(width, rowHeight);
         var dl = ImGui.GetWindowDrawList();
-        dl.AddRectFilled(origin, end, ImGui.GetColorU32(Styling.CardBgSoft), 5f);
 
-        var padX = 10f * ImGuiHelpers.GlobalScale;
-        var topY = origin.Y + 6f * ImGuiHelpers.GlobalScale;
+        var accent = fate.HasBonus ? Styling.AccentAmber : Styling.AccentViolet;
+        dl.AddRectFilled(origin, end, ImGui.GetColorU32(Styling.CardBgSoft), 6f);
+        dl.AddRect(origin, end,
+            ImGui.GetColorU32(Styling.WithAlpha(emphasize ? accent : Styling.BorderDim, emphasize ? 0.8f : 0.5f)),
+            6f, ImDrawFlags.None, emphasize ? 1.5f : 1f);
 
+        var padX = 11f * scale;
+        var topY = origin.Y + 7f * scale;
+
+        var icon = (fate.HasBonus ? FontAwesomeIcon.Star : FontAwesomeIcon.Bolt).ToIconString();
         var iconColor = fate.HasBonus ? Styling.AccentAmber : Styling.TextDim;
-        var icon = fate.HasBonus ? FontAwesomeIcon.Star : FontAwesomeIcon.Bolt;
-        ImGui.SetCursorScreenPos(new Vector2(origin.X + padX, topY));
+        float iconW;
         using (ImRaii.PushFont(UiBuilder.IconFont))
-        using (ImRaii.PushColor(ImGuiCol.Text, iconColor))
-            ImGui.TextUnformatted(icon.ToIconString());
+        {
+            iconW = ImGui.CalcTextSize(icon).X;
+            Put(icon, origin.X + padX, topY, iconColor);
+        }
 
-        ImGui.SameLine();
-        using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextStrong))
-            ImGui.TextUnformatted($"L{fate.Level}   {fate.Name}");
+        Put($"L{fate.Level}   {fate.Name}", origin.X + padX + iconW + 9f * scale, topY, Styling.TextStrong);
 
         var dist = (int)Math.Round(Vector3.Distance(playerPos, fate.Position));
-        var right = $"{fate.Progress}%   ·   {Formatting.Time(fate.TimeRemaining)}   ·   {dist}y";
-        var rightSize = ImGui.CalcTextSize(right);
-        ImGui.SetCursorScreenPos(new Vector2(end.X - rightSize.X - padX, topY));
-        using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
-            ImGui.TextUnformatted(right);
+        PutRight($"{fate.Progress}%   ·   {Formatting.Time(fate.TimeRemaining)}   ·   {dist}y", end.X - padX, topY, Styling.TextDim);
 
-        var barOrigin = new Vector2(origin.X + padX, origin.Y + rowHeight - 12f * ImGuiHelpers.GlobalScale);
-        var barWidth = width - padX * 2;
-        var barColor = fate.HasBonus ? Styling.AccentAmber : Styling.AccentViolet;
-        DrawProgressBar(barOrigin, barWidth, fate.Progress / 100f, barColor);
+        DrawBar(new Vector2(origin.X + padX, origin.Y + rowHeight - 12f * scale),
+            width - padX * 2f, Layout.QueueBarHeight * scale, fate.Progress / 100f, accent, 3f);
 
+        ImGui.SetCursorScreenPos(origin);
         ImGui.Dummy(new Vector2(width, rowHeight));
     }
 
@@ -219,43 +310,100 @@ internal static class RunningPanel
         var name = zone?.Name ?? "(somewhere else)";
         var queued = cfg.SelectedZones.Count;
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
-            ImGui.TextUnformatted($"in: {name}   ·   {queued} zone{(queued == 1 ? "" : "s")} queued");
+            ImGui.TextUnformatted($"{name}   ·   {queued} zone{(queued == 1 ? "" : "s")} in rotation");
     }
 
-    private static void DrawFatProgressBar(float fraction, Vector4 color)
+    private static string CapEta(double expPerHour)
     {
-        var width = ImGui.GetContentRegionAvail().X;
-        var height = 18f * ImGuiHelpers.GlobalScale;
-        var origin = ImGui.GetCursorScreenPos();
-        var end = origin + new Vector2(width, height);
+        if (expPerHour <= 0) return "";
+        if (ExpReader.ExpToCap() is not { } toCap || toCap <= 0) return "";
+        var hours = toCap / expPerHour;
+        if (hours <= 0 || double.IsInfinity(hours)) return "";
+        var span = TimeSpan.FromHours(hours);
+        var eta = span.TotalHours >= 1 ? $"~{(int)span.TotalHours}h {span.Minutes:D2}m" : $"~{span.Minutes}m";
+        return $"{eta} to cap";
+    }
+
+    private static void DrawBar(Vector2 origin, float width, float height, float fraction, Vector4 color, float rounding)
+    {
         var dl = ImGui.GetWindowDrawList();
-        dl.AddRectFilled(origin, end, ImGui.GetColorU32(Styling.CardBgSoft), 6f);
+        var end = origin + new Vector2(width, height);
+        dl.AddRectFilled(origin, end, ImGui.GetColorU32(Styling.CardBgSoft), rounding);
         if (fraction > 0)
         {
             var fillEnd = new Vector2(origin.X + width * Math.Clamp(fraction, 0f, 1f), end.Y);
-            dl.AddRectFilled(origin, fillEnd, ImGui.GetColorU32(color * 0.9f), 6f);
+            dl.AddRectFilled(origin, fillEnd, ImGui.GetColorU32(color * 0.9f), rounding);
         }
-        dl.AddRect(origin, end, ImGui.GetColorU32(Styling.BorderDim), 6f);
-        ImGui.Dummy(new Vector2(width, height));
+        dl.AddRect(origin, end, ImGui.GetColorU32(Styling.WithAlpha(Styling.BorderDim, 0.6f)), rounding);
     }
 
-    private static void DrawProgressBar(Vector2 origin, float width, float fraction, Vector4 color)
+    private static void DrawIndeterminateBar(Vector2 origin, float width, float height, Vector4 color)
     {
         var dl = ImGui.GetWindowDrawList();
-        var height = Layout.QueueBarHeight * ImGuiHelpers.GlobalScale;
         var end = origin + new Vector2(width, height);
-        dl.AddRectFilled(origin, end, ImGui.GetColorU32(Styling.CardBg), 3f);
-        if (fraction > 0)
-        {
-            var fillEnd = new Vector2(origin.X + width * Math.Clamp(fraction, 0f, 1f), end.Y);
-            dl.AddRectFilled(origin, fillEnd, ImGui.GetColorU32(color * 0.85f), 3f);
-        }
+        dl.AddRectFilled(origin, end, ImGui.GetColorU32(Styling.CardBgSoft), 4f);
+
+        var segW = width * 0.32f;
+        var x0 = origin.X - segW + (width + segW) * Styling.Phase(1400.0);
+        var segMin = new Vector2(Math.Max(origin.X, x0), origin.Y);
+        var segMax = new Vector2(Math.Min(end.X, x0 + segW), end.Y);
+        if (segMax.X > segMin.X)
+            dl.AddRectFilled(segMin, segMax, ImGui.GetColorU32(color * 0.9f), 4f);
+
+        dl.AddRect(origin, end, ImGui.GetColorU32(Styling.WithAlpha(Styling.BorderDim, 0.6f)), 4f);
     }
 
     private static void EmptyHint(string text)
     {
-        ImGui.Spacing();
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
             ImGui.TextUnformatted(text);
     }
+
+    private static string Truncate(string text, float maxWidth, float fontScale)
+    {
+        ImGui.SetWindowFontScale(fontScale);
+        if (ImGui.CalcTextSize(text).X <= maxWidth) { ImGui.SetWindowFontScale(1f); return text; }
+        const string ell = "…";
+        var t = text;
+        while (t.Length > 1 && ImGui.CalcTextSize(t + ell).X > maxWidth) t = t[..^1];
+        ImGui.SetWindowFontScale(1f);
+        return t + ell;
+    }
+
+    private static float MeasureHeight(string text, float fontScale)
+    {
+        ImGui.SetWindowFontScale(fontScale);
+        var h = ImGui.CalcTextSize(text).Y;
+        ImGui.SetWindowFontScale(1f);
+        return h;
+    }
+
+    private static void Put(string text, float x, float y, Vector4 color)
+    {
+        ImGui.SetCursorScreenPos(new Vector2(x, y));
+        using (ImRaii.PushColor(ImGuiCol.Text, color))
+            ImGui.TextUnformatted(text);
+    }
+
+    private static void PutScaled(string text, float x, float y, Vector4 color, float fontScale)
+    {
+        ImGui.SetWindowFontScale(fontScale);
+        ImGui.SetCursorScreenPos(new Vector2(x, y));
+        using (ImRaii.PushColor(ImGuiCol.Text, color))
+            ImGui.TextUnformatted(text);
+        ImGui.SetWindowFontScale(1f);
+    }
+
+    private static void PutRightScaled(string text, float rightX, float y, Vector4 color, float fontScale)
+    {
+        ImGui.SetWindowFontScale(fontScale);
+        var w = ImGui.CalcTextSize(text).X;
+        ImGui.SetCursorScreenPos(new Vector2(rightX - w, y));
+        using (ImRaii.PushColor(ImGuiCol.Text, color))
+            ImGui.TextUnformatted(text);
+        ImGui.SetWindowFontScale(1f);
+    }
+
+    private static void PutRight(string text, float rightX, float y, Vector4 color)
+        => Put(text, rightX - ImGui.CalcTextSize(text).X, y, color);
 }

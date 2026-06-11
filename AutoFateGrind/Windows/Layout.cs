@@ -6,9 +6,9 @@ internal static class Layout
     public const float HeroButtonHeight = 52f;
     public const float ZoneListHeight = 196f;
 
-    public const float PrimaryButtonHeight = 44f;
-
-    public const float StatusCardHeight = 138f;
+    // Running dashboard
+    public const float HeroCardHeight = 120f;
+    public const float StatTileHeight = 58f;
     public const float QueueRowHeight = 52f;
     public const float QueueBarHeight = 6f;
 
