@@ -23,7 +23,7 @@
 
 <p align="center">
   <strong>Example overnight run:</strong><br>
-  <img src="AutoFateGrind/Images/Example.jpeg" alt="Example overnight run" />
+  <img src="AutoFateGrind/Images/Example.png" alt="Example overnight run" />
 </p>
 
 ## What it does
