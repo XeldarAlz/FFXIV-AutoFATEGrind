@@ -22,11 +22,6 @@
 </p>
 
 <p align="center">
-  <strong>Example overnight run:</strong><br>
-  <img src="AutoFateGrind/Images/Example.png" alt="Example overnight run" />
-</p>
-
-<p align="center">
   <strong>Example 24 hours full AFK run:</strong><br>
   <img src="AutoFateGrind/Images/Example2.png" alt="Example 24 hours full AFK run" />
 </p>
