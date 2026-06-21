@@ -26,6 +26,11 @@
   <img src="AutoFateGrind/Images/Example.png" alt="Example overnight run" />
 </p>
 
+<p align="center">
+  <strong>Example 24 hours full AFK run:</strong><br>
+  <img src="AutoFateGrind/Images/Example2.png" alt="Example 24 hours full AFK run" />
+</p>
+
 ## What it does
 
 Lists every FATE zone from A Realm Reborn through Dawntrail in one window. Tick the zones you want, press **Run selected**, and the plugin teleports to each one, scans for active FATEs, flies to them, engages, and rotates to the next selected zone when the current one runs dry.
