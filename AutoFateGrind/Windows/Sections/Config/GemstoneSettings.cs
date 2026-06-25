@@ -67,28 +67,57 @@ internal static class GemstoneSettings
                 100, Core.AfgConstants.BicolorCap, "%d gems"));
     }
 
+    private static GemstoneTradeItem[]? sortedItems;
+    private static string[]? sortedLabels;
+
     private static void DrawItemGroup(Configuration cfg)
     {
         using var group = SettingsGroup.Begin("What to buy");
 
         SettingsRow.DrawBlock("Item to buy",
-            "Pulled live from game data. Cost shown in gems per one.",
+            "Pulled live from game data, sorted A-Z. Type to search. Cost shown in gems per one.",
             () =>
             {
-                var catalog = GemstoneCatalog.All;
-                if (catalog.Length == 0)
+                EnsureSortedCatalog();
+                if (sortedItems is null || sortedItems.Length == 0)
                 {
                     SettingsRow.Note("No gem-shop items found.", Styling.AccentRose);
                     return;
                 }
 
                 var effectiveId = GemstoneCatalog.EnsurePersistedTarget();
-                var idx = Array.FindIndex(catalog, i => i.ItemId == effectiveId);
-                if (idx < 0) idx = 0;
-                var labels = catalog.Select(i => $"{i.ItemName}  ({i.CostPerOne}g)").ToArray();
-                if (SettingsControls.DrawPlainCombo("##tr_item", ref idx, labels, 380f))
-                { cfg.TargetTradeItemId = catalog[idx].ItemId; cfg.SaveDebounced(); }
+                var selectedIndex = Array.FindIndex(sortedItems, i => i.ItemId == effectiveId);
+                if (selectedIndex < 0)
+                {
+                    selectedIndex = 0;
+                }
+
+                if (SettingsControls.DrawSearchableCombo("##tr_item", sortedLabels![selectedIndex], sortedLabels, ref selectedIndex, 380f))
+                {
+                    cfg.TargetTradeItemId = sortedItems[selectedIndex].ItemId;
+                    cfg.SaveDebounced();
+                }
             });
+    }
+
+    // Catalog order is cost-ascending (the default-target picker relies on that). The dropdown wants A-Z
+    // for scanning, so keep a name-sorted view cached alongside its labels; rebuilt only if the catalog
+    // populates or changes length after game data loads.
+    private static void EnsureSortedCatalog()
+    {
+        var catalog = GemstoneCatalog.All;
+        if (sortedItems is not null && sortedItems.Length == catalog.Length)
+        {
+            return;
+        }
+
+        sortedItems = [.. catalog.OrderBy(i => i.ItemName, StringComparer.OrdinalIgnoreCase)];
+        sortedLabels = new string[sortedItems.Length];
+        for (var itemIndex = 0; itemIndex < sortedItems.Length; itemIndex++)
+        {
+            var item = sortedItems[itemIndex];
+            sortedLabels[itemIndex] = $"{item.ItemName}  ({item.CostPerOne}g)";
+        }
     }
 
     private static void DrawSpendGroup(Configuration cfg)

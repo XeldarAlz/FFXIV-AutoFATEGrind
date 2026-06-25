@@ -18,6 +18,11 @@ internal static class SettingsControls
     private const float RangeDashSlot = 14f;
     private const float RangeDragSpeed = 0.25f;
 
+    private const float SearchComboMaxHeight = 360f;
+    private const int SearchComboFilterMaxLength = 64;
+
+    private static readonly Dictionary<string, string> searchComboFilters = new();
+
     public static float RangeInlineWidth()
         => RangeDragWidth * 2f + RangeDashSlot;
 
@@ -53,6 +58,58 @@ internal static class SettingsControls
         {
             return ImGui.Combo(id, ref index, labels, labels.Length);
         }
+    }
+
+    // Type-to-filter combo for long lists: a search box pinned to the top of the popup narrows the
+    // Selectables below it. Labels are matched case-insensitively, so the caller can fold extra detail
+    // (cost, tags) into each label and still have it be searchable. Returns true when the selection moves.
+    public static bool DrawSearchableCombo(string id, string preview, string[] labels, ref int selectedIndex,
+        float width, string hint = "Search...")
+    {
+        var scale = ImGuiHelpers.GlobalScale;
+        ImGui.SetNextItemWidth(width * scale);
+        ImGui.SetNextWindowSizeConstraints(
+            new Vector2(width * scale, 0f),
+            new Vector2(width * scale, SearchComboMaxHeight * scale));
+
+        using var frameColors = PushFrameColors();
+        using var combo = ImRaii.Combo(id, preview);
+        if (!combo)
+        {
+            return false;
+        }
+
+        if (!searchComboFilters.TryGetValue(id, out var filter))
+        {
+            filter = string.Empty;
+        }
+
+        if (ImGui.IsWindowAppearing())
+        {
+            filter = string.Empty;
+            ImGui.SetKeyboardFocusHere(0);
+        }
+
+        ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X);
+        ImGui.InputTextWithHint($"{id}_search", hint, ref filter, SearchComboFilterMaxLength);
+        searchComboFilters[id] = filter;
+
+        var changed = false;
+        for (var labelIndex = 0; labelIndex < labels.Length; labelIndex++)
+        {
+            if (filter.Length > 0 && labels[labelIndex].IndexOf(filter, StringComparison.OrdinalIgnoreCase) < 0)
+            {
+                continue;
+            }
+
+            if (ImGui.Selectable(labels[labelIndex], labelIndex == selectedIndex))
+            {
+                selectedIndex = labelIndex;
+                changed = true;
+            }
+        }
+
+        return changed;
     }
 
     public static void DrawRangeInline(Configuration cfg, string minId, string maxId,
