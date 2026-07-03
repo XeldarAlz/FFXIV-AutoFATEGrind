@@ -6,16 +6,13 @@ using System.Threading.Tasks;
 
 namespace AutoFateGrind.Core.Game.Watchers;
 
-// Fires alerts when a player with a GM OnlineStatus enters the object table.
-// "fired" latches on the rising edge so each appearance triggers exactly once;
-// it resets when no GM is in range, so a re-entry re-fires.
 internal sealed class GmAlertWatcher : IDisposable
 {
     // OnlineStatus row IDs 1..3 are the GM tiers (GameMaster, GameMaster Sentry, GameMaster Officer).
     private const uint GmStatusMin = 1;
     private const uint GmStatusMax = 3;
 
-    private bool fired;
+    private uint? alertedGmEntityId;
 
     public GmAlertWatcher()
     {
@@ -32,16 +29,12 @@ internal sealed class GmAlertWatcher : IDisposable
         var cfg = Plugin.Cfg;
         if (!AnyActionEnabled(cfg))
         {
-            fired = false;
+            alertedGmEntityId = null;
             return;
         }
 
         var local = Svc.Objects.LocalPlayer;
-        if (local is null)
-        {
-            fired = false;
-            return;
-        }
+        if (local is null) return;
 
         IPlayerCharacter? gm = null;
         foreach (var obj in Svc.Objects)
@@ -58,12 +51,12 @@ internal sealed class GmAlertWatcher : IDisposable
 
         if (gm is null)
         {
-            fired = false;
+            alertedGmEntityId = null;
             return;
         }
 
-        if (fired) return;
-        fired = true;
+        if (alertedGmEntityId == gm.EntityId) return;
+        alertedGmEntityId = gm.EntityId;
 
         FireAlerts(cfg, gm);
     }

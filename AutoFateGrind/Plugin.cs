@@ -101,6 +101,9 @@ public sealed class Plugin : IDalamudPlugin
 
     public void Dispose()
     {
+        Controller.Stop();
+        AutoFate.DisableTextAdvance();
+
         TaskScheduler.UnobservedTaskException -= unobservedTaskHandler;
 
         PluginInterface.UiBuilder.Draw -= WindowSystem.Draw;

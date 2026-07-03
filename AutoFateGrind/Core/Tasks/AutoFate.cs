@@ -41,6 +41,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private const int   CollectExpiryTimeoutMs = 90_000;
     private const int   EngageStallTimeoutMs = 60_000;
     private const int   EngageOutOfCombatGraceMs = 30_000;
+    private const int   EngageNoProgressHardCapMs = 240_000;
     // Cap on fighting off a mob that aggroed mid-travel, so an unkillable add can't park the run.
     private const int   CombatClearTimeoutMs = 30_000;
     private const int   RaiseWaitMs = 30_000;
@@ -328,7 +329,8 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
 
         // Only a Running CurrentFate means "fight it". A completed fate lingers non-Running for a
         // frame; routing that to Engaging (which returns instantly) would spin and freeze the game.
-        if (PublicEvent.CurrentFate is { State: FateState.Running } current)
+        if (PublicEvent.CurrentFate is { State: FateState.Running } current
+            && !sessionStuckFateIds.Contains(current.Id))
         {
             // Hold a completed Collect until out of combat so a stray mob can't trap us mid-deactivation.
             if (current is { Rule: PublicEvent.FateRule.Collect, Progress: >= 100, Id: var cid })

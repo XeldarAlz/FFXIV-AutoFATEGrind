@@ -16,7 +16,8 @@ internal static unsafe class TargetDumper
 
         Svc.Chat.Print($"{AfgConstants.LogPrefix} Territory: {territoryId} ({territoryName})");
 
-        var target = TargetSystem.Instance()->Target;
+        var targetSystem = TargetSystem.Instance();
+        var target = targetSystem is null ? null : targetSystem->Target;
         if (target == null)
         {
             Svc.Chat.Print($"{AfgConstants.LogPrefix} No target. Click an NPC or FATE marker first, then re-run /afg target.");

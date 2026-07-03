@@ -33,6 +33,12 @@ internal sealed partial class AutoFateController
 
     public void RunAll(IEnumerable<ZoneInfo> zones)
     {
+        if (Running)
+        {
+            Diag("Start ignored: a run is already active.");
+            return;
+        }
+
         activeZones = zones.ToList();
         if (activeZones.Count == 0)
         {

@@ -153,7 +153,9 @@ internal static unsafe class RepairOps
 
     public static void HideRepairAgent()
     {
-        var agent = AgentModule.Instance()->GetAgentByInternalId(AgentId.Repair);
+        var agentModule = AgentModule.Instance();
+        if (agentModule is null) return;
+        var agent = agentModule->GetAgentByInternalId(AgentId.Repair);
         if (agent is null) return;
         agent->Hide();
     }
@@ -214,7 +216,9 @@ internal static unsafe class RepairOps
 
     public static RepairNpc? CaptureCurrentTargetAsRepairNpc()
     {
-        var target = TargetSystem.Instance()->Target;
+        var targetSystem = TargetSystem.Instance();
+        if (targetSystem is null) return null;
+        var target = targetSystem->Target;
         if (target is null) return null;
 
         var baseId = target->BaseId;

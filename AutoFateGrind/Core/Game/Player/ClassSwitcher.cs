@@ -13,7 +13,10 @@ internal static unsafe class ClassSwitcher
     private const int MaxGearsetCount = 100;
 
     public static bool IsValidGearset(int index)
-        => RaptureGearsetModule.Instance()->IsValidGearset(index);
+    {
+        var module = RaptureGearsetModule.Instance();
+        return module is not null && module->IsValidGearset(index);
+    }
 
     // UI is 1-based (matches in-game gearset list); API is 0-based.
     public static bool IsValidUserIndex(byte userIndex)
@@ -22,7 +25,9 @@ internal static unsafe class ClassSwitcher
     public static byte JobIdForUserIndex(byte userIndex)
     {
         if (!IsValidUserIndex(userIndex)) return 0;
-        var entry = RaptureGearsetModule.Instance()->GetGearset(userIndex - 1);
+        var module = RaptureGearsetModule.Instance();
+        if (module is null) return 0;
+        var entry = module->GetGearset(userIndex - 1);
         return entry is null ? (byte)0 : entry->ClassJob;
     }
 

@@ -396,7 +396,7 @@ public sealed partial class AutoFate
         }
     }
 
-    private static void DisableTextAdvance()
+    internal static void DisableTextAdvance()
     {
         if (!textAdvanceArmed) return;
         try { TextAdvanceIPC.DisableExternalControl(TextAdvanceScope); }

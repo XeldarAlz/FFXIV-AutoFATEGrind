@@ -162,11 +162,21 @@ public sealed partial class AutoFate
                     lastProgress = fate.Progress;
                     lastProgressAtMs = Environment.TickCount64;
                 }
-                else if (Environment.TickCount64 - lastProgressAtMs > EngageStallTimeoutMs
-                      && Environment.TickCount64 - lastInCombatAtMs > EngageOutOfCombatGraceMs)
+                else
                 {
-                    Diag($"EngageFate stalled: no progress in {EngageStallTimeoutMs/1000}s and out of combat {EngageOutOfCombatGraceMs/1000}s on FATE {fateId}; bailing");
-                    break;
+                    var stalledMs = Environment.TickCount64 - lastProgressAtMs;
+                    if (stalledMs > EngageStallTimeoutMs
+                     && Environment.TickCount64 - lastInCombatAtMs > EngageOutOfCombatGraceMs)
+                    {
+                        Diag($"EngageFate stalled: no progress in {EngageStallTimeoutMs/1000}s and out of combat {EngageOutOfCombatGraceMs/1000}s on FATE {fateId}; bailing");
+                        break;
+                    }
+                    if (stalledMs > EngageNoProgressHardCapMs)
+                    {
+                        Warn($"EngageFate made no progress for {EngageNoProgressHardCapMs/60000}m on FATE {fateId} (rotation may be inactive); blacklisting for this session and moving on.");
+                        sessionStuckFateIds.Add(fateId);
+                        break;
+                    }
                 }
 
                 if (Svc.Condition[ConditionFlag.Mounted])
@@ -197,8 +207,20 @@ public sealed partial class AutoFate
             if (collectTextAdvanceArmed) DisableTextAdvance();
         }
 
-        var finalProgress = PublicEvent.GetFateById(fateId)?.Progress ?? lastProgress;
-        var ended = sawRunning && (PublicEvent.GetFateById(fateId) is null || finalProgress >= 100);
+        var finalProgress = lastProgress;
+        var finalFateMissing = false;
+        try
+        {
+            if (PublicEvent.GetFateById(fateId) is { } finalFate)
+                finalProgress = finalFate.Progress;
+            else
+                finalFateMissing = true;
+        }
+        catch
+        {
+            finalFateMissing = true;
+        }
+        var ended = sawRunning && (finalFateMissing || finalProgress >= 100);
         if (ended)
         {
             session.CompletedCount++;

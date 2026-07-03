@@ -25,6 +25,7 @@ public sealed class AutoReturnToInn : AutoCommon
     private const float ArrivalTolerance          = 3.5f;
     private const float InnkeeperApproachDistance = 5f;
     private const float InnkeeperStepTolerance    = 2.5f;
+    private const string PrivateChambersKeyword   = "chamber";
 
     private readonly record struct Inn(uint CityTerritory, uint InnTerritory, uint InnkeeperDataId, Vector3 InnkeeperPos, string City);
 
@@ -127,8 +128,7 @@ public sealed class AutoReturnToInn : AutoCommon
         {
             if (EzThrottler.Throttle("AFG.InnSelectString", 600))
             {
-                var m = new AddonMaster.SelectString((nint)ss);
-                if (m.EntryCount > 0) m.Entries[0].Select();   // first entry = retire to your private chambers
+                SelectPrivateChambers(new AddonMaster.SelectString((nint)ss));
             }
             return true;
         }
@@ -145,5 +145,21 @@ public sealed class AutoReturnToInn : AutoCommon
             return true;
         }
         return false;
+    }
+
+    private static void SelectPrivateChambers(AddonMaster.SelectString menu)
+    {
+        if (menu.EntryCount <= 0) return;
+        for (var index = 0; index < menu.EntryCount; index++)
+        {
+            var text = menu.Entries[index].Text;
+            if (!string.IsNullOrEmpty(text)
+             && text.Contains(PrivateChambersKeyword, StringComparison.OrdinalIgnoreCase))
+            {
+                menu.Entries[index].Select();
+                return;
+            }
+        }
+        menu.Entries[0].Select();
     }
 }
