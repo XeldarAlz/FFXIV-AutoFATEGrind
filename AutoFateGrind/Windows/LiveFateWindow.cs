@@ -90,6 +90,9 @@ public sealed class LiveFateWindow : Window, IDisposable
             ImGui.TextUnformatted(controller.Running ? controller.Status : "No FATE engaged.");
     }
 
+    private const int QueuePreviewCount = 3;
+    private readonly List<PublicEvent> queueBuffer = new();
+
     private void DrawQueue()
     {
         var cfg = plugin.Configuration;
@@ -97,22 +100,18 @@ public sealed class LiveFateWindow : Window, IDisposable
         if (player is null) return;
 
         var current = PublicEvent.CurrentFate;
-        var eligible = (PublicEvent.Fates ?? Enumerable.Empty<PublicEvent>())
-            .Where(f => current is null || f.Id != current.Id)
-            .Where(f => Core.Game.Fates.FateScanner.IsEligible(f, cfg, null));
-        var fates = Core.Game.Fates.FateScanner.ApplySort(eligible, cfg.FateSortOrder, player.Position)
-            .Take(3)
-            .ToArray();
+        Core.Game.Fates.FateScanner.CollectEligible(cfg, player.Position, current?.Id, queueBuffer);
 
-        var any = false;
-        foreach (var f in fates)
+        if (queueBuffer.Count == 0)
         {
-            any = true;
-            DrawCompactRow(f);
-        }
-        if (!any)
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
                 ImGui.TextUnformatted("No other FATEs.");
+            return;
+        }
+
+        var count = Math.Min(QueuePreviewCount, queueBuffer.Count);
+        for (var index = 0; index < count; index++)
+            DrawCompactRow(queueBuffer[index]);
     }
 
     private static void DrawCompactRow(PublicEvent fate)

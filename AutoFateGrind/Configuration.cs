@@ -17,6 +17,9 @@ public sealed class Configuration : IPluginConfiguration
     public GrindMode Mode { get; set; } = GrindMode.MaxGemstones;
     public string ModeId { get; set; } = "";
 
+    private string? cachedModeId;
+    private IFateGrindMode? cachedMode;
+
     [Newtonsoft.Json.JsonIgnore]
     public IFateGrindMode ActiveMode
     {
@@ -24,7 +27,12 @@ public sealed class Configuration : IPluginConfiguration
         {
             if (string.IsNullOrEmpty(ModeId))
                 ModeId = FateGrindModes.IdForLegacy(Mode);
-            return FateGrindModes.GetById(ModeId) ?? FateGrindModes.Default;
+            if (cachedMode is null || cachedModeId != ModeId)
+            {
+                cachedMode = FateGrindModes.GetById(ModeId) ?? FateGrindModes.Default;
+                cachedModeId = ModeId;
+            }
+            return cachedMode;
         }
     }
 

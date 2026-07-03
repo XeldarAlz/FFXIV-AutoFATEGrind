@@ -47,17 +47,48 @@ public static class ExternalPlugins
 
     public static IEnumerable<ExternalPlugin> All => Catalog.Keys;
 
+    // The installed-plugin scan runs on many UI paths every frame; cache it and refresh on a short
+    // throttle so an idle frame does not re-enumerate the whole installed-plugin list per lookup.
+    private const int ScanThrottleMs = 1000;
+    private static readonly Dictionary<ExternalPlugin, bool> installedCache = new();
+    private static long lastScanMs;
+
     public static bool IsInstalled(ExternalPlugin plugin)
     {
-        var info = Catalog[plugin];
-        return Svc.PluginInterface.InstalledPlugins.Any(p =>
-            p.IsLoaded
-            && (p.InternalName == info.InternalName
-                || (info.Aliases is not null && Array.IndexOf(info.Aliases, p.InternalName) >= 0)));
+        RefreshInstalledCache();
+        return installedCache.TryGetValue(plugin, out var installed) && installed;
     }
 
     public static bool AllRequiredInstalled()
-        => All.Where(p => Catalog[p].Required).All(IsInstalled);
+    {
+        RefreshInstalledCache();
+        foreach (var plugin in Catalog.Keys)
+        {
+            if (!Catalog[plugin].Required) continue;
+            if (!installedCache.TryGetValue(plugin, out var installed) || !installed) return false;
+        }
+        return true;
+    }
+
+    private static void RefreshInstalledCache()
+    {
+        var now = Environment.TickCount64;
+        if (installedCache.Count > 0 && now - lastScanMs < ScanThrottleMs) return;
+        lastScanMs = now;
+        foreach (var plugin in Catalog.Keys)
+            installedCache[plugin] = ScanInstalled(Catalog[plugin]);
+    }
+
+    private static bool ScanInstalled(ExternalPluginInfo info)
+    {
+        foreach (var installed in Svc.PluginInterface.InstalledPlugins)
+        {
+            if (!installed.IsLoaded) continue;
+            if (installed.InternalName == info.InternalName) return true;
+            if (info.Aliases is not null && Array.IndexOf(info.Aliases, installed.InternalName) >= 0) return true;
+        }
+        return false;
+    }
 
     // Loaded in Dalamud but its own in-plugin toggle is off. Advisory only — AFG drives
     // TextAdvance via external control, so this never gates the grind, it only warns.

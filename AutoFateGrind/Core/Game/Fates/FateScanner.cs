@@ -1,6 +1,7 @@
 using clib.Utils;
 using ECommons.DalamudServices;
 using FFXIVClientStructs.FFXIV.Client.Game.Fate;
+using System.Collections.Generic;
 using System.Numerics;
 
 namespace AutoFateGrind.Core.Game.Fates;
@@ -29,8 +30,14 @@ internal static class FateScanner
             return ret;
         }
 
-        var eligible = fates.Where(f => IsEligible(f, cfg, sessionBlacklist));
-        return ApplySort(eligible, cfg.FateSortOrder, playerPos).FirstOrDefault();
+        var comparer = ComparerFor(cfg.FateSortOrder, playerPos);
+        PublicEvent? best = null;
+        foreach (var fate in fates)
+        {
+            if (!IsEligible(fate, cfg, sessionBlacklist)) continue;
+            if (best is null || comparer.Compare(fate, best) < 0) best = fate;
+        }
+        return best;
     }
 
     public static bool IsEligible(PublicEvent f, Configuration cfg, IReadOnlySet<uint>? sessionBlacklist)
@@ -45,21 +52,22 @@ internal static class FateScanner
         return true;
     }
 
-    public static IOrderedEnumerable<PublicEvent> ApplySort(
-        IEnumerable<PublicEvent> source,
-        IReadOnlyList<FateSortEntry> sortOrder,
-        Vector3 playerPos)
+    // Fills `into` with every eligible FATE (optionally excluding one id), sorted by the active order.
+    // Reuses the caller's buffer so the per-frame UI path allocates nothing.
+    public static void CollectEligible(
+        Configuration cfg, Vector3 playerPos, uint? excludeId, List<PublicEvent> into)
     {
-        var order = sortOrder is { Count: > 0 } ? sortOrder : DefaultSortOrder;
-        IOrderedEnumerable<PublicEvent>? ordered = null;
-        foreach (var entry in order)
+        into.Clear();
+        var fates = PublicEvent.Fates;
+        if (fates is null) return;
+
+        foreach (var fate in fates)
         {
-            var key = KeyFor(entry.Criterion, playerPos);
-            ordered = ordered is null
-                ? (entry.Descending ? source.OrderByDescending(key) : source.OrderBy(key))
-                : (entry.Descending ? ordered.ThenByDescending(key) : ordered.ThenBy(key));
+            if (excludeId is { } id && fate.Id == id) continue;
+            if (!IsEligible(fate, cfg, null)) continue;
+            into.Add(fate);
         }
-        return ordered ?? source.OrderBy(_ => 0);
+        into.Sort(ComparerFor(cfg.FateSortOrder, playerPos));
     }
 
     public static readonly IReadOnlyList<FateSortEntry> DefaultSortOrder =
@@ -72,29 +80,62 @@ internal static class FateScanner
         new() { Criterion = FateSortCriterion.TimeRemaining,       Descending = false },
     ];
 
-    private static Func<PublicEvent, IComparable> KeyFor(FateSortCriterion c, Vector3 playerPos) => c switch
+    private static FateComparer ComparerFor(IReadOnlyList<FateSortEntry> sortOrder, Vector3 playerPos)
     {
-        FateSortCriterion.HasBonusWithTwist => f => f.HasBonus && !PlayerHasTwistOfFate(),
-        FateSortCriterion.Progress          => f => f.Progress,
-        FateSortCriterion.HasBonus          => f => f.HasBonus,
-        FateSortCriterion.TimeRemainingUrgent => f => f.TimeRemaining is >= 0 and < UrgentTimeThresholdSec,
-        FateSortCriterion.Distance          => f => Vector3.DistanceSquared(f.Position, playerPos),
-        // Urgent FATEs sort by actual remaining time; non-urgent ones tie at the threshold so later
-        // criteria break the tie.
-        FateSortCriterion.TimeRemaining     => f => f.TimeRemaining is >= 0 and < UrgentTimeThresholdSec
-            ? f.TimeRemaining
-            : UrgentTimeThresholdSec,
-        FateSortCriterion.Level             => f => f.Level,
-        FateSortCriterion.Name              => f => f.Name ?? string.Empty,
-        _                                   => _ => 0,
-    };
+        var order = sortOrder is { Count: > 0 } ? sortOrder : DefaultSortOrder;
+        return new FateComparer(order, playerPos, PlayerHasTwistOfFate());
+    }
 
     public static bool PlayerHasTwistOfFate()
     {
         var player = Svc.Objects.LocalPlayer;
         if (player is null) return false;
-        foreach (var s in player.StatusList)
-            if (s.StatusId == TwistOfFateStatusId) return true;
+        foreach (var status in player.StatusList)
+            if (status.StatusId == TwistOfFateStatusId) return true;
         return false;
+    }
+
+    private readonly struct FateComparer(
+        IReadOnlyList<FateSortEntry> order, Vector3 playerPos, bool hasTwist) : IComparer<PublicEvent>
+    {
+        public int Compare(PublicEvent? x, PublicEvent? y)
+        {
+            if (x is null || y is null) return 0;
+            for (var index = 0; index < order.Count; index++)
+            {
+                var entry = order[index];
+                var comparison = CompareBy(entry.Criterion, x, y);
+                if (comparison != 0) return entry.Descending ? -comparison : comparison;
+            }
+            return 0;
+        }
+
+        private int CompareBy(FateSortCriterion criterion, PublicEvent a, PublicEvent b) => criterion switch
+        {
+            FateSortCriterion.HasBonusWithTwist   => (a.HasBonus && !hasTwist).CompareTo(b.HasBonus && !hasTwist),
+            FateSortCriterion.Progress            => a.Progress.CompareTo(b.Progress),
+            FateSortCriterion.HasBonus            => a.HasBonus.CompareTo(b.HasBonus),
+            FateSortCriterion.TimeRemainingUrgent => IsUrgent(a).CompareTo(IsUrgent(b)),
+            FateSortCriterion.Distance            => DistanceSq(a).CompareTo(DistanceSq(b)),
+            FateSortCriterion.TimeRemaining       => CompareTimeRemaining(a, b),
+            FateSortCriterion.Level               => a.Level.CompareTo(b.Level),
+            FateSortCriterion.Name                => string.CompareOrdinal(a.Name ?? string.Empty, b.Name ?? string.Empty),
+            _                                     => 0,
+        };
+
+        private float DistanceSq(PublicEvent f) => Vector3.DistanceSquared(f.Position, playerPos);
+
+        private static bool IsUrgent(PublicEvent f) => f.TimeRemaining is >= 0 and < UrgentTimeThresholdSec;
+
+        // Urgent FATEs sort before non-urgent ones and by actual remaining time; non-urgent ones tie so
+        // later criteria break it. Mirrors the old clamp-to-threshold key without boxing.
+        private static int CompareTimeRemaining(PublicEvent a, PublicEvent b)
+        {
+            var urgentA = IsUrgent(a);
+            var urgentB = IsUrgent(b);
+            if (urgentA != urgentB) return urgentA ? -1 : 1;
+            if (!urgentA) return 0;
+            return a.TimeRemaining.CompareTo(b.TimeRemaining);
+        }
     }
 }

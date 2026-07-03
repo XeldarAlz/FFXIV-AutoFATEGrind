@@ -227,6 +227,9 @@ internal static class RunningPanel
         StatTile.Draw("Elapsed", elapsedVal, string.IsNullOrEmpty(elapsedSub) ? null : elapsedSub, Styling.AccentViolet, tileW);
     }
 
+    private const int QueuePreviewCount = 5;
+    private static readonly List<PublicEvent> queueBuffer = new();
+
     private static void DrawQueue(Configuration cfg)
     {
         Styling.SectionLabel("Up Next");
@@ -236,17 +239,13 @@ internal static class RunningPanel
         if (player is null) { EmptyHint("Player not loaded."); return; }
 
         var current = PublicEvent.CurrentFate;
-        var eligible = (PublicEvent.Fates ?? Enumerable.Empty<PublicEvent>())
-            .Where(f => current is null || f.Id != current.Id)
-            .Where(f => FateScanner.IsEligible(f, cfg, null));
-        var fates = FateScanner.ApplySort(eligible, cfg.FateSortOrder, player.Position)
-            .Take(5)
-            .ToArray();
-        if (fates.Length == 0) { EmptyHint("No other eligible FATEs in this zone."); return; }
+        FateScanner.CollectEligible(cfg, player.Position, current?.Id, queueBuffer);
+        if (queueBuffer.Count == 0) { EmptyHint("No other eligible FATEs in this zone."); return; }
 
-        for (var i = 0; i < fates.Length; i++)
+        var count = Math.Min(QueuePreviewCount, queueBuffer.Count);
+        for (var index = 0; index < count; index++)
         {
-            DrawQueueRow(fates[i], player.Position, i == 0);
+            DrawQueueRow(queueBuffer[index], player.Position, index == 0);
             ImGui.Spacing();
         }
     }

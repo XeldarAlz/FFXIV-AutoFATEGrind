@@ -11,12 +11,15 @@ public static class FateGrindModes
         new EndlessMode(),
     ];
 
+    private static readonly Dictionary<string, IFateGrindMode> byId =
+        registered.ToDictionary(m => m.Id, StringComparer.Ordinal);
+
     public static IReadOnlyList<IFateGrindMode> All => registered;
 
     public static IFateGrindMode Default => registered[0];
 
     public static IFateGrindMode? GetById(string? id)
-        => id is null ? null : registered.FirstOrDefault(m => m.Id == id);
+        => id is not null && byId.TryGetValue(id, out var mode) ? mode : null;
 
     public static string IdForLegacy(GrindMode legacy) => legacy switch
     {
