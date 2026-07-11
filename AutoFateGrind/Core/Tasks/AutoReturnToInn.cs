@@ -113,12 +113,18 @@ public sealed class AutoReturnToInn : AutoCommon
                 continue;
             }
 
-            var interact = new MoveOp(o => o.Interact(npc, waitUntil: null, skip: UiSkipOptions.Talk));
+            var interact = new MoveOp(o => o.Interact(npc, waitUntil: AnyInnDialogOpen, skip: UiSkipOptions.Talk));
             await RunCancellable(interact, InteractWatchdogMs, "inn-interact");
+            if (interact.Fault is { } fault) Diag($"Innkeeper interaction failed: {fault.Message}; retrying");
             await NextFrame(500);
         }
         Diag("Return to inn: timed out before entering the inn room.");
     }
+
+    private static unsafe bool AnyInnDialogOpen()
+        => (GenericHelpers.TryGetAddonByName<AtkUnitBase>(AfgConstants.AddonNames.SelectString, out var selectString) && GenericHelpers.IsAddonReady(selectString))
+        || (GenericHelpers.TryGetAddonByName<AtkUnitBase>(AfgConstants.AddonNames.SelectYesno, out var yesno) && GenericHelpers.IsAddonReady(yesno))
+        || (GenericHelpers.TryGetAddonByName<AtkUnitBase>("Talk", out var talk) && GenericHelpers.IsAddonReady(talk));
 
     // Returns true if a relevant dialog was present this tick, so the caller waits instead of re-interacting.
     private static unsafe bool DriveInnDialogs()

@@ -60,8 +60,11 @@ public sealed class AutoTrade(uint targetItemId, uint originTerritoryId, Expansi
 
         Status = $"Talking to {trader.Name}";
         Diag($"Interacting with {trader.Name} (BaseId={npc!.BaseId})");
-        var interact = new MoveOp(o => o.Interact(npc, waitUntil: null, skip: UiSkipOptions.YesNo));
+        var interact = new MoveOp(o => o.Interact(npc,
+            waitUntil: () => ShopInteraction.ShopExchangeCurrencyOpen() || ShopInteraction.SelectIconStringOpen(),
+            skip: UiSkipOptions.YesNo));
         await RunCancellable(interact, InteractWaitMs, "trade-interact");
+        ErrorIf(interact.Fault is not null, $"Interacting with {trader.Name} failed: {interact.Fault?.Message}");
 
         ErrorIf(!await WaitUntilTimed(
                 () => ShopInteraction.ShopExchangeCurrencyOpen() || ShopInteraction.SelectIconStringOpen(),
