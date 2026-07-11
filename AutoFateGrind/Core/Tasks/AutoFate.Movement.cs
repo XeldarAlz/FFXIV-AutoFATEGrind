@@ -53,12 +53,16 @@ public sealed partial class AutoFate
             if (refreshed is null) { stopReason = MoveStopReason.FateInvalid; return true; }
             if (refreshed.State != FateState.Running)
             {
-                // Preparing → NPC may have just spawned; bail so ActivateFate runs.
-                if (refreshed.State == FateState.Preparing && refreshed.MotivationNpc?.IsTargetable == true)
-                    stopReason = MoveStopReason.NpcSpawned;
-                else
+                if (!FateScanner.AwaitsNpcStart(refreshed))
+                {
                     stopReason = MoveStopReason.FateInvalid;
-                return true;
+                    return true;
+                }
+                if (refreshed.MotivationNpc?.IsTargetable == true)
+                {
+                    stopReason = MoveStopReason.NpcSpawned;
+                    return true;
+                }
             }
 
             // Mid-path retargeting (skip when we're heading back to a FATE we died in).
