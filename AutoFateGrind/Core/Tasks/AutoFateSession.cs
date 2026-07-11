@@ -92,6 +92,8 @@ public sealed class AutoFateSession
     public bool PendingHumanize;
     public ZoneInfo? PendingHumanizeFromZone;
 
+    public readonly HashSet<uint> UnreachableZoneIds = [];
+
     public bool EndedWithFault;
     public int  FaultResumeZoneIndex;
     public int  FaultResumeCount;

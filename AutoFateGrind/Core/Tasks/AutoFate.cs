@@ -65,8 +65,6 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private const int   WrongZoneFaultAfterFailures = 3;
     // Never-stuck backstop: zero forward progress for this long in a non-idle state faults into auto-resume.
     private const int   NoProgressFaultMs = 300_000;
-    // MotivationNpcId sentinel meaning the FATE has no activation NPC.
-    private const uint  NoMotivationNpcId = 0xE0000000;
 
     private uint? lastStuckFateId;
     private int consecutiveStuckRetries;
@@ -200,9 +198,8 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
                 case GrindState.SwapZone:
                     if (!AdvanceZone())
                     {
-                        Status = "No other zone to rotate to";
-                        Diag("Only one zone selected; nothing to rotate to");
-                        return;
+                        Status = $"Waiting for FATEs in {zone.Name} (no other reachable zone)";
+                        Diag("No other reachable zone to rotate to; continuing to wait here");
                     }
                     idleScans = 0;
                     break;
@@ -382,6 +379,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
         if (await TeleportToTerritory(zone.TerritoryId, zone.CentralLanding, "teleport-to-zone", TeleportWatchdogMs))
         {
             consecutiveZoneTeleportFailures = 0;
+            session.UnreachableZoneIds.Remove(zone.TerritoryId);
             return;
         }
         if (CancelToken.IsCancellationRequested) return;
@@ -389,30 +387,36 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
         consecutiveZoneTeleportFailures++;
         Warn($"Could not reach {zone.Name} (failure {consecutiveZoneTeleportFailures}); escalating to keep the run moving.");
 
-        // Unreachable target: grind another zone instead (the rotation may land on the one we're in).
         if (consecutiveZoneTeleportFailures >= WrongZoneSwapAfterFailures && zones.Count > 1)
         {
-            Diag($"Rotating away from unreachable {zone.Name}.");
-            AdvanceZone();
-            consecutiveZoneTeleportFailures = 0;
-            return;
+            session.UnreachableZoneIds.Add(zone.TerritoryId);
+            Svc.Chat.PrintError($"[AFG] Could not teleport to {zone.Name} (aetherytes attuned?); skipping it for the rest of this run.");
+            if (AdvanceZone())
+            {
+                consecutiveZoneTeleportFailures = 0;
+                return;
+            }
         }
 
-        // Single-zone and still stuck: bounded fault -> auto-resume (or clean end), never an endless wedge.
         ErrorIf(consecutiveZoneTeleportFailures >= WrongZoneFaultAfterFailures,
             $"Unable to reach {zone.Name} after {consecutiveZoneTeleportFailures} teleport attempts.");
     }
 
     private bool AdvanceZone()
     {
-        if (zones.Count <= 1) return false;
+        for (var step = 1; step < zones.Count; step++)
+        {
+            var candidateIndex = (zoneIndex + step) % zones.Count;
+            if (session.UnreachableZoneIds.Contains(zones[candidateIndex].TerritoryId)) continue;
 
-        zoneIndex = (zoneIndex + 1) % zones.Count;
-        sessionStuckFateIds.Clear();
-        lastStuckFateId = null;
-        consecutiveStuckRetries = 0;
-        lastTeleportedFateId = null;
-        return true;
+            zoneIndex = candidateIndex;
+            sessionStuckFateIds.Clear();
+            lastStuckFateId = null;
+            consecutiveStuckRetries = 0;
+            lastTeleportedFateId = null;
+            return true;
+        }
+        return false;
     }
 
     private async Task TickIdleScan()
