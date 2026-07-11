@@ -143,6 +143,16 @@ public sealed partial class AutoFate
 
         if (stopReason != MoveStopReason.None) return stopReason;
 
+        if (PublicEvent.GetFateById(targetId) is { } landed && Svc.Objects.LocalPlayer is { } arrivedPlayer)
+        {
+            var distanceFromCenter = Vector3.Distance(arrivedPlayer.Position, landed.Position);
+            if (distanceFromCenter > landed.Radius)
+            {
+                Diag($"Move to FATE {targetId} ({landed.Name}) ended {distanceFromCenter:F0}m from center (radius {landed.Radius:F0}); outside the ring, treating as stuck");
+                return MoveStopReason.StuckRetry;
+            }
+        }
+
         // Clean arrival. clib only dismounts when it lands inside tolerance; a flying mount routinely
         // stops a few metres ABOVE the point (the Y gap), so it would otherwise enter the FATE still
         // mounted. Dismount explicitly — clib's Dismount descends to a reachable point first when in
