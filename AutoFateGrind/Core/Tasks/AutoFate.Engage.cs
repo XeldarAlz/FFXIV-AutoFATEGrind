@@ -32,6 +32,10 @@ public sealed partial class AutoFate
         if (fate is null) return ExitReason.Continue;
 
         idleScans = 0;
+        // Snapshot id/name while the handle is fresh: a LeftZone move ends in another territory where the
+        // clib PublicEvent getters would NRE on the now-despawned handle, and the blacklist below must land.
+        var pickedId = fate.Id;
+        var pickedName = fate.Name;
         Status = $"Moving to {fate.Name}";
         Diag($"Picked FATE {fate.Id} ({fate.Name}) at {fate.Position}");
 
@@ -45,6 +49,20 @@ public sealed partial class AutoFate
         if (moveResult == MoveStopReason.StuckInCombat)
         {
             await ClearBlockingCombat();
+            return ExitReason.Continue;
+        }
+
+        // The FATE's fastest route teleports out of the zone (a nearer aetheryte in the neighbouring city).
+        // That is deterministic for a fixed FATE position, so retrying just ping-pongs back into the city;
+        // blacklist the FATE for the session and let the run move on to the reachable ones (issue #21).
+        if (moveResult is MoveStopReason.LeftZone)
+        {
+            sessionStuckFateIds.Add(pickedId);
+            lastTeleportedFateId = null;
+            lastStuckFateId = null;
+            consecutiveStuckRetries = 0;
+            Svc.Chat.PrintError($"[AFG] Skipping {pickedName}: its nearest aetheryte is in a neighbouring zone, so it can't be reached without leaving {zone.Name}.");
+            Diag($"FATE {pickedId} ({pickedName}) teleport route leaves {zone.Name}; blacklisting for this session");
             return ExitReason.Continue;
         }
 

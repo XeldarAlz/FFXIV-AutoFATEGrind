@@ -128,6 +128,20 @@ public sealed partial class AutoFate
         var completed = await RunCancellable(op, MoveToFateWatchdogMs + MoveOpUnwindSlackMs, label, AbortIfFrozen);
         if (CancelToken.IsCancellationRequested) return MoveStopReason.None;
 
+        // clib's allowTeleportIfFaster can pick an aetheryte in an ADJACENT territory when it sits closer
+        // to a border FATE than the zone's own aetheryte — a Tuliyollal aethernet shard is nearer the
+        // eastern Yak T'el FATEs than Rral Wuruq. The move then "completes" with us in the neighbouring
+        // city; the ring check below can't even resolve the FATE from the wrong territory, so without this
+        // it reads as a clean arrival, the run teleports back on-zone, re-picks the same border FATE, and
+        // loops into the city forever (issue #21).
+        if (Svc.ClientState.TerritoryType != zone.TerritoryId)
+        {
+            // Read only targetId here (a captured uint) — fate.Name would deref a handle that despawned the
+            // moment we crossed into the neighbouring territory, and an NRE would skip the LeftZone return.
+            Diag($"Move to FATE {targetId} ended in territory {Svc.ClientState.TerritoryType}, not {zone.TerritoryId} ({zone.Name}); its fastest teleport route leaves the zone");
+            return MoveStopReason.LeftZone;
+        }
+
         // Cancelled by the hard timeout while wedged in a phase clib wasn't polling (e.g. a mount loop):
         // treat as a teleport-worthy stuck.
         if (!completed && stopReason == MoveStopReason.None)
