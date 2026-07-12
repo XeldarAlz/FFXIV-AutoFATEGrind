@@ -26,6 +26,9 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private ZoneInfo zone => zones[zoneIndex];
 
     private readonly HashSet<uint> sessionStuckFateIds = new();
+    // FATEs whose fastest route teleports into a neighbouring zone (their nearest aetheryte belongs to an
+    // adjacent city's aethernet group). We reach these by in-zone flight instead — never by teleport (#21).
+    private readonly HashSet<uint> flyOnlyFateIds = new();
     private static readonly HashSet<uint> obstacleMapBlacklist = new() { 1831, 1832, 1914, 1915 };
 
     private const int   HardStuckTimeoutMs = 3_000;

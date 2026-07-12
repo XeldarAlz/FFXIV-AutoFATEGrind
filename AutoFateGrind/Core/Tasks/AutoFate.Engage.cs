@@ -52,17 +52,24 @@ public sealed partial class AutoFate
             return ExitReason.Continue;
         }
 
-        // The FATE's fastest route teleports out of the zone (a nearer aetheryte in the neighbouring city).
-        // That is deterministic for a fixed FATE position, so retrying just ping-pongs back into the city;
-        // blacklist the FATE for the session and let the run move on to the reachable ones (issue #21).
+        // The FATE's fastest route teleports out of the zone (its nearest aetheryte belongs to a neighbouring
+        // city's aethernet group). Flip it to fly-only so the next approach reaches it by in-zone flight with
+        // no teleport at all, instead of skipping a FATE that is perfectly reachable within the zone (#21).
         if (moveResult is MoveStopReason.LeftZone)
         {
-            sessionStuckFateIds.Add(pickedId);
             lastTeleportedFateId = null;
             lastStuckFateId = null;
             consecutiveStuckRetries = 0;
-            Svc.Chat.PrintError($"[AFG] Skipping {pickedName}: its nearest aetheryte is in a neighbouring zone, so it can't be reached without leaving {zone.Name}.");
-            Diag($"FATE {pickedId} ({pickedName}) teleport route leaves {zone.Name}; blacklisting for this session");
+            if (flyOnlyFateIds.Add(pickedId))
+            {
+                Svc.Chat.Print($"[AFG] {pickedName}: nearest aetheryte is in a neighbouring zone; reaching it by flight instead.");
+                Diag($"FATE {pickedId} ({pickedName}) route left {zone.Name}; switching to in-zone flight for the rest of the run");
+                return ExitReason.Continue;
+            }
+            // Already fly-only yet still left the zone — navmesh can't cross a zone boundary, so this should
+            // be impossible. Blacklist as a never-stuck backstop rather than risk a loop.
+            sessionStuckFateIds.Add(pickedId);
+            Diag($"FATE {pickedId} ({pickedName}) left {zone.Name} even fly-only; blacklisting for this session");
             return ExitReason.Continue;
         }
 

@@ -120,20 +120,27 @@ public sealed partial class AutoFate
             return true;
         }
 
-        var op = new MoveOp(o => o.Move(zone.TerritoryId, dest, config,
-            allowTeleportIfFaster: !FateScanner.PlayerHasTwistOfFate(),
-            stopCondition: StopCondition,
-            allowAethernetWithinTerritory: true));
+        // A FATE known to teleport into a neighbouring zone is reached by in-zone flight only: no teleport,
+        // no aethernet, so clib can never resolve an out-of-zone aetheryte for it. Everything else keeps the
+        // teleport-if-faster shortcut, which stays in-zone for the common case.
+        var flyOnly = flyOnlyFateIds.Contains(targetId);
+        var op = flyOnly
+            ? new MoveOp(o => o.MoveInZone(dest, config, StopCondition))
+            : new MoveOp(o => o.Move(zone.TerritoryId, dest, config,
+                allowTeleportIfFaster: !FateScanner.PlayerHasTwistOfFate(),
+                stopCondition: StopCondition,
+                allowAethernetWithinTerritory: true));
 
         var completed = await RunCancellable(op, MoveToFateWatchdogMs + MoveOpUnwindSlackMs, label, AbortIfFrozen);
         if (CancelToken.IsCancellationRequested) return MoveStopReason.None;
 
-        // clib's allowTeleportIfFaster can pick an aetheryte in an ADJACENT territory when it sits closer
-        // to a border FATE than the zone's own aetheryte — a Tuliyollal aethernet shard is nearer the
-        // eastern Yak T'el FATEs than Rral Wuruq. The move then "completes" with us in the neighbouring
-        // city; the ring check below can't even resolve the FATE from the wrong territory, so without this
-        // it reads as a clean arrival, the run teleports back on-zone, re-picks the same border FATE, and
-        // loops into the city forever (issue #21).
+        // clib's allowTeleportIfFaster can pick an aetheryte in an ADJACENT territory: a border FATE's
+        // nearest aethernet shard can belong to a neighbouring city's group, whose primary aetheryte is in
+        // that city (a Tuliyollal shard for a western Yak T'el FATE). The move then "completes" with us in
+        // the neighbouring city; the ring check below can't even resolve the FATE from the wrong territory,
+        // so without this it reads as a clean arrival, the run teleports back on-zone, re-picks the same
+        // border FATE, and loops into the city forever. MoveAndArrive flips the FATE to fly-only on this,
+        // so the retry reaches it in-zone (issue #21).
         if (Svc.ClientState.TerritoryType != zone.TerritoryId)
         {
             // Read only targetId here (a captured uint) — fate.Name would deref a handle that despawned the
@@ -206,6 +213,15 @@ public sealed partial class AutoFate
 
         var after = Svc.Objects.LocalPlayer?.Position;
         if (before is null || after is null) return false;
+
+        // The recovery teleport resolves the nearest aetheryte the same way the normal move does, so it can
+        // also hop into a neighbouring city. If it did, the recovery failed — report that so the caller
+        // escalates (fly-only / blacklist) rather than mistaking the zone hop for progress (#21).
+        if (Svc.ClientState.TerritoryType != zone.TerritoryId)
+        {
+            Diag($"Teleport recovery landed in territory {Svc.ClientState.TerritoryType}, not {zone.TerritoryId} ({zone.Name}); treating as failed");
+            return false;
+        }
 
         var moved = Vector3.Distance(before.Value, after.Value);
         if (moved < TeleportRetryProgressMeters)
