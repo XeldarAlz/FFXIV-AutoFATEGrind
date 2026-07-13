@@ -39,6 +39,13 @@ public sealed partial class AutoFate
         Status = $"Moving to {fate.Name}";
         Diag($"Picked FATE {fate.Id} ({fate.Name}) at {fate.Position}");
 
+        if (!flyOnlyFateIds.Contains(pickedId) && TeleportRouteLeavesZone(fate.Position))
+        {
+            flyOnlyFateIds.Add(pickedId);
+            PrintFlyOnlyNotice(pickedName);
+            Diag($"FATE {pickedId} ({pickedName}) teleport route resolves outside {zone.Name}; using in-zone flight (proactive)");
+        }
+
         var moveResult = await MoveToFate(fate);
         if (CancelToken.IsCancellationRequested) return ExitReason.Quit;
 
@@ -62,7 +69,7 @@ public sealed partial class AutoFate
             consecutiveStuckRetries = 0;
             if (flyOnlyFateIds.Add(pickedId))
             {
-                Svc.Chat.Print($"[AFG] {pickedName}: nearest aetheryte is in a neighbouring zone; reaching it by flight instead.");
+                PrintFlyOnlyNotice(pickedName);
                 Diag($"FATE {pickedId} ({pickedName}) route left {zone.Name}; switching to in-zone flight for the rest of the run");
                 return ExitReason.Continue;
             }
@@ -141,6 +148,9 @@ public sealed partial class AutoFate
 
         return ExitReason.Continue;
     }
+
+    private static void PrintFlyOnlyNotice(string fateName)
+        => Svc.Chat.Print($"[AFG] {fateName}: nearest aetheryte is in a neighbouring zone; reaching it by flight instead.");
 
     private async Task<ExitReason> EngageCurrentFate()
     {

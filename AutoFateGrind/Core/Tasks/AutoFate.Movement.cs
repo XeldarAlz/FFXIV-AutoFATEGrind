@@ -186,6 +186,24 @@ public sealed partial class AutoFate
         return MoveStopReason.None;
     }
 
+    private bool TeleportRouteLeavesZone(Vector3 fatePos)
+    {
+        if (Coords.FindClosestAetheryte(zone.TerritoryId, fatePos) is not { } nearestAetheryteId || nearestAetheryteId == 0)
+        {
+            return false;
+        }
+        var primaryAetheryteId = Coords.FindPrimaryAetheryte(nearestAetheryteId);
+        if (primaryAetheryteId == 0)
+        {
+            return false;
+        }
+        if (!Svc.Data.GetExcelSheet<Lumina.Excel.Sheets.Aetheryte>().TryGetRow(primaryAetheryteId, out var primaryAetheryte))
+        {
+            return false;
+        }
+        return primaryAetheryte.Territory.RowId != zone.TerritoryId;
+    }
+
     // Every clib movement primitive — including dismount in combat/engage — goes through a cancellable
     // MoveOp so a wedged op (e.g. clib can't find a landing point in flight) can never park the parent
     // loop. The parent never awaits a raw clib MoveTo/Teleport/Dismount directly.
@@ -199,6 +217,12 @@ public sealed partial class AutoFate
 
         await PrepareForTeleport($"teleport-recovery-{fate.Id}");
         if (CancelToken.IsCancellationRequested) return false;
+
+        if (TeleportRouteLeavesZone(fate.Position))
+        {
+            Diag($"Teleport recovery for FATE {fate.Id} would resolve an aetheryte outside {zone.Name}; skipping (route leaves the zone)");
+            return false;
+        }
 
         // Capture position AFTER any dismount so a flight descent isn't mistaken for teleport progress.
         var before = Svc.Objects.LocalPlayer?.Position;
