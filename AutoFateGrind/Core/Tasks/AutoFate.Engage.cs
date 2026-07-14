@@ -39,13 +39,6 @@ public sealed partial class AutoFate
         Status = $"Moving to {fate.Name}";
         Diag($"Picked FATE {fate.Id} ({fate.Name}) at {fate.Position}");
 
-        if (!flyOnlyFateIds.Contains(pickedId) && TeleportRouteLeavesZone(fate.Position))
-        {
-            flyOnlyFateIds.Add(pickedId);
-            PrintFlyOnlyNotice(pickedName);
-            Diag($"FATE {pickedId} ({pickedName}) teleport route resolves outside {zone.Name}; using in-zone flight (proactive)");
-        }
-
         var moveResult = await MoveToFate(fate);
         if (CancelToken.IsCancellationRequested) return ExitReason.Quit;
 
@@ -59,24 +52,13 @@ public sealed partial class AutoFate
             return ExitReason.Continue;
         }
 
-        // The FATE's fastest route teleports out of the zone (its nearest aetheryte belongs to a neighbouring
-        // city's aethernet group). Flip it to fly-only so the next approach reaches it by in-zone flight with
-        // no teleport at all, instead of skipping a FATE that is perfectly reachable within the zone (#21).
         if (moveResult is MoveStopReason.LeftZone)
         {
             lastTeleportedFateId = null;
             lastStuckFateId = null;
             consecutiveStuckRetries = 0;
-            if (flyOnlyFateIds.Add(pickedId))
-            {
-                PrintFlyOnlyNotice(pickedName);
-                Diag($"FATE {pickedId} ({pickedName}) route left {zone.Name}; switching to in-zone flight for the rest of the run");
-                return ExitReason.Continue;
-            }
-            // Already fly-only yet still left the zone — navmesh can't cross a zone boundary, so this should
-            // be impossible. Blacklist as a never-stuck backstop rather than risk a loop.
             sessionStuckFateIds.Add(pickedId);
-            Diag($"FATE {pickedId} ({pickedName}) left {zone.Name} even fly-only; blacklisting for this session");
+            Diag($"FATE {pickedId} ({pickedName}) left {zone.Name} despite an in-zone-only route; blacklisting for this session");
             return ExitReason.Continue;
         }
 
@@ -148,9 +130,6 @@ public sealed partial class AutoFate
 
         return ExitReason.Continue;
     }
-
-    private static void PrintFlyOnlyNotice(string fateName)
-        => Svc.Chat.Print($"[AFG] {fateName}: nearest aetheryte is in a neighbouring zone; reaching it by flight instead.");
 
     private async Task<ExitReason> EngageCurrentFate()
     {

@@ -32,11 +32,15 @@ public sealed partial class AutoFate
 
         var config = MovementConfig.Everything.WithTolerance(3f);
         var label = $"Moving to {fate.Name}";
+        var targetId = fate.Id;
+
+        await TryTeleportShortcut(fate.Position, targetId, fate.Name);
+        if (CancelToken.IsCancellationRequested) return MoveStopReason.None;
+
         var deadline = Environment.TickCount64 + MoveToFateWatchdogMs;
         var lastRetargetAtMs = Environment.TickCount64;
         var nextProgressLogMs = Environment.TickCount64 + MoveProgressLogMs;
         var stopReason = MoveStopReason.None;
-        var targetId = fate.Id;
 
         // Graceful exits clib can observe while it is actively following a path: a deadline backstop,
         // the FATE vanishing/finishing, its prep NPC spawning, or a closer FATE appearing. Returning
@@ -120,27 +124,11 @@ public sealed partial class AutoFate
             return true;
         }
 
-        // A FATE known to teleport into a neighbouring zone is reached by in-zone flight only: no teleport,
-        // no aethernet, so clib can never resolve an out-of-zone aetheryte for it. Everything else keeps the
-        // teleport-if-faster shortcut, which stays in-zone for the common case.
-        var flyOnly = flyOnlyFateIds.Contains(targetId);
-        var op = flyOnly
-            ? new MoveOp(o => o.MoveInZone(dest, config, StopCondition))
-            : new MoveOp(o => o.Move(zone.TerritoryId, dest, config,
-                allowTeleportIfFaster: !FateScanner.PlayerHasTwistOfFate(),
-                stopCondition: StopCondition,
-                allowAethernetWithinTerritory: true));
+        var op = new MoveOp(o => o.MoveInZone(dest, config, StopCondition));
 
         var completed = await RunCancellable(op, MoveToFateWatchdogMs + MoveOpUnwindSlackMs, label, AbortIfFrozen);
         if (CancelToken.IsCancellationRequested) return MoveStopReason.None;
 
-        // clib's allowTeleportIfFaster can pick an aetheryte in an ADJACENT territory: a border FATE's
-        // nearest aethernet shard can belong to a neighbouring city's group, whose primary aetheryte is in
-        // that city (a Tuliyollal shard for a western Yak T'el FATE). The move then "completes" with us in
-        // the neighbouring city; the ring check below can't even resolve the FATE from the wrong territory,
-        // so without this it reads as a clean arrival, the run teleports back on-zone, re-picks the same
-        // border FATE, and loops into the city forever. MoveAndArrive flips the FATE to fly-only on this,
-        // so the retry reaches it in-zone (issue #21).
         if (Svc.ClientState.TerritoryType != zone.TerritoryId)
         {
             // Read only targetId here (a captured uint) — fate.Name would deref a handle that despawned the
@@ -186,22 +174,27 @@ public sealed partial class AutoFate
         return MoveStopReason.None;
     }
 
-    private bool TeleportRouteLeavesZone(Vector3 fatePos)
+    private async Task TryTeleportShortcut(Vector3 fatePos, uint fateId, string fateName)
     {
-        if (Coords.FindClosestAetheryte(zone.TerritoryId, fatePos) is not { } nearestAetheryteId || nearestAetheryteId == 0)
-        {
-            return false;
-        }
-        var primaryAetheryteId = Coords.FindPrimaryAetheryte(nearestAetheryteId);
-        if (primaryAetheryteId == 0)
-        {
-            return false;
-        }
-        if (!Svc.Data.GetExcelSheet<Lumina.Excel.Sheets.Aetheryte>().TryGetRow(primaryAetheryteId, out var primaryAetheryte))
-        {
-            return false;
-        }
-        return primaryAetheryte.Territory.RowId != zone.TerritoryId;
+        if (FateScanner.PlayerHasTwistOfFate()) return;
+        if (Svc.Condition[ConditionFlag.InCombat]) return;
+        if (Svc.Objects.LocalPlayer is not { } player) return;
+        if (!ZoneAetherytes.TryFindNearest(zone.TerritoryId, fatePos, out var aetheryte)) return;
+
+        var flightFromHere = Vector3.Distance(player.Position, fatePos);
+        var flightFromAetheryte = Vector3.Distance(aetheryte.Position, fatePos);
+        if (flightFromHere - flightFromAetheryte < TeleportShortcutMinSavingMeters) return;
+
+        Status = $"Teleporting to {aetheryte.Name}";
+        Diag($"Teleport shortcut for FATE {fateId} ({fateName}): {aetheryte.Name} leaves {flightFromAetheryte:F0}m to fly vs {flightFromHere:F0}m from here");
+
+        await PrepareForTeleport($"fate-approach-{fateId}");
+        if (CancelToken.IsCancellationRequested) return;
+
+        var op = new MoveOp(o => o.Teleport(zone.TerritoryId, aetheryte.Position, allowSameZoneTeleport: true));
+        await RunCancellable(op, TeleportWatchdogMs, $"fate-approach-{fateId}", StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs));
+        if (op.Fault is { } fault)
+            Diag($"Teleport shortcut for FATE {fateId} faulted: {fault.Message}; flying from here instead");
     }
 
     // Every clib movement primitive — including dismount in combat/engage — goes through a cancellable
@@ -212,40 +205,28 @@ public sealed partial class AutoFate
 
     private async Task<bool> TryTeleportToFate(PublicEvent fate)
     {
-        Status = $"Teleporting to {fate.Name}";
-        Diag($"Teleport recovery to FATE {fate.Id} ({fate.Position})");
-
-        await PrepareForTeleport($"teleport-recovery-{fate.Id}");
-        if (CancelToken.IsCancellationRequested) return false;
-
-        if (TeleportRouteLeavesZone(fate.Position))
+        var fateId = fate.Id;
+        if (!ZoneAetherytes.TryFindNearest(zone.TerritoryId, fate.Position, out var aetheryte))
         {
-            Diag($"Teleport recovery for FATE {fate.Id} would resolve an aetheryte outside {zone.Name}; skipping (route leaves the zone)");
+            Diag($"Teleport recovery for FATE {fateId}: {zone.Name} has no aetheryte of its own to teleport to");
             return false;
         }
+
+        Status = $"Teleporting to {fate.Name}";
+        Diag($"Teleport recovery to FATE {fateId} via {aetheryte.Name}");
+
+        await PrepareForTeleport($"teleport-recovery-{fateId}");
+        if (CancelToken.IsCancellationRequested) return false;
 
         // Capture position AFTER any dismount so a flight descent isn't mistaken for teleport progress.
         var before = Svc.Objects.LocalPlayer?.Position;
-        var fatePos = fate.Position;
-        // Same-zone teleport to the aetheryte nearest the FATE. Idle-stall guard catches a teleport that
-        // never starts casting in ~8s instead of the full watchdog.
-        var tp = new MoveOp(o => o.Teleport(zone.TerritoryId, fatePos, allowSameZoneTeleport: true));
-        if (!await RunCancellable(tp, TeleportWatchdogMs, $"teleport-recovery-{fate.Id}", StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs)))
+        // Idle-stall guard catches a teleport that never starts casting in ~8s instead of the full watchdog.
+        var tp = new MoveOp(o => o.Teleport(zone.TerritoryId, aetheryte.Position, allowSameZoneTeleport: true));
+        if (!await RunCancellable(tp, TeleportWatchdogMs, $"teleport-recovery-{fateId}", StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs)))
             return false;
-        var aeth = new MoveOp(o => o.Aethernet(zone.TerritoryId, fatePos));
-        await RunCancellable(aeth, AethernetWatchdogMs, $"aethernet-recovery-{fate.Id}", StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs));
 
         var after = Svc.Objects.LocalPlayer?.Position;
         if (before is null || after is null) return false;
-
-        // The recovery teleport resolves the nearest aetheryte the same way the normal move does, so it can
-        // also hop into a neighbouring city. If it did, the recovery failed — report that so the caller
-        // escalates (fly-only / blacklist) rather than mistaking the zone hop for progress (#21).
-        if (Svc.ClientState.TerritoryType != zone.TerritoryId)
-        {
-            Diag($"Teleport recovery landed in territory {Svc.ClientState.TerritoryType}, not {zone.TerritoryId} ({zone.Name}); treating as failed");
-            return false;
-        }
 
         var moved = Vector3.Distance(before.Value, after.Value);
         if (moved < TeleportRetryProgressMeters)

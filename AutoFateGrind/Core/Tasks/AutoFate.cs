@@ -26,13 +26,11 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private ZoneInfo zone => zones[zoneIndex];
 
     private readonly HashSet<uint> sessionStuckFateIds = new();
-    // FATEs whose fastest route teleports into a neighbouring zone (their nearest aetheryte belongs to an
-    // adjacent city's aethernet group). We reach these by in-zone flight instead — never by teleport (#21).
-    private readonly HashSet<uint> flyOnlyFateIds = new();
     private static readonly HashSet<uint> obstacleMapBlacklist = new() { 1831, 1832, 1914, 1915 };
 
     private const int   HardStuckTimeoutMs = 3_000;
     private const float TeleportRetryProgressMeters = 3.0f;
+    private const float TeleportShortcutMinSavingMeters = 300f;
     private const int   MoveToFateWatchdogMs = 60_000;
     // Slack on top of the in-move deadline so clib's own graceful 60s exit wins over the hard cancel
     // when it is following a path; the hard cancel only catches a wedge in a non-polling phase.
@@ -54,7 +52,6 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private const float RetargetDistanceMarginMeters = 15f;
     private const float RetargetNearArrivalLockMeters = 20f;
     private const int   TeleportWatchdogMs = 60_000;
-    private const int   AethernetWatchdogMs = 60_000;
     private const int   ActivateMoveWatchdogMs = 60_000;
     private const int   NavmeshReadyWaitMs = 60_000;
     private const int   HeartbeatMs = 30_000;
