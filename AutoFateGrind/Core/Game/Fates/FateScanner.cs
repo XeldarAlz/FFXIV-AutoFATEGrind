@@ -10,6 +10,11 @@ internal static class FateScanner
     private const int UrgentTimeThresholdSec = 240;
     private const uint TwistOfFateStatusId = 1288;
 
+    public const uint NoMotivationNpcId = 0xE0000000;
+
+    public static bool AwaitsNpcStart(PublicEvent f)
+        => f.State == FateState.Preparing && f.MotivationNpcId != NoMotivationNpcId;
+
     // forcedReturnId (set after a KO) returns the FATE we died in unconditionally, bypassing normal
     // eligibility like low TimeRemaining — but still respects the blacklists so broken FATEs skip.
     public static PublicEvent? PickNext(
@@ -35,11 +40,12 @@ internal static class FateScanner
 
     public static bool IsEligible(PublicEvent f, Configuration cfg, IReadOnlySet<uint>? sessionBlacklist)
     {
-        if (f.State != FateState.Running) return false;
+        var awaitsNpcStart = AwaitsNpcStart(f);
+        if (f.State != FateState.Running && !awaitsNpcStart) return false;
         if (FateBlacklist.Contains(cfg, f)) return false;
         if (sessionBlacklist is not null && sessionBlacklist.Contains(f.Id)) return false;
         if (cfg.SkippedFateRules.Contains((int)f.Rule)) return false;
-        if (f.TimeRemaining < cfg.MinTimeRemainingSec) return false;
+        if (!awaitsNpcStart && f.TimeRemaining < cfg.MinTimeRemainingSec) return false;
         if (f.Progress > cfg.MaxProgressPct) return false;
         if (!f.IsOnMap) return false;
         return true;
@@ -77,17 +83,18 @@ internal static class FateScanner
         FateSortCriterion.HasBonusWithTwist => f => f.HasBonus && !PlayerHasTwistOfFate(),
         FateSortCriterion.Progress          => f => f.Progress,
         FateSortCriterion.HasBonus          => f => f.HasBonus,
-        FateSortCriterion.TimeRemainingUrgent => f => f.TimeRemaining is >= 0 and < UrgentTimeThresholdSec,
+        FateSortCriterion.TimeRemainingUrgent => f => IsUrgent(f),
         FateSortCriterion.Distance          => f => Vector3.DistanceSquared(f.Position, playerPos),
         // Urgent FATEs sort by actual remaining time; non-urgent ones tie at the threshold so later
         // criteria break the tie.
-        FateSortCriterion.TimeRemaining     => f => f.TimeRemaining is >= 0 and < UrgentTimeThresholdSec
-            ? f.TimeRemaining
-            : UrgentTimeThresholdSec,
+        FateSortCriterion.TimeRemaining     => f => IsUrgent(f) ? f.TimeRemaining : UrgentTimeThresholdSec,
         FateSortCriterion.Level             => f => f.Level,
         FateSortCriterion.Name              => f => f.Name ?? string.Empty,
         _                                   => _ => 0,
     };
+
+    private static bool IsUrgent(PublicEvent f)
+        => !AwaitsNpcStart(f) && f.TimeRemaining is >= 0 and < UrgentTimeThresholdSec;
 
     public static bool PlayerHasTwistOfFate()
     {

@@ -32,13 +32,17 @@ public sealed partial class AutoFate
         if (fate is null) return ExitReason.Continue;
 
         idleScans = 0;
+        // Snapshot id/name while the handle is fresh: a LeftZone move ends in another territory where the
+        // clib PublicEvent getters would NRE on the now-despawned handle, and the blacklist below must land.
+        var pickedId = fate.Id;
+        var pickedName = fate.Name;
         Status = $"Moving to {fate.Name}";
         Diag($"Picked FATE {fate.Id} ({fate.Name}) at {fate.Position}");
 
         var moveResult = await MoveToFate(fate);
         if (CancelToken.IsCancellationRequested) return ExitReason.Quit;
 
-        if (moveResult is MoveStopReason.HigherPriority or MoveStopReason.NpcSpawned)
+        if (moveResult is MoveStopReason.HigherPriority)
             return ExitReason.Continue;
 
         // Teleport can't fire in combat, and the FATE is still reachable — fight free, don't blacklist.
@@ -48,7 +52,17 @@ public sealed partial class AutoFate
             return ExitReason.Continue;
         }
 
-        if (lastTeleportedFateId == fate.Id && moveResult != MoveStopReason.None)
+        if (moveResult is MoveStopReason.LeftZone)
+        {
+            lastTeleportedFateId = null;
+            lastStuckFateId = null;
+            consecutiveStuckRetries = 0;
+            sessionStuckFateIds.Add(pickedId);
+            Diag($"FATE {pickedId} ({pickedName}) left {zone.Name} despite an in-zone-only route; blacklisting for this session");
+            return ExitReason.Continue;
+        }
+
+        if (lastTeleportedFateId == fate.Id && moveResult is not MoveStopReason.None and not MoveStopReason.NpcSpawned)
         {
             Diag($"Still stuck after teleport recovery for FATE {fate.Id} ({fate.Name}); blacklisting for this session");
             sessionStuckFateIds.Add(fate.Id);
@@ -108,7 +122,7 @@ public sealed partial class AutoFate
         fate = arrived;
 
         // Boss/event FATEs must be activated via their NPC before they go Running.
-        if (fate.State == FateState.Preparing && fate.MotivationNpcId != NoMotivationNpcId)
+        if (FateScanner.AwaitsNpcStart(fate))
             await ActivateFate(fate);
 
         if (returnToFateId == fate.Id && fate.State == FateState.Running)

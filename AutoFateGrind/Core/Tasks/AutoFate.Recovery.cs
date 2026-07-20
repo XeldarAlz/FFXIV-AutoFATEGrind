@@ -81,15 +81,7 @@ public sealed partial class AutoFate
         {
             Status = "Returning to FATE";
             Diag($"Re-engaging FATE {retId} after revive.");
-            await PrepareForTeleport($"revive-return-{retId}");
-            if (CancelToken.IsCancellationRequested) return;
-            var retPos = retFate.Position;
-            var tp = new MoveOp(o => o.Teleport(zone.TerritoryId, retPos, allowSameZoneTeleport: true));
-            if (await RunCancellable(tp, TeleportWatchdogMs, $"revive-return-tp-{retId}", StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs)))
-            {
-                var aeth = new MoveOp(o => o.Aethernet(zone.TerritoryId, retPos));
-                await RunCancellable(aeth, AethernetWatchdogMs, $"revive-return-aethernet-{retId}", StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs));
-            }
+            await TryTeleportShortcut(retFate.Position, retId, retFate.Name);
         }
         else if (Svc.ClientState.TerritoryType != startZoneId && startPos is not null)
         {
@@ -251,7 +243,7 @@ public sealed partial class AutoFate
         await GenerateObstacleMap(fate);
     }
 
-    private enum MoveStopReason { None, StuckRetry, StuckTeleport, StuckInCombat, HigherPriority, NpcSpawned, FateInvalid }
+    private enum MoveStopReason { None, StuckRetry, StuckTeleport, StuckInCombat, HigherPriority, NpcSpawned, FateInvalid, LeftZone }
 
     private async Task GenerateObstacleMap(PublicEvent fate)
     {

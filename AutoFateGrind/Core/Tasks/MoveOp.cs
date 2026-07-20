@@ -30,10 +30,11 @@ internal sealed class MoveOp(System.Func<MoveOp, Task> body) : TaskBase
                      System.Func<bool>? stopCondition, bool allowAethernetWithinTerritory)
         => MoveTo(territoryId, dest, config, allowTeleportIfFaster, stopCondition, null, allowAethernetWithinTerritory);
 
+    public Task MoveInZone(Vector3 dest, MovementConfig config, System.Func<bool>? stopCondition)
+        => MoveTo(dest, config, allowTeleportIfFaster: false, stopCondition, null, allowAethernet: false);
+
     public Task Teleport(uint territoryId, Vector3 dest, bool allowSameZoneTeleport)
         => TeleportTo(territoryId, dest, allowSameZoneTeleport);
-
-    public Task Aethernet(uint territoryId, Vector3 dest) => UseAethernet(territoryId, dest);
 
     public Task Interact(IGameObject obj, System.Func<bool>? waitUntil, UiSkipOptions skip)
         => InteractWith(obj, waitUntil, null, skip);

@@ -119,8 +119,11 @@ public sealed class AutoRepair : AutoCommon
 
         Status = $"Talking to {m.Name}";
         Diag($"Interacting with {m.Name}");
-        var interact = new MoveOp(o => o.Interact(npc!, waitUntil: null, skip: UiSkipOptions.Talk));
+        var interact = new MoveOp(o => o.Interact(npc!,
+            waitUntil: () => RepairOps.RepairAddonOpen() || RepairOps.SelectIconStringOpen(),
+            skip: UiSkipOptions.Talk));
         await RunCancellable(interact, InteractWaitMs, "repair-interact");
+        ErrorIf(interact.Fault is not null, $"Interacting with {m.Name} failed: {interact.Fault?.Message}");
 
         // GC menders open the Repair window directly; other repair NPCs first present a talk menu
         // (SelectIconString) whose repair entry we pick before the window appears.

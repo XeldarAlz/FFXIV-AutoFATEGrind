@@ -16,6 +16,7 @@ internal static class FilterSettings
         DrawEligibilityGroup(cfg);
         DrawSkipTypesGroup(cfg);
         DrawPriorityGroup(cfg);
+        DrawBlacklistGroup(cfg);
     }
 
     private static void DrawEligibilityGroup(Configuration cfg)
@@ -51,6 +52,47 @@ internal static class FilterSettings
         SettingsRow.DrawBlock("FATE priority",
             "Order the rules used to pick the next FATE. Top rule wins; ties fall through to the next. Reset restores the recommended order.",
             () => DrawSortOrderList(cfg));
+    }
+
+    private static void DrawBlacklistGroup(Configuration cfg)
+    {
+        using var group = SettingsGroup.Begin("Blacklist");
+
+        SettingsRow.DrawBlock("Blacklisted FATEs",
+            "FATEs you banned with the ban button in the Live FATEs window. Blacklisted FATEs are skipped while grinding. Remove one here to grind it again.",
+            () => DrawBlacklistList(cfg));
+    }
+
+    private static void DrawBlacklistList(Configuration cfg)
+    {
+        var entries = FateBlacklist.All(cfg);
+        if (entries.Count == 0)
+        {
+            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
+                ImGui.TextUnformatted("No FATEs blacklisted.");
+            return;
+        }
+
+        BlacklistedFate? removeEntry = null;
+        var btnSize = ImGui.GetFrameHeight();
+
+        for (var index = 0; index < entries.Count; index++)
+        {
+            var entry = entries[index];
+            ImGui.AlignTextToFramePadding();
+            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextStrong))
+                ImGui.TextUnformatted(FateBlacklist.DisplayName(entry));
+
+            ImGui.SameLine(SettingsGroup.InnerRightLocalX() - btnSize);
+            using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentRose))
+                if (IconButton.Draw(FontAwesomeIcon.Times, $"##bl_rm_{(int)entry.Type}_{entry.Id}", btnSize))
+                    removeEntry = entry;
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip("Remove from blacklist.");
+        }
+
+        if (removeEntry is { } entryToRemove)
+            FateBlacklist.Remove(cfg, entryToRemove);
     }
 
     private static readonly (FateSortCriterion Criterion, string Label)[] sortCriterionLabels =

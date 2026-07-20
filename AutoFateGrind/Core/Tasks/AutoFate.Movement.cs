@@ -32,11 +32,15 @@ public sealed partial class AutoFate
 
         var config = MovementConfig.Everything.WithTolerance(3f);
         var label = $"Moving to {fate.Name}";
+        var targetId = fate.Id;
+
+        await TryTeleportShortcut(fate.Position, targetId, fate.Name);
+        if (CancelToken.IsCancellationRequested) return MoveStopReason.None;
+
         var deadline = Environment.TickCount64 + MoveToFateWatchdogMs;
         var lastRetargetAtMs = Environment.TickCount64;
         var nextProgressLogMs = Environment.TickCount64 + MoveProgressLogMs;
         var stopReason = MoveStopReason.None;
-        var targetId = fate.Id;
 
         // Graceful exits clib can observe while it is actively following a path: a deadline backstop,
         // the FATE vanishing/finishing, its prep NPC spawning, or a closer FATE appearing. Returning
@@ -53,12 +57,16 @@ public sealed partial class AutoFate
             if (refreshed is null) { stopReason = MoveStopReason.FateInvalid; return true; }
             if (refreshed.State != FateState.Running)
             {
-                // Preparing → NPC may have just spawned; bail so ActivateFate runs.
-                if (refreshed.State == FateState.Preparing && refreshed.MotivationNpc?.IsTargetable == true)
-                    stopReason = MoveStopReason.NpcSpawned;
-                else
+                if (!FateScanner.AwaitsNpcStart(refreshed))
+                {
                     stopReason = MoveStopReason.FateInvalid;
-                return true;
+                    return true;
+                }
+                if (refreshed.MotivationNpc?.IsTargetable == true)
+                {
+                    stopReason = MoveStopReason.NpcSpawned;
+                    return true;
+                }
             }
 
             // Mid-path retargeting (skip when we're heading back to a FATE we died in).
@@ -116,13 +124,18 @@ public sealed partial class AutoFate
             return true;
         }
 
-        var op = new MoveOp(o => o.Move(zone.TerritoryId, dest, config,
-            allowTeleportIfFaster: !FateScanner.PlayerHasTwistOfFate(),
-            stopCondition: StopCondition,
-            allowAethernetWithinTerritory: true));
+        var op = new MoveOp(o => o.MoveInZone(dest, config, StopCondition));
 
         var completed = await RunCancellable(op, MoveToFateWatchdogMs + MoveOpUnwindSlackMs, label, AbortIfFrozen);
         if (CancelToken.IsCancellationRequested) return MoveStopReason.None;
+
+        if (Svc.ClientState.TerritoryType != zone.TerritoryId)
+        {
+            // Read only targetId here (a captured uint) — fate.Name would deref a handle that despawned the
+            // moment we crossed into the neighbouring territory, and an NRE would skip the LeftZone return.
+            Diag($"Move to FATE {targetId} ended in territory {Svc.ClientState.TerritoryType}, not {zone.TerritoryId} ({zone.Name}); its fastest teleport route leaves the zone");
+            return MoveStopReason.LeftZone;
+        }
 
         // Cancelled by the hard timeout while wedged in a phase clib wasn't polling (e.g. a mount loop):
         // treat as a teleport-worthy stuck.
@@ -139,6 +152,16 @@ public sealed partial class AutoFate
 
         if (stopReason != MoveStopReason.None) return stopReason;
 
+        if (PublicEvent.GetFateById(targetId) is { } landed && Svc.Objects.LocalPlayer is { } arrivedPlayer)
+        {
+            var distanceFromCenter = Vector3.Distance(arrivedPlayer.Position, landed.Position);
+            if (distanceFromCenter > landed.Radius)
+            {
+                Diag($"Move to FATE {targetId} ({landed.Name}) ended {distanceFromCenter:F0}m from center (radius {landed.Radius:F0}); outside the ring, treating as stuck");
+                return MoveStopReason.StuckRetry;
+            }
+        }
+
         // Clean arrival. clib only dismounts when it lands inside tolerance; a flying mount routinely
         // stops a few metres ABOVE the point (the Y gap), so it would otherwise enter the FATE still
         // mounted. Dismount explicitly — clib's Dismount descends to a reachable point first when in
@@ -151,6 +174,29 @@ public sealed partial class AutoFate
         return MoveStopReason.None;
     }
 
+    private async Task TryTeleportShortcut(Vector3 fatePos, uint fateId, string fateName)
+    {
+        if (FateScanner.PlayerHasTwistOfFate()) return;
+        if (Svc.Condition[ConditionFlag.InCombat]) return;
+        if (Svc.Objects.LocalPlayer is not { } player) return;
+        if (!ZoneAetherytes.TryFindNearest(zone.TerritoryId, fatePos, out var aetheryte)) return;
+
+        var flightFromHere = Vector3.Distance(player.Position, fatePos);
+        var flightFromAetheryte = Vector3.Distance(aetheryte.Position, fatePos);
+        if (flightFromHere - flightFromAetheryte < TeleportShortcutMinSavingMeters) return;
+
+        Status = $"Teleporting to {aetheryte.Name}";
+        Diag($"Teleport shortcut for FATE {fateId} ({fateName}): {aetheryte.Name} leaves {flightFromAetheryte:F0}m to fly vs {flightFromHere:F0}m from here");
+
+        await PrepareForTeleport($"fate-approach-{fateId}");
+        if (CancelToken.IsCancellationRequested) return;
+
+        var op = new MoveOp(o => o.Teleport(zone.TerritoryId, aetheryte.Position, allowSameZoneTeleport: true));
+        await RunCancellable(op, TeleportWatchdogMs, $"fate-approach-{fateId}", StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs));
+        if (op.Fault is { } fault)
+            Diag($"Teleport shortcut for FATE {fateId} faulted: {fault.Message}; flying from here instead");
+    }
+
     // Every clib movement primitive — including dismount in combat/engage — goes through a cancellable
     // MoveOp so a wedged op (e.g. clib can't find a landing point in flight) can never park the parent
     // loop. The parent never awaits a raw clib MoveTo/Teleport/Dismount directly.
@@ -159,22 +205,25 @@ public sealed partial class AutoFate
 
     private async Task<bool> TryTeleportToFate(PublicEvent fate)
     {
-        Status = $"Teleporting to {fate.Name}";
-        Diag($"Teleport recovery to FATE {fate.Id} ({fate.Position})");
+        var fateId = fate.Id;
+        if (!ZoneAetherytes.TryFindNearest(zone.TerritoryId, fate.Position, out var aetheryte))
+        {
+            Diag($"Teleport recovery for FATE {fateId}: {zone.Name} has no aetheryte of its own to teleport to");
+            return false;
+        }
 
-        await PrepareForTeleport($"teleport-recovery-{fate.Id}");
+        Status = $"Teleporting to {fate.Name}";
+        Diag($"Teleport recovery to FATE {fateId} via {aetheryte.Name}");
+
+        await PrepareForTeleport($"teleport-recovery-{fateId}");
         if (CancelToken.IsCancellationRequested) return false;
 
         // Capture position AFTER any dismount so a flight descent isn't mistaken for teleport progress.
         var before = Svc.Objects.LocalPlayer?.Position;
-        var fatePos = fate.Position;
-        // Same-zone teleport to the aetheryte nearest the FATE. Idle-stall guard catches a teleport that
-        // never starts casting in ~8s instead of the full watchdog.
-        var tp = new MoveOp(o => o.Teleport(zone.TerritoryId, fatePos, allowSameZoneTeleport: true));
-        if (!await RunCancellable(tp, TeleportWatchdogMs, $"teleport-recovery-{fate.Id}", StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs)))
+        // Idle-stall guard catches a teleport that never starts casting in ~8s instead of the full watchdog.
+        var tp = new MoveOp(o => o.Teleport(zone.TerritoryId, aetheryte.Position, allowSameZoneTeleport: true));
+        if (!await RunCancellable(tp, TeleportWatchdogMs, $"teleport-recovery-{fateId}", StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs)))
             return false;
-        var aeth = new MoveOp(o => o.Aethernet(zone.TerritoryId, fatePos));
-        await RunCancellable(aeth, AethernetWatchdogMs, $"aethernet-recovery-{fate.Id}", StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs));
 
         var after = Svc.Objects.LocalPlayer?.Position;
         if (before is null || after is null) return false;
