@@ -13,6 +13,9 @@ internal static class AfgConstants
     // Chat/log tag prefixed to AFG's player-facing and diagnostic lines.
     public const string LogPrefix = "[AFG]";
 
+    // Outward IPC surface version; bump on any breaking endpoint change.
+    public const int IpcApiVersion = 1;
+
     // Game-imposed Bicolor Gemstone wallet cap.
     public const int BicolorCap = 1500;
     public const int FollowUpWaitMs = 15_000;

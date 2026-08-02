@@ -397,18 +397,17 @@ public sealed partial class AutoFate
     }
 
     private bool StopConditionMet()
-        => Plugin.Cfg.ActiveMode.IsComplete(new ModeContext { CompletedCount = session.CompletedCount, Zones = zones, Elapsed = session.Elapsed });
+        => RunContext.ActiveMode.IsComplete(new ModeContext { CompletedCount = session.CompletedCount, Zones = zones, Elapsed = session.Elapsed });
 
     private bool AdvanceClassQueueIfCapHit()
     {
-        var cfg = Plugin.Cfg;
-        if (!cfg.ApplyClassOnStart) return false;
-        if (cfg.ClassQueue.Count == 0) return false;
+        if (!RunContext.ApplyClassOnStart) return false;
+        if (RunContext.ClassQueue.Count == 0) return false;
 
-        var idx = ClassSwitcher.FindActiveEntryIndex(cfg.ClassQueue);
+        var idx = ClassSwitcher.FindActiveEntryIndex(RunContext.ClassQueue);
         if (idx < 0)
         {
-            if (cfg.AfterClassQueueDone == AfterClassQueueDone.StopRun)
+            if (Plugin.Cfg.AfterClassQueueDone == AfterClassQueueDone.StopRun)
             {
                 Status = "Class queue done";
                 Diag("All queued classes hit their level caps, stopping run");
@@ -417,7 +416,7 @@ public sealed partial class AutoFate
             return false;
         }
 
-        var entry = cfg.ClassQueue[idx];
+        var entry = RunContext.ClassQueue[idx];
         var jobId = ClassSwitcher.JobIdForUserIndex(entry.GearsetIndex);
         var currentJob = Svc.Objects.LocalPlayer?.ClassJob.RowId ?? 0;
         if (jobId == 0 || jobId == currentJob) return false;

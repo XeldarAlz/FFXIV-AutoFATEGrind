@@ -11,20 +11,23 @@ internal sealed partial class AutoFateController
     {
         FinalizeRun(s);
         Phase = AutoPhase.Idle;
-        MaybeRunAfterAction(s);
+        // Overrides outlive the grind so the after-run action still reports the run's own goal. Guarded so
+        // a stale end cannot wipe a newer run's snapshot.
+        if (!MaybeRunAfterAction(s) && s == session) RunContext.End();
     }
 
     // After-action gates: s must be the live session and have ended via stop condition (not manual Stop or fault).
-    private void MaybeRunAfterAction(AutoFateSession? s)
+    // True when an action was dispatched, which hands it ownership of clearing the run overrides.
+    private bool MaybeRunAfterAction(AutoFateSession? s)
     {
-        if (s is null || s != session || !s.CompletedByStopCondition || s.AfterActionDispatched) return;
+        if (s is null || s != session || !s.CompletedByStopCondition || s.AfterActionDispatched) return false;
         s.AfterActionDispatched = true;
 
         var action = Plugin.Cfg.AfterRun;
         if (action == AfterRunAction.StayLoggedIn)
         {
             Diag("Run completed by stop condition; after-run action = StayLoggedIn (no-op).");
-            return;
+            return false;
         }
 
         Diag($"Run completed by stop condition; starting after-run action {action}.");
@@ -33,8 +36,10 @@ internal sealed partial class AutoFateController
         Svc.Automation.Start(task, OnCompleted: () =>
         {
             Diag($"After-run action {action} finished.");
+            RunContext.End();
             Phase = AutoPhase.Idle;
         });
+        return true;
     }
 
     // Writes a finished run to history exactly once. Idempotent (guarded by session.Recorded) so the many
@@ -61,7 +66,7 @@ internal sealed partial class AutoFateController
                 EndLevel = s.CurrentLevel,
                 JobId = s.JobId,
                 JobAbbr = s.JobAbbr,
-                ModeName = Plugin.Cfg.ActiveMode.DisplayName,
+                ModeName = RunContext.ActiveMode.DisplayName,
                 ZoneNames = activeZones.Select(z => z.Name).ToList(),
             };
             Plugin.Instance.History.Append(record);

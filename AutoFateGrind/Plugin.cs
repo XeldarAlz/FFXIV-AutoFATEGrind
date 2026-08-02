@@ -1,6 +1,7 @@
 using AutoFateGrind.Core;
 using AutoFateGrind.Core.Debug;
 using AutoFateGrind.Core.Game.Watchers;
+using AutoFateGrind.Core.Ipc;
 using AutoFateGrind.Core.Stats;
 using AutoFateGrind.Core.Tasks;
 using AutoFateGrind.Windows;
@@ -54,6 +55,7 @@ public sealed class Plugin : IDalamudPlugin
         Cfg = Configuration;
         History = new RunHistory();
         Controller = new AutoFateController();
+        AutoFateIpcProvider.Register();
         gmAlertWatcher = new GmAlertWatcher();
         partyInviteWatcher = new PartyInviteWatcher();
 
@@ -73,7 +75,7 @@ public sealed class Plugin : IDalamudPlugin
 
         CommandManager.AddHandler(AfgConstants.PrimaryCommand, new CommandInfo(OnCommand)
         {
-            HelpMessage = "Toggle the Auto FATE Grind window. /afg config | stats | deps | about | target (dump current target's BaseId)."
+            HelpMessage = "Toggle the Auto FATE Grind window. /afg toggle (start or stop the grind) | config | stats | deps | about | target (dump current target's BaseId)."
         });
         CommandManager.AddHandler(AfgConstants.AliasCommand, new CommandInfo(OnCommand)
         {
@@ -138,6 +140,8 @@ public sealed class Plugin : IDalamudPlugin
             ToggleHistoryUi();
         else if (trimmed.Equals("target", StringComparison.OrdinalIgnoreCase))
             TargetDumper.Dump();
+        else if (trimmed.Equals("toggle", StringComparison.OrdinalIgnoreCase))
+            Controller.IpcToggle();
         else
             ToggleMainUi();
     }

@@ -10,16 +10,16 @@ internal static class GoalProgress
 {
     public readonly record struct Info(float? Fraction, string CenterBig, string CenterSmall, string Remaining, bool Endless);
 
-    public static Info Resolve(Configuration cfg, AutoFateSession? s)
+    public static Info Resolve(AutoFateSession? s)
     {
         var completed = s?.CompletedCount ?? 0;
 
-        switch (cfg.ActiveMode.Id)
+        switch (RunContext.ActiveMode.Id)
         {
             case MaxGemstonesMode.ModeId:
             {
                 var have = s?.GemstoneCurrent ?? GemstoneCatalog.CurrentWalletCount();
-                var target = Math.Max(1, cfg.TargetGemstoneCount);
+                var target = Math.Max(1, RunContext.TargetGemstoneCount);
                 var left = Math.Max(0, target - have);
                 return new Info(
                     Math.Clamp(have / (float)target, 0f, 1f),
@@ -28,7 +28,7 @@ internal static class GoalProgress
             }
             case RunCountMode.ModeId:
             {
-                var target = Math.Max(1, cfg.TargetFateCount);
+                var target = Math.Max(1, RunContext.TargetFateCount);
                 var left = Math.Max(0, target - completed);
                 return new Info(
                     Math.Clamp(completed / (float)target, 0f, 1f),
@@ -37,7 +37,7 @@ internal static class GoalProgress
             }
             case TimeBoxedMode.ModeId:
             {
-                var targetMin = Math.Max(1, cfg.TargetMinutes);
+                var targetMin = Math.Max(1, RunContext.TargetMinutes);
                 var elapsed = s?.Elapsed ?? TimeSpan.Zero;
                 var remaining = TimeSpan.FromMinutes(targetMin) - elapsed;
                 var rem = remaining > TimeSpan.Zero

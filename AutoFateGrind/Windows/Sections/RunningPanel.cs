@@ -24,7 +24,7 @@ internal static class RunningPanel
         var (accent, accentSoft, label) = PhasePalette(controller, inFate);
 
         DrawHeaderStrip(accent, accentSoft);
-        DrawHeroCard(cfg, controller, fate, inFate, accent, accentSoft, label);
+        DrawHeroCard(controller, fate, inFate, accent, accentSoft, label);
 
         Styling.VSpace(3f);
         var s = controller.SessionSnapshot;
@@ -32,13 +32,13 @@ internal static class RunningPanel
         if (StopButton.Draw(stopSub)) controller.Stop();
 
         Styling.VSpace(7f);
-        DrawStatTiles(cfg, controller);
+        DrawStatTiles(controller);
 
         Styling.VSpace(5f);
         DrawQueue(cfg);
 
         Styling.VSpace(4f);
-        DrawFooter(cfg);
+        DrawFooter(controller);
     }
 
     private static void DrawHeaderStrip(Vector4 accent, Vector4 accentSoft)
@@ -64,7 +64,7 @@ internal static class RunningPanel
     }
 
     private static void DrawHeroCard(
-        Configuration cfg, AutoFateController controller, PublicEvent? fate, bool inFate,
+        AutoFateController controller, PublicEvent? fate, bool inFate,
         Vector4 accent, Vector4 accentSoft, string label)
     {
         var scale = ImGuiHelpers.GlobalScale;
@@ -82,7 +82,7 @@ internal static class RunningPanel
         dl.AddRectFilled(origin, end, ImGui.GetColorU32(bg), Styling.CardRounding);
         dl.AddRect(origin, end, ImGui.GetColorU32(border), Styling.CardRounding, ImDrawFlags.None, active ? 2f : 1f);
 
-        var info = GoalProgress.Resolve(cfg, controller.SessionSnapshot);
+        var info = GoalProgress.Resolve(controller.SessionSnapshot);
 
         var padX = 16f * scale;
         var ringRadius = height * 0.5f - 15f * scale;
@@ -200,7 +200,7 @@ internal static class RunningPanel
         };
     }
 
-    private static void DrawStatTiles(Configuration cfg, AutoFateController controller)
+    private static void DrawStatTiles(AutoFateController controller)
     {
         var s = controller.SessionSnapshot;
         var scale = ImGuiHelpers.GlobalScale;
@@ -214,7 +214,7 @@ internal static class RunningPanel
         var hours = s?.Elapsed.TotalHours ?? 0;
         var gph = hours > 0 ? gems / hours : 0;
 
-        var info = GoalProgress.Resolve(cfg, s);
+        var info = GoalProgress.Resolve(s);
         var elapsedVal = s is null ? "0m 00s" : Formatting.Elapsed(s.Elapsed);
         var elapsedSub = info.Endless ? "" : info.Remaining;
 
@@ -290,12 +290,13 @@ internal static class RunningPanel
         ImGui.Dummy(new Vector2(width, rowHeight));
     }
 
-    private static void DrawFooter(Configuration cfg)
+    private static void DrawFooter(AutoFateController controller)
     {
         var current = Svc.ClientState.TerritoryType;
         var zone = ZoneRegistry.Zones.FirstOrDefault(z => z.TerritoryId == current);
         var name = zone?.Name ?? "(somewhere else)";
-        var queued = cfg.SelectedZones.Count;
+        // Count the run's own rotation, which an IPC caller can set independently of the saved selection.
+        var queued = controller.ActiveZones.Count;
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
             ImGui.TextUnformatted($"{name}   ·   {queued} zone{(queued == 1 ? "" : "s")} in rotation");
     }

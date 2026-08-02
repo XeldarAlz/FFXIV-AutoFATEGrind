@@ -1,3 +1,4 @@
+using AutoFateGrind.Core.Tasks;
 using clib.Utils;
 using ECommons.DalamudServices;
 using FFXIVClientStructs.FFXIV.Client.Enums;
@@ -14,6 +15,7 @@ internal static class FateBlacklist
     public static bool Contains(Configuration cfg, PublicEvent f)
     {
         if (cfg.BlacklistedFateIds.Contains(f.Id)) return true;
+        if (RunContext.AvoidedFateIds.Contains(f.Id)) return true;
         if (cfg.BlacklistedTypeIds.TryGetValue((int)f.FateType, out var set) && set.Contains(f.Id)) return true;
         return false;
     }

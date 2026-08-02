@@ -1,5 +1,6 @@
 using AutoFateGrind.Core.External;
 using AutoFateGrind.Core.Game.Player;
+using AutoFateGrind.Core.Modes;
 using AutoFateGrind.Core.Trading;
 using AutoFateGrind.Core.Zones;
 using clib.Services;
@@ -15,6 +16,7 @@ internal sealed partial class AutoFateController
     private AutoFateSession? session;
     private IReadOnlyList<ZoneInfo> activeZones = [];
     public AutoFateSession? SessionSnapshot => session;
+    public IReadOnlyList<ZoneInfo> ActiveZones => activeZones;
 
     private static readonly Random rng = new();
 
@@ -37,6 +39,8 @@ internal sealed partial class AutoFateController
         if (activeZones.Count == 0)
         {
             Diag("Start aborted: no zones selected.");
+            // Reachable from /afg toggle and IPC, which have no on-screen gate like the Start button does.
+            ECommons.DalamudServices.Svc.Chat.PrintError("[AFG] Cannot start: pick at least one zone first.");
             return;
         }
 
@@ -57,7 +61,7 @@ internal sealed partial class AutoFateController
         };
         s.CaptureStartExp();
         session = s;
-        Diag($"Run starting: {activeZones.Count} zone(s), mode {Plugin.Cfg.ActiveMode.DisplayName}, wallet {startWallet}g, threshold {Plugin.Cfg.TradeThreshold}g, trade-on-cap {(Plugin.Cfg.TradeOnCap ? "on" : "off")}.");
+        Diag($"Run starting: {activeZones.Count} zone(s), mode {RunContext.ActiveMode.DisplayName}, wallet {startWallet}g, threshold {Plugin.Cfg.TradeThreshold}g, trade-on-cap {(Plugin.Cfg.TradeOnCap ? "on" : "off")}.");
 
         ApplyStartingClass();
         StartFateGrind(0, s);
@@ -65,17 +69,16 @@ internal sealed partial class AutoFateController
 
     private static void ApplyStartingClass()
     {
-        var cfg = Plugin.Cfg;
-        if (!cfg.ApplyClassOnStart) return;
-        if (cfg.ClassQueue.Count == 0) return;
+        if (!RunContext.ApplyClassOnStart) return;
+        if (RunContext.ClassQueue.Count == 0) return;
 
-        var idx = ClassSwitcher.FindActiveEntryIndex(cfg.ClassQueue);
+        var idx = ClassSwitcher.FindActiveEntryIndex(RunContext.ClassQueue);
         if (idx < 0)
         {
             ECommons.DalamudServices.Svc.Chat.Print("[AFG] Class queue: every entry is at its level cap, staying on current class.");
             return;
         }
-        var entry = cfg.ClassQueue[idx];
+        var entry = RunContext.ClassQueue[idx];
         var label = $"gearset {entry.GearsetIndex} ({ClassSwitcher.JobNameForUserIndex(entry.GearsetIndex)})";
         if (ClassSwitcher.TryEquip(entry))
             ECommons.DalamudServices.Svc.Chat.Print($"[AFG] Switching to {label}.");
@@ -86,12 +89,128 @@ internal sealed partial class AutoFateController
     public void Stop()
     {
         var ending = session;
-        Svc.Automation.Stop();
-        FinalizeRun(ending);
-        session = null;
-        activeZones = [];
-        Phase = AutoPhase.Idle;
-        if (ending is not null) Diag("Stop requested; session cleared.");
+        try
+        {
+            Svc.Automation.Stop();
+        }
+        finally
+        {
+            // Clear run state even if cancellation threw, so a fault cannot leave the snapshot armed.
+            FinalizeRun(ending);
+            session = null;
+            activeZones = [];
+            RunContext.End();
+            Phase = AutoPhase.Idle;
+            if (ending is not null) Diag("Stop requested; session cleared.");
+        }
+    }
+
+    // Starts a run with per-run overrides. A null argument keeps the saved config for that category, and
+    // overrides are never persisted. Framework thread only. Returns true only if a run began.
+    public bool IpcStartWith(List<uint>? zones, string? modeId, int? stopValue, int? gearsetIndex, List<uint>? avoidedFates)
+    {
+        if (Running)
+        {
+            Diag("IPC start ignored: a run is already active.");
+            return false;
+        }
+
+        IFateGrindMode? overrideMode = null;
+        if (modeId is not null)
+        {
+            overrideMode = FateGrindModes.GetById(modeId);
+            if (overrideMode is null)
+            {
+                Diag($"IPC start aborted: unknown grind mode '{modeId}'.");
+                return false;
+            }
+        }
+
+        var snapshot = BuildSnapshot(overrideMode, modeId, stopValue, gearsetIndex, avoidedFates);
+        var startList = zones is null
+            ? ZoneSelection.ResolveStartList(Plugin.Cfg)
+            : ZoneSelection.Resolve(zones.Distinct());
+
+        RunContext.Begin(snapshot);
+        try
+        {
+            RunAll(startList);
+        }
+        catch
+        {
+            RunContext.End();
+            throw;
+        }
+
+        if (!Running)
+        {
+            RunContext.End();
+            return false;
+        }
+        return true;
+    }
+
+    public bool IpcStart() => IpcStartWith(null, null, null, null, null);
+
+    public void IpcStop() => Stop();
+
+    public bool IpcToggle()
+    {
+        if (Running)
+        {
+            Stop();
+            return false;
+        }
+        return IpcStart();
+    }
+
+    // Resolves the IPC arguments into a run snapshot. Reads live gearset state, so framework thread only.
+    private static RunSnapshot BuildSnapshot(IFateGrindMode? overrideMode, string? modeId, int? stopValue, int? gearsetIndex, List<uint>? avoidedFates)
+    {
+        // stopValue targets the effective mode, so a caller can retarget the saved mode without restating it.
+        var effectiveModeId = modeId ?? Plugin.Cfg.ActiveMode.Id;
+        int? gemTarget = null, fateTarget = null, minuteTarget = null;
+        if (stopValue is int value)
+        {
+            switch (effectiveModeId)
+            {
+                case MaxGemstonesMode.ModeId: gemTarget = Math.Clamp(value, 1, AfgConstants.BicolorCap); break;
+                case RunCountMode.ModeId: fateTarget = Math.Max(1, value); break;
+                case TimeBoxedMode.ModeId: minuteTarget = Math.Max(1, value); break;
+            }
+        }
+
+        bool? applyClass = null;
+        IReadOnlyList<ClassQueueEntry>? classQueue = null;
+        if (gearsetIndex is int requested)
+        {
+            var userIndex = requested is >= 1 and <= 100 ? (byte)requested : (byte)0;
+            var jobId = userIndex == 0 ? (byte)0 : ClassSwitcher.JobIdForUserIndex(userIndex);
+            if (jobId != 0 && ClassSwitcher.IsCombatJob(jobId))
+            {
+                applyClass = true;
+                classQueue = new List<ClassQueueEntry> { new() { GearsetIndex = userIndex, JobId = jobId, StopAtLevel = 0 } };
+            }
+            else
+            {
+                Diag($"IPC start: gearset {requested} is not a usable combat gearset; keeping the current class.");
+                applyClass = false;
+                classQueue = [];
+            }
+        }
+
+        var avoidIds = avoidedFates is { Count: > 0 } ? new HashSet<uint>(avoidedFates) : null;
+
+        return new RunSnapshot
+        {
+            Mode = overrideMode,
+            TargetGemstoneCount = gemTarget,
+            TargetFateCount = fateTarget,
+            TargetMinutes = minuteTarget,
+            ApplyClassOnStart = applyClass,
+            ClassQueue = classQueue,
+            AvoidFateIds = avoidIds,
+        };
     }
 
 }
