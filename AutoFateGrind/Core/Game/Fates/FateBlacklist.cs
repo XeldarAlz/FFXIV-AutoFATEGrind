@@ -7,6 +7,8 @@ namespace AutoFateGrind.Core.Game.Fates;
 
 internal readonly record struct BlacklistedFate(FateType Type, uint Id);
 
+internal readonly record struct BlacklistedFateGroup(string Name, BlacklistedFate[] Entries);
+
 internal static class FateBlacklist
 {
     private static readonly Dictionary<BlacklistedFate, string> nameCache = new();
@@ -27,35 +29,83 @@ internal static class FateBlacklist
         cfg.SaveDebounced();
     }
 
-    public static IReadOnlyList<BlacklistedFate> All(Configuration cfg)
+    public static void Add(Configuration cfg, FateType type, uint[] fateIds)
     {
-        var seen = new HashSet<BlacklistedFate>();
-        var entries = new List<BlacklistedFate>();
-
-        // The flat id set predates the per-type sets and stores overworld FATE ids, so it reads as Normal.
-        foreach (var fateId in cfg.BlacklistedFateIds)
+        if (!cfg.BlacklistedTypeIds.TryGetValue((int)type, out var set))
         {
-            var entry = new BlacklistedFate(FateType.Normal, fateId);
-            if (seen.Add(entry))
-                entries.Add(entry);
+            cfg.BlacklistedTypeIds[(int)type] = set = [];
+        }
+
+        var added = false;
+        for (var index = 0; index < fateIds.Length; index++)
+        {
+            added |= set.Add(fateIds[index]);
+        }
+
+        if (added)
+        {
+            cfg.SaveDebounced();
+        }
+    }
+
+    public static IReadOnlyList<BlacklistedFateGroup> All(Configuration cfg)
+    {
+        var byName = new Dictionary<string, List<BlacklistedFate>>(StringComparer.OrdinalIgnoreCase);
+
+        var legacyOverworldIds = cfg.BlacklistedFateIds;
+        foreach (var fateId in legacyOverworldIds)
+        {
+            Collect(byName, new BlacklistedFate(FateType.Normal, fateId));
         }
 
         foreach (var (typeKey, set) in cfg.BlacklistedTypeIds)
         {
             foreach (var fateId in set)
             {
-                var entry = new BlacklistedFate((FateType)typeKey, fateId);
-                if (seen.Add(entry))
-                    entries.Add(entry);
+                Collect(byName, new BlacklistedFate((FateType)typeKey, fateId));
             }
         }
 
-        entries.Sort(static (left, right) =>
-            string.Compare(DisplayName(left), DisplayName(right), StringComparison.OrdinalIgnoreCase));
-        return entries;
+        var groups = new List<BlacklistedFateGroup>(byName.Count);
+        foreach (var (name, entries) in byName)
+        {
+            groups.Add(new BlacklistedFateGroup(name, [.. entries]));
+        }
+
+        groups.Sort(static (left, right) =>
+            string.Compare(left.Name, right.Name, StringComparison.OrdinalIgnoreCase));
+        return groups;
     }
 
-    public static void Remove(Configuration cfg, BlacklistedFate entry)
+    private static void Collect(Dictionary<string, List<BlacklistedFate>> byName, BlacklistedFate entry)
+    {
+        var name = DisplayName(entry);
+        if (!byName.TryGetValue(name, out var entries))
+        {
+            byName[name] = entries = [];
+        }
+
+        if (!entries.Contains(entry))
+        {
+            entries.Add(entry);
+        }
+    }
+
+    public static void Remove(Configuration cfg, BlacklistedFateGroup group)
+    {
+        var changed = false;
+        for (var index = 0; index < group.Entries.Length; index++)
+        {
+            changed |= RemoveEntry(cfg, group.Entries[index]);
+        }
+
+        if (changed)
+        {
+            cfg.SaveDebounced();
+        }
+    }
+
+    private static bool RemoveEntry(Configuration cfg, BlacklistedFate entry)
     {
         var changed = entry.Type == FateType.Normal && cfg.BlacklistedFateIds.Remove(entry.Id);
 
@@ -64,14 +114,15 @@ internal static class FateBlacklist
         {
             changed = true;
             if (set.Count == 0)
+            {
                 cfg.BlacklistedTypeIds.Remove(typeKey);
+            }
         }
 
-        if (changed)
-            cfg.SaveDebounced();
+        return changed;
     }
 
-    public static string DisplayName(BlacklistedFate entry)
+    private static string DisplayName(BlacklistedFate entry)
     {
         if (nameCache.TryGetValue(entry, out var cached))
             return cached;

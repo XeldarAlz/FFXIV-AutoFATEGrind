@@ -6,6 +6,7 @@ using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
+using FFXIVClientStructs.FFXIV.Client.Enums;
 
 namespace AutoFateGrind.Windows.Sections.Config;
 
@@ -58,41 +59,67 @@ internal static class FilterSettings
     {
         using var group = SettingsGroup.Begin("Blacklist");
 
+        SettingsRow.DrawBlock("Add a FATE by name",
+            "Pulled live from game data, sorted A-Z. Type to search. Use this for FATEs you never want to trigger, like a world boss everyone is waiting on, without needing it to be up.",
+            () => DrawBlacklistPicker(cfg));
+
         SettingsRow.DrawBlock("Blacklisted FATEs",
-            "FATEs you banned with the ban button in the Live FATEs window. Blacklisted FATEs are skipped while grinding. Remove one here to grind it again.",
+            "Blacklisted FATEs are skipped while grinding. The ban button in the Live FATEs window adds to this list too. Remove one here to grind it again.",
             () => DrawBlacklistList(cfg));
+    }
+
+    private static int blacklistAddSelection;
+
+    private static void DrawBlacklistPicker(Configuration cfg)
+    {
+        var catalog = FateCatalog.All;
+        if (catalog.Length == 0)
+        {
+            SettingsRow.Note("No FATEs found in game data.", Styling.AccentRose);
+            return;
+        }
+
+        blacklistAddSelection = Math.Clamp(blacklistAddSelection, 0, catalog.Length - 1);
+        var labels = FateCatalog.Labels;
+        SettingsControls.DrawSearchableCombo("##bl_pick", labels[blacklistAddSelection], labels,
+            ref blacklistAddSelection, 380f);
+
+        ImGui.SameLine();
+        using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentMint))
+            if (ImGui.SmallButton("Add##bl_add"))
+                FateBlacklist.Add(cfg, FateType.Normal, catalog[blacklistAddSelection].FateIds);
     }
 
     private static void DrawBlacklistList(Configuration cfg)
     {
-        var entries = FateBlacklist.All(cfg);
-        if (entries.Count == 0)
+        var groups = FateBlacklist.All(cfg);
+        if (groups.Count == 0)
         {
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
                 ImGui.TextUnformatted("No FATEs blacklisted.");
             return;
         }
 
-        BlacklistedFate? removeEntry = null;
-        var btnSize = ImGui.GetFrameHeight();
+        BlacklistedFateGroup? removeGroup = null;
+        var buttonSize = ImGui.GetFrameHeight();
 
-        for (var index = 0; index < entries.Count; index++)
+        for (var index = 0; index < groups.Count; index++)
         {
-            var entry = entries[index];
+            var entryGroup = groups[index];
             ImGui.AlignTextToFramePadding();
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextStrong))
-                ImGui.TextUnformatted(FateBlacklist.DisplayName(entry));
+                ImGui.TextUnformatted(entryGroup.Name);
 
-            ImGui.SameLine(SettingsGroup.InnerRightLocalX() - btnSize);
+            ImGui.SameLine(SettingsGroup.InnerRightLocalX() - buttonSize);
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentRose))
-                if (IconButton.Draw(FontAwesomeIcon.Times, $"##bl_rm_{(int)entry.Type}_{entry.Id}", btnSize))
-                    removeEntry = entry;
+                if (IconButton.Draw(FontAwesomeIcon.Times, $"##bl_rm_{entryGroup.Name}", buttonSize))
+                    removeGroup = entryGroup;
             if (ImGui.IsItemHovered())
                 ImGui.SetTooltip("Remove from blacklist.");
         }
 
-        if (removeEntry is { } entryToRemove)
-            FateBlacklist.Remove(cfg, entryToRemove);
+        if (removeGroup is { } groupToRemove)
+            FateBlacklist.Remove(cfg, groupToRemove);
     }
 
     private static readonly (FateSortCriterion Criterion, string Label)[] sortCriterionLabels =
