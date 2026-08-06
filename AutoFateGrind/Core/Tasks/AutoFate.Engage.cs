@@ -157,6 +157,7 @@ public sealed partial class AutoFate
         // Only an entry that fought the fate while Running may book the completion — guards against
         // a re-entry during the lingering 100% frame double-counting.
         var sawRunning = false;
+        var reach = new EngageReachTracker(EngageReachMeters());
 
         try
         {
@@ -201,6 +202,8 @@ public sealed partial class AutoFate
                     EnableTextAdvanceForCollect();
                     collectTextAdvanceArmed = true;
                 }
+
+                if (await TickEngagementWatchdog(fateId, fate, reach)) break;
 
                 await NextFrame(30);
             }
@@ -251,6 +254,117 @@ public sealed partial class AutoFate
         }
 
         return ExitReason.Continue;
+    }
+
+    private static float EngageReachMeters()
+    {
+        var player = Svc.Objects.LocalPlayer;
+        if (player is null) return EngageRangedReachMeters;
+
+        var role = player.ClassJob.Value.Role;
+        return role is RoleTank or RoleMelee ? EngageMeleeReachMeters : EngageRangedReachMeters;
+    }
+
+    private async Task<bool> TickEngagementWatchdog(uint fateId, PublicEvent fate, EngageReachTracker reach)
+    {
+        if (fate.Rule == PublicEvent.FateRule.Collect) return false;
+        if (Svc.Condition[ConditionFlag.Mounted]) return false;
+        if (StuckDetector.IsPositionFrozenLegit()) return false;
+        if (Svc.Objects.LocalPlayer is not { } player) return false;
+
+        if (!FateMobScanner.TryFindNearestMob(fateId, player.Position, out var mobPos, out var mobDistance))
+        {
+            reach.Restart();
+            return false;
+        }
+
+        if (!reach.Stalled(mobDistance)) return false;
+
+        var fateName = fate.Name;
+
+        if (reach.Repositions >= MaxEngageRepositions)
+        {
+            Diag($"FATE {fateId} ({fateName}) unreachable: still {mobDistance:F0}m from the nearest mob after {MaxEngageRepositions} repositions; abandoning and blacklisting for this session");
+            abandonedFateId = fateId;
+            sessionStuckFateIds.Add(fateId);
+            return true;
+        }
+
+        await RepositionToFateMob(fateId, fateName, mobPos, mobDistance, reach);
+        reach.Restart();
+        Status = $"Engaging {fateName}";
+        return false;
+    }
+
+    private async Task RepositionToFateMob(uint fateId, string fateName, Vector3 mobPos, float mobDistance, EngageReachTracker reach)
+    {
+        reach.CountReposition();
+        Status = $"Closing on {fateName}";
+        Diag($"Engagement stalled on FATE {fateId} ({fateName}): nearest mob {mobDistance:F0}m away (reach {reach.Meters:F0}m) with no approach in {EngageReachStallMs / 1000}s; re-pathing with vnav (attempt {reach.Repositions}/{MaxEngageRepositions})");
+
+        var dest = mobPos.OnMesh();
+        var tolerance = reach.Meters <= EngageMeleeReachMeters
+            ? EngageMeleeApproachToleranceMeters
+            : EngageRangedApproachToleranceMeters;
+        var config = MovementConfig.GroundMove.WithTolerance(tolerance);
+        var reachMeters = reach.Meters;
+
+        bool InRangeOrGone()
+        {
+            if (PublicEvent.GetFateById(fateId) is not { State: FateState.Running }) return true;
+            if (Svc.Objects.LocalPlayer is not { } moving) return true;
+            return FateMobScanner.TryFindNearestMob(fateId, moving.Position, out _, out var live)
+                && live <= reachMeters;
+        }
+
+        BossModIPC.Instance.ClearActive();
+        var op = new MoveOp(o => o.MoveInZone(dest, config, InRangeOrGone));
+        await RunCancellable(op, EngageRepositionWatchdogMs, $"engage-reposition-{fateId}",
+            StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs));
+
+        if (op.Fault is { } fault)
+            Diag($"Reposition for FATE {fateId} faulted: {fault.Message}");
+    }
+
+    private sealed class EngageReachTracker(float reachMeters)
+    {
+        private float anchorDistance = float.MaxValue;
+        private long stalledSinceMs = Environment.TickCount64;
+
+        public float Meters { get; } = reachMeters;
+        public int Repositions { get; private set; }
+
+        public bool Stalled(float nearestDistance)
+        {
+            var now = Environment.TickCount64;
+
+            if (nearestDistance <= Meters)
+            {
+                anchorDistance = nearestDistance;
+                stalledSinceMs = now;
+                Repositions = 0;
+                return false;
+            }
+
+            if (nearestDistance + EngageApproachProgressMeters < anchorDistance)
+            {
+                anchorDistance = nearestDistance;
+                stalledSinceMs = now;
+                return false;
+            }
+
+            if (nearestDistance > anchorDistance) anchorDistance = nearestDistance;
+
+            return now - stalledSinceMs >= EngageReachStallMs;
+        }
+
+        public void CountReposition() => Repositions++;
+
+        public void Restart()
+        {
+            anchorDistance = float.MaxValue;
+            stalledSinceMs = Environment.TickCount64;
+        }
     }
 
     private async Task SettleGemstoneReward()

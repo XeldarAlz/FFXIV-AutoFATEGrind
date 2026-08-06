@@ -42,6 +42,14 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private const int   CollectExpiryTimeoutMs = 90_000;
     private const int   EngageStallTimeoutMs = 60_000;
     private const int   EngageOutOfCombatGraceMs = 30_000;
+    private const float EngageMeleeReachMeters  = 6f;
+    private const float EngageRangedReachMeters = 25f;
+    private const float EngageApproachProgressMeters = 2f;
+    private const int   EngageReachStallMs = 10_000;
+    private const int   EngageRepositionWatchdogMs = 25_000;
+    private const float EngageMeleeApproachToleranceMeters  = 2.5f;
+    private const float EngageRangedApproachToleranceMeters = 15f;
+    private const int   MaxEngageRepositions = 3;
     // Cap on fighting off a mob that aggroed mid-travel, so an unkillable add can't park the run.
     private const int   CombatClearTimeoutMs = 30_000;
     private const int   RaiseWaitMs = 30_000;
@@ -76,6 +84,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private long  followUpWatchUntilMs;
     private uint? waitForExpiryFateId;
     private long  waitForExpiryStartedAtMs;
+    private uint? abandonedFateId;
     private int   idleScans;
 
     private static readonly Random rng = new();
@@ -309,6 +318,9 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
             }
         }
 
+        if (abandonedFateId is { } abandonedId && PublicEvent.GetFateById(abandonedId) is null)
+            abandonedFateId = null;
+
         if (IsPlayerKO())
         {
             if (PublicEvent.CurrentFate is { Progress: < 100, Id: var dyingId })
@@ -325,7 +337,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
 
         // Only a Running CurrentFate means "fight it". A completed fate lingers non-Running for a
         // frame; routing that to Engaging (which returns instantly) would spin and freeze the game.
-        if (PublicEvent.CurrentFate is { State: FateState.Running } current)
+        if (PublicEvent.CurrentFate is { State: FateState.Running } current && abandonedFateId != current.Id)
         {
             // Hold a completed Collect until out of combat so a stray mob can't trap us mid-deactivation.
             if (current is { Rule: PublicEvent.FateRule.Collect, Progress: >= 100, Id: var cid })
