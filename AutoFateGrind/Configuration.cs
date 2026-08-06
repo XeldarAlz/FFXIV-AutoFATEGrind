@@ -43,6 +43,8 @@ public sealed class Configuration : IPluginConfiguration
     // Auto-restart on fault, bounded by MaxConsecutiveStateErrors.
     public bool AutoResumeOnFault { get; set; } = true;
 
+    public bool AutoPauseInContent { get; set; } = true;
+
     public HashSet<uint> BlacklistedFateIds { get; set; } = [1831, 1832, 1914, 1915];
 
     // Per-FateType blacklist (augments BlacklistedFateIds); key is (int)FateType for stability.

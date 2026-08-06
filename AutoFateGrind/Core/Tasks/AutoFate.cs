@@ -25,6 +25,8 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private int zoneIndex = zones.Count == 0 ? 0 : Math.Clamp(startIndex, 0, zones.Count - 1);
     private ZoneInfo zone => zones[zoneIndex];
 
+    public int ZoneIndex => zoneIndex;
+
     private readonly HashSet<uint> sessionStuckFateIds = new();
     private static readonly HashSet<uint> obstacleMapBlacklist = new() { 1831, 1832, 1914, 1915 };
 

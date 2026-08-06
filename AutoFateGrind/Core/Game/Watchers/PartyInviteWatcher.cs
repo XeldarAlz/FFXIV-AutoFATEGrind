@@ -47,7 +47,7 @@ internal sealed unsafe class PartyInviteWatcher : IDisposable
 
         var cfg = Plugin.Cfg;
         if (!cfg.DeclinePartyInvites) return;
-        if (!Plugin.Instance.Controller.Running) return;
+        if (!Plugin.Instance.Controller.Running || Plugin.Instance.Controller.Paused) return;
 
         var agent = AgentPartyInvite.Instance();
         if (agent is null) return;

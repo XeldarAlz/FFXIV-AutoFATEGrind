@@ -6,15 +6,31 @@ namespace AutoFateGrind.Core.Tasks;
 
 internal sealed partial class AutoFateController
 {
+    private AutoCommon? currentTask;
+    private AutoFate? grindTask;
+
+    private void RunTask(AutoCommon task, Action onCompleted)
+    {
+        currentTask = task;
+        Svc.Automation.Start(task, OnCompleted: () =>
+        {
+            if (!ReferenceEquals(currentTask, task))
+            {
+                Diag($"{task.GetType().Name} finished but is no longer the current task (stopped, paused, or superseded); skipping hand-off.");
+                return;
+            }
+            onCompleted();
+        });
+    }
+
     // clib.Automation buffers only one queued task; multi-step handoffs chain via OnCompleted.
     private void StartFateGrind(int startZoneIndex, AutoFateSession owningSession)
     {
         Phase = AutoPhase.Grinding;
         var startName = startZoneIndex < activeZones.Count ? activeZones[startZoneIndex].Name : "?";
         Diag($"FATE grind phase entering at zone[{startZoneIndex}] {startName}.");
-        Svc.Automation.Start(
-            new AutoFate(activeZones, owningSession, startZoneIndex),
-            OnCompleted: () => HandlePostFateHandoffs(owningSession));
+        grindTask = new AutoFate(activeZones, owningSession, startZoneIndex);
+        RunTask(grindTask, () => HandlePostFateHandoffs(owningSession));
     }
 
     private void HandlePostFateHandoffs(AutoFateSession owningSession)
@@ -33,9 +49,7 @@ internal sealed partial class AutoFateController
             Diag("Repair phase entering.");
             // After repair, fall back into this same dispatcher so any pending trade also runs before
             // we resume the FATE grind.
-            Svc.Automation.Start(
-                new AutoRepair(),
-                OnCompleted: () => HandlePostFateHandoffs(owningSession));
+            RunTask(new AutoRepair(), () => HandlePostFateHandoffs(owningSession));
             return;
         }
 
@@ -77,9 +91,9 @@ internal sealed partial class AutoFateController
 
         Phase = AutoPhase.Trading;
         Diag($"Trade phase entering: item {itemId}, origin zone {origin.Name} ({origin.TerritoryId}).");
-        Svc.Automation.Start(
+        RunTask(
             new AutoTrade(itemId, origin.TerritoryId, origin.Expansion),
-            OnCompleted: () =>
+            () =>
             {
                 if (owningSession != session)
                 {
@@ -155,9 +169,9 @@ internal sealed partial class AutoFateController
         Phase = AutoPhase.Humanizing;
         Diag($"Humanize phase entering: city {cityId}, duration {minutes}m, resume zone {activeZones[resumeIdx].Name}.");
         var humanize = new AutoHumanize(cityId, durationMs);
-        Svc.Automation.Start(
+        RunTask(
             humanize,
-            OnCompleted: () =>
+            () =>
             {
                 if (owningSession != session)
                 {

@@ -10,11 +10,11 @@ namespace AutoFateGrind.Windows.Components;
 // and a right-aligned sublabel. When disabled it dims and swaps in a lock glyph + the blocking reason.
 internal static class HeroButton
 {
-    public static bool Draw(FontAwesomeIcon icon, string title, string? sublabel, Vector4 accent, bool enabled, string? disabledReason = null)
+    public static bool Draw(FontAwesomeIcon icon, string title, string? sublabel, Vector4 accent, bool enabled, string? disabledReason = null, float width = 0f)
     {
         var scale = ImGuiHelpers.GlobalScale;
         var height = Layout.HeroButtonHeight * scale;
-        var width = ImGui.GetContentRegionAvail().X;
+        if (width <= 0f) width = ImGui.GetContentRegionAvail().X;
         var origin = ImGui.GetCursorScreenPos();
         var end = origin + new Vector2(width, height);
         var dl = ImGui.GetWindowDrawList();

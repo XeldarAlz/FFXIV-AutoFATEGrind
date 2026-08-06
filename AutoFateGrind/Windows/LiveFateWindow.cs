@@ -82,8 +82,8 @@ public sealed class LiveFateWindow : Window, IDisposable
     private static void DrawIdle(AutoFateController controller)
     {
         ImGui.SetWindowFontScale(0.85f);
-        using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
-            ImGui.TextUnformatted(controller.Running ? "STANDING BY" : "READY");
+        using (ImRaii.PushColor(ImGuiCol.Text, controller.Paused ? Styling.AccentAmber : Styling.TextDim))
+            ImGui.TextUnformatted(controller.Paused ? "PAUSED" : controller.Running ? "STANDING BY" : "READY");
         ImGui.SetWindowFontScale(1.0f);
 
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextSecondary))
