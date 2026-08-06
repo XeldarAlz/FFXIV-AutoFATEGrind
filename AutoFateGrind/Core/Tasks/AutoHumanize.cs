@@ -24,6 +24,7 @@ public sealed class AutoHumanize(uint cityTerritoryId, int durationMs) : AutoCom
     private const int   WalkWatchdogMs     = 90_000;
     private const int   DismountWatchdogMs = 30_000;
     private const int   NavmeshReadyWaitMs = 60_000;
+    private const int   PlayerWaitPollMs   = 500;
     private const float ArrivalTolerance   = 4f;
 
     private static readonly Random rng = new();
@@ -85,7 +86,7 @@ public sealed class AutoHumanize(uint cityTerritoryId, int durationMs) : AutoCom
             }
 
             var player = Svc.Objects.LocalPlayer;
-            if (player is null) { await NextFrame(120); continue; }
+            if (player is null) { await DelayMs(PlayerWaitPollMs); continue; }
 
             var dest = PickRandomDestination(player.Position);
             if (dest is null)
@@ -123,12 +124,8 @@ public sealed class AutoHumanize(uint cityTerritoryId, int durationMs) : AutoCom
 
     private async Task IdleFor(int pauseMs, long deadline)
     {
-        var cappedDeadline = Math.Min(Environment.TickCount64 + pauseMs, deadline);
-        while (Environment.TickCount64 < cappedDeadline)
-        {
-            if (CancelToken.IsCancellationRequested) return;
-            await NextFrame(120);
-        }
+        var cappedPauseMs = (int)Math.Min(pauseMs, Math.Max(0L, deadline - Environment.TickCount64));
+        await DelayMs(cappedPauseMs);
     }
 
     private Vector3? PickRandomDestination(Vector3 from)

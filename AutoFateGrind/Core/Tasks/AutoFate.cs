@@ -46,7 +46,8 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private const int   CombatClearTimeoutMs = 30_000;
     private const int   RaiseWaitMs = 30_000;
     private const int   ReleaseTransitionWaitMs = 60_000;
-    private const int   IdleScansBeforeSwap = 30;
+    private const int   IdleWaitBeforeSwapMs = 30_000;
+    private const int   IdleScanIntervalMs   = 1_000;
     private const int   MidPathRetargetIntervalMs = 1_500;
     // Retarget hysteresis: stops Progress ticks (ranked above Distance) from flip-flopping the target.
     private const float RetargetDistanceMarginMeters = 15f;
@@ -76,7 +77,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private long  followUpWatchUntilMs;
     private uint? waitForExpiryFateId;
     private long  waitForExpiryStartedAtMs;
-    private int   idleScans;
+    private long  zoneIdleSinceMs;
 
     private static readonly Random rng = new();
     private bool presetEnsured;
@@ -86,6 +87,9 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private const int  ReviveParamReturn = (int)clib.Enums.AgentReviveOp.Return;        // 8 — return to home point
     private const int  ReviveParamAccept = (int)clib.Enums.AgentReviveOp.AcceptRevive;  // 5 — accept a raise
     private const int  ReturnReissueMs   = 1_500;
+    private const int  RevivePollMs      = 250;
+    private const int  WeaknessSettleMs  = 1_000;
+    private const int  GemstoneSettlePollMs = 100;
 
     private enum GrindState
     {
@@ -165,6 +169,9 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
 
             var state = ComputeState();
 
+            if (state is not GrindState.WaitingForFates)
+                zoneIdleSinceMs = 0;
+
             if (state != lastObservedState)
             {
                 Diag($"State {lastObservedState} -> {state}");
@@ -201,7 +208,6 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
                         Status = $"Waiting for FATEs in {zone.Name} (no other reachable zone)";
                         Diag("No other reachable zone to rotate to; continuing to wait here");
                     }
-                    idleScans = 0;
                     break;
 
                 case GrindState.WaitingForFollowUp:
@@ -364,7 +370,11 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
         if (FateScanner.PickNext(Plugin.Cfg, player.Position, sessionStuckFateIds, returnToFateId) is not null)
             return GrindState.BetweenFates;
 
-        if (Plugin.Cfg.SwapZonesWhenEmpty && zones.Count > 1 && idleScans >= IdleScansBeforeSwap)
+        if (zoneIdleSinceMs == 0)
+            zoneIdleSinceMs = Environment.TickCount64;
+
+        if (Plugin.Cfg.SwapZonesWhenEmpty && zones.Count > 1
+         && Environment.TickCount64 - zoneIdleSinceMs >= IdleWaitBeforeSwapMs)
             return GrindState.SwapZone;
 
         return GrindState.WaitingForFates;
@@ -422,9 +432,12 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private async Task TickIdleScan()
     {
         await EnsureConsumables();
-        idleScans++;
-        Status = $"Waiting for FATEs in {zone.Name} ({idleScans}/{IdleScansBeforeSwap})";
-        await NextFrame(60);
+        var swapPending = Plugin.Cfg.SwapZonesWhenEmpty && zones.Count > 1;
+        var remainingSec = Math.Max(0L, IdleWaitBeforeSwapMs - (Environment.TickCount64 - zoneIdleSinceMs)) / 1000;
+        Status = swapPending
+            ? $"Waiting for FATEs in {zone.Name} (swapping in {remainingSec}s)"
+            : $"Waiting for FATEs in {zone.Name}";
+        await DelayMs(IdleScanIntervalMs);
     }
 
     private const int ConsumeItemWaitMs = 6_000;
@@ -458,7 +471,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
                 if (Svc.Condition[ConditionFlag.InCombat]) return true; // combat started; re-apply later
                 FoodOps.UseConsumable(entry);
                 return false;
-            }, ConsumeItemWaitMs, $"consume-{entry.ItemId}", checkMs: 100);
+            }, ConsumeItemWaitMs, $"consume-{entry.ItemId}", checkFrames: 100);
         }
     }
 

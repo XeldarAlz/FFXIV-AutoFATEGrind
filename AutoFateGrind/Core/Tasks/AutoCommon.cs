@@ -24,7 +24,19 @@ public abstract partial class AutoCommon : TaskBase
         finally { Svc.Framework.Update -= Pin; }
     }
 
-    protected async Task<bool> WaitUntilTimed(Func<bool> condition, int timeoutMs, string scope, int checkMs = 30)
+    private const int DelayPollFrames = 2;
+
+    protected async Task DelayMs(int milliseconds)
+    {
+        var deadline = Environment.TickCount64 + milliseconds;
+        while (Environment.TickCount64 < deadline)
+        {
+            if (CancelToken.IsCancellationRequested) return;
+            await NextFrame(DelayPollFrames);
+        }
+    }
+
+    protected async Task<bool> WaitUntilTimed(Func<bool> condition, int timeoutMs, string scope, int checkFrames = 30)
     {
         var deadline = Environment.TickCount64 + timeoutMs;
         var threw = false;
@@ -39,7 +51,7 @@ public abstract partial class AutoCommon : TaskBase
                 ok = false;
             }
             if (ok) return true;
-            await NextFrame(checkMs);
+            await NextFrame(checkFrames);
         }
         Diag($"WAIT TIMEOUT: '{scope}' not satisfied within {timeoutMs / 1000}s");
         return false;
@@ -47,8 +59,8 @@ public abstract partial class AutoCommon : TaskBase
 
     // Holds until vnavmesh finishes building the current zone's navmesh, surfacing a loading hint. After a
     // teleport the destination mesh is still building; obstacle-map/pathfind IPC issued now races it and
-    // faults. pollMs lets each caller keep its own cadence.
-    protected async Task WaitForNavmeshReady(int timeoutMs, int pollMs = 120)
+    // faults. pollFrames lets each caller keep its own cadence.
+    protected async Task WaitForNavmeshReady(int timeoutMs, int pollFrames = 120)
     {
         if (NavmeshIPC.Instance.IsReady()) return;
         var deadline = Environment.TickCount64 + timeoutMs;
@@ -64,7 +76,7 @@ public abstract partial class AutoCommon : TaskBase
             Status = progress is >= 0f and <= 1f
                 ? $"Please wait — navmesh is loading ({progress * 100f:F0}%)"
                 : "Please wait — navmesh is loading…";
-            await NextFrame(pollMs);
+            await NextFrame(pollFrames);
         }
     }
 }

@@ -28,7 +28,7 @@ public sealed class AutoAfterRun(AfterRunAction action) : AutoCommon
             case AfterRunAction.Logout:
                 Status = "Logging out";
                 Diag("After-run: logging out.");
-                await NextFrame(PreCommandSettleMs);
+                await DelayMs(PreCommandSettleMs);
                 Chat.ExecuteCommand("/logout");
                 if (await WaitUntilTimed(SelectYesnoOpen, YesnoWaitMs, "logout-yesno"))
                 {
@@ -40,7 +40,7 @@ public sealed class AutoAfterRun(AfterRunAction action) : AutoCommon
                     // The confirmation can fail to surface if the command was eaten (lag, a blocking
                     // addon); re-issue once before giving up so we don't silently stay logged in.
                     Warn($"Logout confirmation did not appear within {YesnoWaitMs / 1000}s; re-issuing /logout.");
-                    await NextFrame(PreCommandSettleMs);
+                    await DelayMs(PreCommandSettleMs);
                     Chat.ExecuteCommand("/logout");
                     if (await WaitUntilTimed(SelectYesnoOpen, YesnoWaitMs, "logout-yesno-retry"))
                         ClickYes();
@@ -52,7 +52,7 @@ public sealed class AutoAfterRun(AfterRunAction action) : AutoCommon
             case AfterRunAction.CloseGame:
                 Status = "Closing the game";
                 Diag("After-run: closing the game (/xlkill).");
-                await NextFrame(PreCommandSettleMs);
+                await DelayMs(PreCommandSettleMs);
                 Chat.ExecuteCommand("/xlkill");
                 break;
         }
