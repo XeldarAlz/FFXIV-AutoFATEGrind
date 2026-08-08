@@ -31,7 +31,6 @@ public sealed partial class AutoFate
         var fate = FateScanner.PickNext(Plugin.Cfg, player.Position, sessionStuckFateIds, returnToFateId);
         if (fate is null) return ExitReason.Continue;
 
-        idleScans = 0;
         // Snapshot id/name while the handle is fresh: a LeftZone move ends in another territory where the
         // clib PublicEvent getters would NRE on the now-despawned handle, and the blacklist below must land.
         var pickedId = fate.Id;
@@ -262,7 +261,7 @@ public sealed partial class AutoFate
         {
             if (CancelToken.IsCancellationRequested) break;
             if (GemstoneCatalog.TryCurrentWalletCount(out var now) && now != before) break;
-            await NextFrame(60);
+            await DelayMs(GemstoneSettlePollMs);
         }
 
         session.UpdateGemstones();

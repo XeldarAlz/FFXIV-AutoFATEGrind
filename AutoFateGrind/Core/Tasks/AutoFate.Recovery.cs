@@ -128,7 +128,7 @@ public sealed partial class AutoFate
                              || Svc.Condition[ConditionFlag.BetweenAreas51];
             if (!stillKO && !transitioning)
             {
-                await NextFrame(60); // settle so weakness statuses register
+                await DelayMs(WeaknessSettleMs);
                 return;
             }
             // The revive window isn't accepting input the instant Unconscious flips, so a single
@@ -138,7 +138,7 @@ public sealed partial class AutoFate
                 TriggerReturnHome();
                 nextReissueAt = Environment.TickCount64 + ReturnReissueMs;
             }
-            await NextFrame(30);
+            await DelayMs(RevivePollMs);
         }
         Diag("Revive transition timed out; outer loop will retry.");
     }

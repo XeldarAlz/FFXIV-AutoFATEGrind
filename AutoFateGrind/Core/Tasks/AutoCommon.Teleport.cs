@@ -14,6 +14,9 @@ public abstract partial class AutoCommon
     private const int TeleportCombatClearMs = 30_000;
     private const int DismountForTeleportMs = 30_000;
     private const int UnstickMoveMs = 20_000;
+    private const int ZoneLoadSettleMs = 5_000;
+    private const int ReturnHomePollMs = 250;
+    private const int TeleportRetryBackoffMs = 2_000;
 
     // Compact condition snapshot for diagnostics — surfaces exactly which state blocks a teleport cast.
     internal static string ConditionTag()
@@ -112,7 +115,7 @@ public abstract partial class AutoCommon
         {
             if (Svc.ClientState.TerritoryType != startTerr)
             {
-                await NextFrame(300); // settle after the zone load
+                await DelayMs(ZoneLoadSettleMs);
                 return true;
             }
             if (Environment.TickCount64 >= nextCastAt
@@ -123,7 +126,7 @@ public abstract partial class AutoCommon
                 CastReturn();
                 nextCastAt = Environment.TickCount64 + ReturnHomeReissueMs;
             }
-            await NextFrame(100);
+            await DelayMs(ReturnHomePollMs);
         }
         if (Svc.ClientState.TerritoryType != startTerr) return true;
         Diag($"{scope}: Return home did not complete within {ReturnHomeWaitMs / 1000}s");
@@ -163,7 +166,7 @@ public abstract partial class AutoCommon
             }
             else
             {
-                await NextFrame(120); // brief backoff so a transient teleport lock can clear before the retry
+                await DelayMs(TeleportRetryBackoffMs);
             }
         }
         return Svc.ClientState.TerritoryType == territoryId;

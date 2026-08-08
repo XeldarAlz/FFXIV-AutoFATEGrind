@@ -22,6 +22,8 @@ public sealed class AutoReturnToInn : AutoCommon
     private const int   EnterInnTimeoutMs         = 60_000;
     private const int   ApproachWatchdogMs        = 25_000;
     private const int   InteractWatchdogMs        = 8_000;
+    private const int   DialogPollMs              = 250;
+    private const int   InteractRetryMs           = 500;
     private const float ArrivalTolerance          = 3.5f;
     private const float InnkeeperApproachDistance = 5f;
     private const float InnkeeperStepTolerance    = 2.5f;
@@ -96,10 +98,10 @@ public sealed class AutoReturnToInn : AutoCommon
             }
 
             // A dialog is up → drive it (SelectString -> Yes -> Talk). Throttled so we don't spam callbacks.
-            if (DriveInnDialogs()) { await NextFrame(250); continue; }
+            if (DriveInnDialogs()) { await DelayMs(DialogPollMs); continue; }
 
             var npc = RepairOps.FindObjectByBaseId(inn.InnkeeperDataId);
-            if (npc is null) { await NextFrame(250); continue; }
+            if (npc is null) { await DelayMs(DialogPollMs); continue; }
 
             var player = Svc.Objects.LocalPlayer;
             if (player is not null && Vector3.Distance(player.Position, npc.Position) > InnkeeperApproachDistance)
@@ -116,7 +118,7 @@ public sealed class AutoReturnToInn : AutoCommon
             var interact = new MoveOp(o => o.Interact(npc, waitUntil: AnyInnDialogOpen, skip: UiSkipOptions.Talk));
             await RunCancellable(interact, InteractWatchdogMs, "inn-interact");
             if (interact.Fault is { } fault) Diag($"Innkeeper interaction failed: {fault.Message}; retrying");
-            await NextFrame(500);
+            await DelayMs(InteractRetryMs);
         }
         Diag("Return to inn: timed out before entering the inn room.");
     }

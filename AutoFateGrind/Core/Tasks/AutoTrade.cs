@@ -20,6 +20,8 @@ public sealed class AutoTrade(uint targetItemId, uint originTerritoryId, Expansi
     private const int ConfirmWaitMs = 10_000;
     private const int SpendWaitMs = 10_000;
     private const int SubmenuWaitMs = 10_000;
+    private const int ShopCloseSettleMs = 350;
+    private const int MenuRetryMs = 500;
 
     protected override async Task Execute()
     {
@@ -101,7 +103,7 @@ public sealed class AutoTrade(uint targetItemId, uint originTerritoryId, Expansi
 
         Status = "Closing shop";
         ShopInteraction.CloseShop();
-        await NextFrame(20);
+        await DelayMs(ShopCloseSettleMs);
 
         Svc.Chat.Print($"[AFG] Trade complete. Gemstones now: {GemstoneCount()}");
     }
@@ -118,7 +120,7 @@ public sealed class AutoTrade(uint targetItemId, uint originTerritoryId, Expansi
             Status = $"Trying menu entry {i + 1}/{menuCount}";
             if (!ShopInteraction.ClickSelectIconString(i))
             {
-                await NextFrame(30);
+                await DelayMs(MenuRetryMs);
                 continue;
             }
 
