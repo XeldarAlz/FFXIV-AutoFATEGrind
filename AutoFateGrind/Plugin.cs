@@ -30,6 +30,7 @@ public sealed class Plugin : IDalamudPlugin
     internal AutoFateController Controller { get; }
     private readonly GmAlertWatcher gmAlertWatcher;
     private readonly PartyInviteWatcher partyInviteWatcher;
+    private readonly DutyWatcher dutyWatcher;
 
     private readonly MainWindow mainWindow;
     private readonly ConfigWindow configWindow;
@@ -56,6 +57,7 @@ public sealed class Plugin : IDalamudPlugin
         Controller = new AutoFateController();
         gmAlertWatcher = new GmAlertWatcher();
         partyInviteWatcher = new PartyInviteWatcher();
+        dutyWatcher = new DutyWatcher();
 
         mainWindow = new MainWindow(this);
         configWindow = new ConfigWindow(this);
@@ -73,7 +75,7 @@ public sealed class Plugin : IDalamudPlugin
 
         CommandManager.AddHandler(AfgConstants.PrimaryCommand, new CommandInfo(OnCommand)
         {
-            HelpMessage = "Toggle the Auto FATE Grind window. /afg config | stats | deps | about | target (dump current target's BaseId)."
+            HelpMessage = "Toggle the Auto FATE Grind window. /afg config | stats | deps | about | pause (pause or resume the run) | target (dump current target's BaseId)."
         });
         CommandManager.AddHandler(AfgConstants.AliasCommand, new CommandInfo(OnCommand)
         {
@@ -120,6 +122,7 @@ public sealed class Plugin : IDalamudPlugin
 
         gmAlertWatcher.Dispose();
         partyInviteWatcher.Dispose();
+        dutyWatcher.Dispose();
 
         CLibMain.Dispose();
         ECommonsMain.Dispose();
@@ -136,6 +139,8 @@ public sealed class Plugin : IDalamudPlugin
             ToggleDependenciesUi();
         else if (trimmed.Equals("stats", StringComparison.OrdinalIgnoreCase) || trimmed.Equals("history", StringComparison.OrdinalIgnoreCase))
             ToggleHistoryUi();
+        else if (trimmed.Equals("pause", StringComparison.OrdinalIgnoreCase) || trimmed.Equals("resume", StringComparison.OrdinalIgnoreCase))
+            Controller.TogglePause();
         else if (trimmed.Equals("target", StringComparison.OrdinalIgnoreCase))
             TargetDumper.Dump();
         else

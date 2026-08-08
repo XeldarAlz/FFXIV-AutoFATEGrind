@@ -8,8 +8,15 @@ namespace AutoFateGrind.Core.Tasks;
 
 internal sealed partial class AutoFateController
 {
-    public bool Running => Svc.Automation.Running;
-    public string Status => Svc.Automation.CurrentTask?.Status ?? "Idle";
+    public bool Running => Svc.Automation.Running || Paused;
+
+    public string Status => PauseReason switch
+    {
+        PauseReason.InContent => "Paused while you are in content",
+        PauseReason.Manual    => "Paused",
+        _                     => Svc.Automation.CurrentTask?.Status ?? "Idle",
+    };
+
     public AutoPhase Phase { get; private set; } = AutoPhase.Idle;
 
     private AutoFateSession? session;
@@ -50,6 +57,8 @@ internal sealed partial class AutoFateController
             return;
         }
 
+        PauseReason = PauseReason.None;
+
         var startWallet = GemstoneCatalog.CurrentWalletCount();
         var s = new AutoFateSession
         {
@@ -86,6 +95,9 @@ internal sealed partial class AutoFateController
     public void Stop()
     {
         var ending = session;
+        currentTask = null;
+        grindTask = null;
+        PauseReason = PauseReason.None;
         Svc.Automation.Stop();
         FinalizeRun(ending);
         session = null;
@@ -96,4 +108,4 @@ internal sealed partial class AutoFateController
 
 }
 
-internal enum AutoPhase { Idle, Grinding, Trading, Repairing, Humanizing, Finishing }
+internal enum AutoPhase { Idle, Grinding, Trading, Repairing, Humanizing, Finishing, Paused }

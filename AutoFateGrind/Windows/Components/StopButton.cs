@@ -6,6 +6,6 @@ namespace AutoFateGrind.Windows.Components;
 // so the idle and running views read as one family — same shape, rose accent, always enabled.
 internal static class StopButton
 {
-    public static bool Draw(string? sublabel)
-        => HeroButton.Draw(FontAwesomeIcon.Stop, "STOP", sublabel, Styling.AccentRose, true);
+    public static bool Draw(string? sublabel, float width = 0f)
+        => HeroButton.Draw(FontAwesomeIcon.Stop, "STOP", sublabel, Styling.AccentRose, true, null, width);
 }

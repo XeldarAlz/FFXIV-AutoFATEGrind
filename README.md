@@ -41,6 +41,7 @@ Lists every FATE zone from A Realm Reborn through Dawntrail in one window. Tick 
 - **Auto-repair**: Dark Matter first, Grand Company mender as fallback.
 - **Auto-consume**: keeps food and medicine buffs up (Well Fed is a free +3% EXP), HQ first.
 - **Humanizer**: takes random city breaks between FATEs so long sessions look less mechanical.
+- **Pause & resume**: park a run without losing your zones, goal, or session stats, and auto-pause while you're in a duty so you can queue for content mid-grind.
 - **Party invites**: auto-declines incoming invites during a run after a random delay, with an optional reply message.
 - **GM alert**: stops the bot when a GM is near, with optional toast, beeps, or custom commands.
 - **Resilient**: cancellable mid-run, and your selection persists across reloads.
@@ -66,6 +67,7 @@ The plugin needs a few helpers for movement and combat to be installed and loade
 | `/afg config` | Open settings |
 | `/afg deps` | Open dependencies window |
 | `/afg about` | Open credits / links |
+| `/afg pause` | Pause or resume the current run |
 | `/afg target` | Log targeted NPC's BaseId (debug helper) |
 
 ## More from me

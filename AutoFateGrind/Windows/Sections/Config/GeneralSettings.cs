@@ -41,6 +41,12 @@ internal static class GeneralSettings
             () => SettingsControls.DrawToggle(cfg, () => cfg.SwapZonesWhenEmpty, v => cfg.SwapZonesWhenEmpty = v, "##gen_swap"),
             SettingsRow.ToggleHeight);
 
+        SettingsRow.Draw("Auto-pause in content",
+            "Pause the run while you are inside a duty, trial, raid, or any other instanced content, then resume it once you are back outside. Your zones, goal, and session stats are kept, and paused time does not count toward a time-based goal.",
+            SettingsControls.ToggleWidth,
+            () => SettingsControls.DrawToggle(cfg, () => cfg.AutoPauseInContent, v => cfg.AutoPauseInContent = v, "##gen_autopause"),
+            SettingsRow.ToggleHeight);
+
         SettingsRow.Draw("Auto-resume on fault",
             "If the grind hits an unrecoverable error and stops, automatically restart it (up to 3 times in 5 minutes) instead of ending the run. Leave off if you want faults to surface.",
             SettingsControls.ToggleWidth,

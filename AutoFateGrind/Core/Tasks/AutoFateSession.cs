@@ -109,6 +109,25 @@ public sealed class AutoFateSession
         gemWalletLastSeen = wallet;
     }
 
-    public TimeSpan Elapsed => DateTime.UtcNow - StartedAt;
+    private long pausedMs;
+    private long pauseStartedAtMs;
+
+    public void BeginPause()
+    {
+        if (pauseStartedAtMs != 0) return;
+        pauseStartedAtMs = Environment.TickCount64;
+    }
+
+    public void EndPause()
+    {
+        if (pauseStartedAtMs == 0) return;
+        pausedMs += Environment.TickCount64 - pauseStartedAtMs;
+        pauseStartedAtMs = 0;
+    }
+
+    private long PausedTotalMs
+        => pausedMs + (pauseStartedAtMs == 0 ? 0 : Environment.TickCount64 - pauseStartedAtMs);
+
+    public TimeSpan Elapsed => DateTime.UtcNow - StartedAt - TimeSpan.FromMilliseconds(PausedTotalMs);
     public double FatesPerHour => Elapsed.TotalHours > 0 ? CompletedCount / Elapsed.TotalHours : 0;
 }

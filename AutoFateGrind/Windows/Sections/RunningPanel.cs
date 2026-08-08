@@ -19,17 +19,16 @@ internal static class RunningPanel
 {
     public static void Draw(Configuration cfg, AutoFateController controller)
     {
+        var paused = controller.Paused;
         var fate = PublicEvent.CurrentFate;
-        var inFate = fate is not null && fate.State == FateState.Running;
+        var inFate = fate is not null && fate.State == FateState.Running && !paused;
         var (accent, accentSoft, label) = PhasePalette(controller, inFate);
 
-        DrawHeaderStrip(accent, accentSoft);
+        DrawHeaderStrip(accent, accentSoft, paused);
         DrawHeroCard(cfg, controller, fate, inFate, accent, accentSoft, label);
 
         Styling.VSpace(3f);
-        var s = controller.SessionSnapshot;
-        var stopSub = s is null ? "running" : $"running · {Formatting.Elapsed(s.Elapsed)}";
-        if (StopButton.Draw(stopSub)) controller.Stop();
+        DrawRunControls(controller, paused);
 
         Styling.VSpace(7f);
         DrawStatTiles(cfg, controller);
@@ -41,11 +40,26 @@ internal static class RunningPanel
         DrawFooter(cfg);
     }
 
-    private static void DrawHeaderStrip(Vector4 accent, Vector4 accentSoft)
+    private static void DrawRunControls(AutoFateController controller, bool paused)
+    {
+        var gap = 6f * ImGuiHelpers.GlobalScale;
+        var half = (ImGui.GetContentRegionAvail().X - gap) * 0.5f;
+
+        if (PauseButton.Draw(controller.PauseReason, half)) controller.TogglePause();
+
+        ImGui.SameLine(0, gap);
+
+        var s = controller.SessionSnapshot;
+        var state = paused ? "paused" : "running";
+        var stopSub = s is null ? state : $"{state} · {Formatting.Elapsed(s.Elapsed)}";
+        if (StopButton.Draw(stopSub, half)) controller.Stop();
+    }
+
+    private static void DrawHeaderStrip(Vector4 accent, Vector4 accentSoft, bool paused)
     {
         var scale = ImGuiHelpers.GlobalScale;
         var dl = ImGui.GetWindowDrawList();
-        var dot = Styling.PulseColor(accent, accentSoft, Styling.PulseMedium);
+        var dot = paused ? accent : Styling.PulseColor(accent, accentSoft, Styling.PulseMedium);
 
         var cur = ImGui.GetCursorScreenPos();
         var fh = ImGui.GetFrameHeight();
@@ -58,7 +72,7 @@ internal static class RunningPanel
         ImGui.SameLine(0, 4f);
         ImGui.AlignTextToFramePadding();
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextSecondary))
-            ImGui.TextUnformatted("RUNNING");
+            ImGui.TextUnformatted(paused ? "PAUSED" : "RUNNING");
 
         TopToolbar.DrawIconsInline(Plugin.Instance);
     }
@@ -73,7 +87,7 @@ internal static class RunningPanel
         var origin = ImGui.GetCursorScreenPos();
         var end = origin + new Vector2(width, height);
         var dl = ImGui.GetWindowDrawList();
-        var active = controller.Running;
+        var active = controller.Running && !controller.Paused;
 
         var border = active
             ? Styling.PulseColor(accent, accentSoft, inFate ? Styling.PulseFast : Styling.PulseMedium)
@@ -188,6 +202,13 @@ internal static class RunningPanel
     {
         if (!controller.Running)
             return (Styling.TextDim, Styling.TextSecondary, "READY");
+
+        if (controller.Paused)
+        {
+            return controller.PauseReason == PauseReason.InContent
+                ? (Styling.AccentAmber, Styling.AccentAmberSoft, "PAUSED (IN CONTENT)")
+                : (Styling.AccentAmber, Styling.AccentAmberSoft, "PAUSED");
+        }
 
         return controller.Phase switch
         {

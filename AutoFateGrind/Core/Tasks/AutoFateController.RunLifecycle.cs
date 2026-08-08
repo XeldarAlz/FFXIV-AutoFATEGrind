@@ -30,7 +30,7 @@ internal sealed partial class AutoFateController
         Diag($"Run completed by stop condition; starting after-run action {action}.");
         Phase = AutoPhase.Finishing;
         AutoCommon task = action == AfterRunAction.ReturnToInn ? new AutoReturnToInn() : new AutoAfterRun(action);
-        Svc.Automation.Start(task, OnCompleted: () =>
+        RunTask(task, () =>
         {
             Diag($"After-run action {action} finished.");
             Phase = AutoPhase.Idle;
