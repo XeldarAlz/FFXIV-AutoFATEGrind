@@ -368,6 +368,7 @@ public sealed partial class AutoFate
 
     // BossMod MaxTargets per role: tanks pull everything (0 = unlimited), healers stay conservative.
     private const byte RoleTank = 1;
+    private const byte RoleMelee = 2;
     private const byte RoleHealer = 4;
     private const int  TankMaxTargets = 0;
     private const int  HealerMaxTargets = 5;
