@@ -17,6 +17,7 @@ internal static class Styling
     public static readonly Vector4 AccentRose       = new(0.93f, 0.42f, 0.50f, 1.00f);
     public static readonly Vector4 AccentBlue       = new(0.40f, 0.68f, 0.98f, 1.00f);
     public static readonly Vector4 AccentBlueSoft   = new(0.62f, 0.82f, 1.00f, 1.00f);
+    public static readonly Vector4 AccentDiscord    = new(0.345f, 0.396f, 0.949f, 1.00f);
 
     // Aliases kept for components that still reference the teal naming.
     public static readonly Vector4 AccentTeal     = AccentViolet;
