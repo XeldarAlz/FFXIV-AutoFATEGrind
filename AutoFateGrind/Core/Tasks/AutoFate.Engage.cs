@@ -152,6 +152,8 @@ public sealed partial class AutoFate
         var lastProgress = fate.Progress;
         var lastProgressAtMs = Environment.TickCount64;
         var lastInCombatAtMs = Environment.TickCount64;
+        var lastBounceAtMs = Environment.TickCount64;
+        var combatStallBounces = 0;
         var collectTextAdvanceArmed = false;
         // Only an entry that fought the fate while Running may book the completion — guards against
         // a re-entry during the lingering 100% frame double-counting.
@@ -175,12 +177,32 @@ public sealed partial class AutoFate
                 {
                     lastProgress = fate.Progress;
                     lastProgressAtMs = Environment.TickCount64;
+                    combatStallBounces = 0;
                 }
                 else if (Environment.TickCount64 - lastProgressAtMs > EngageStallTimeoutMs
                       && Environment.TickCount64 - lastInCombatAtMs > EngageOutOfCombatGraceMs)
                 {
                     Diag($"EngageFate stalled: no progress in {EngageStallTimeoutMs/1000}s and out of combat {EngageOutOfCombatGraceMs/1000}s on FATE {fateId}; bailing");
                     break;
+                }
+                // A bar that never moves while combat keeps ticking — typically BossMod latched onto a
+                // non-FATE add and never retargeted. The bail above cannot see it, because combat keeps
+                // refreshing its out-of-combat grace, and neither AssertPresetActive nor SyncToFate can
+                // recover it either: both early-return once satisfied. That leaves a pause/resume as the
+                // only way out, which is what users report doing. Bounce the preset the way pause/resume
+                // does, then break so the outer loop re-enters with fresh engagement state.
+                else if (Environment.TickCount64 - lastProgressAtMs > EngageCombatStallMs
+                      && Environment.TickCount64 - lastBounceAtMs > EngageCombatStallMs)
+                {
+                    lastBounceAtMs = Environment.TickCount64;
+                    combatStallBounces++;
+                    if (combatStallBounces > MaxCombatStallBounces)
+                    {
+                        Diag($"FATE {fateId} still not progressing after {MaxCombatStallBounces} preset bounces; re-entering engagement from scratch");
+                        break;
+                    }
+                    Diag($"No progress in {EngageCombatStallMs/1000}s on FATE {fateId} (combat={Svc.Condition[ConditionFlag.InCombat]}); bouncing combat preset ({combatStallBounces}/{MaxCombatStallBounces})");
+                    await BounceCombatPreset(preset);
                 }
 
                 if (Svc.Condition[ConditionFlag.Mounted])
@@ -262,6 +284,16 @@ public sealed partial class AutoFate
 
         var role = player.ClassJob.Value.Role;
         return role is RoleTank or RoleMelee ? EngageMeleeReachMeters : EngageRangedReachMeters;
+    }
+
+    // AssertPresetActive alone cannot re-kick BossMod: it early-returns while the preset is already
+    // active. Dropping the preset first, and letting a couple of frames pass so BossMod actually observes
+    // the drop, reproduces what a pause/resume does to the combat layer without ending the engagement.
+    private async Task BounceCombatPreset(string preset)
+    {
+        BossModIPC.Instance.ClearActive();
+        await NextFrame(2);
+        AssertPresetActive(preset);
     }
 
     private async Task<bool> TickEngagementWatchdog(uint fateId, PublicEvent fate, EngageReachTracker reach)

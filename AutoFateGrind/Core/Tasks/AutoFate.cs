@@ -52,6 +52,10 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private const float EngageMeleeApproachToleranceMeters  = 2.5f;
     private const float EngageRangedApproachToleranceMeters = 15f;
     private const int   MaxEngageRepositions = 3;
+    // Combat that never moves the FATE bar. Shorter than EngageStallTimeoutMs because a bounce is cheap
+    // and reversible, where that bail abandons the engagement outright.
+    private const int   EngageCombatStallMs = 30_000;
+    private const int   MaxCombatStallBounces = 3;
     // Cap on fighting off a mob that aggroed mid-travel, so an unkillable add can't park the run.
     private const int   CombatClearTimeoutMs = 30_000;
     private const int   RaiseWaitMs = 30_000;
