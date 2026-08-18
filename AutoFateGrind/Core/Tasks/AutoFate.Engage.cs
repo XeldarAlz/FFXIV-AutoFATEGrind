@@ -185,12 +185,6 @@ public sealed partial class AutoFate
                     Diag($"EngageFate stalled: no progress in {EngageStallTimeoutMs/1000}s and out of combat {EngageOutOfCombatGraceMs/1000}s on FATE {fateId}; bailing");
                     break;
                 }
-                // A bar that never moves while combat keeps ticking — typically BossMod latched onto a
-                // non-FATE add and never retargeted. The bail above cannot see it, because combat keeps
-                // refreshing its out-of-combat grace, and neither AssertPresetActive nor SyncToFate can
-                // recover it either: both early-return once satisfied. That leaves a pause/resume as the
-                // only way out, which is what users report doing. Bounce the preset the way pause/resume
-                // does, then break so the outer loop re-enters with fresh engagement state.
                 else if (Environment.TickCount64 - lastProgressAtMs > EngageCombatStallMs
                       && Environment.TickCount64 - lastBounceAtMs > EngageCombatStallMs)
                 {
@@ -286,9 +280,6 @@ public sealed partial class AutoFate
         return role is RoleTank or RoleMelee ? EngageMeleeReachMeters : EngageRangedReachMeters;
     }
 
-    // AssertPresetActive alone cannot re-kick BossMod: it early-returns while the preset is already
-    // active. Dropping the preset first, and letting a couple of frames pass so BossMod actually observes
-    // the drop, reproduces what a pause/resume does to the combat layer without ending the engagement.
     private async Task BounceCombatPreset(string preset)
     {
         BossModIPC.Instance.ClearActive();

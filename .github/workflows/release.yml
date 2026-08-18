@@ -60,8 +60,6 @@ jobs:
 
       - name: Download Dalamud dev build
         shell: pwsh
-        # Release channel serves API 15 (Dalamud 15.0.3.2), which satisfies
-        # Dalamud.NET.Sdk 15.x — no need to track staging any more.
         run: |
           $dalamudUrl = "https://goatcorp.github.io/dalamud-distrib/latest.zip"
           $dalamudDir = "$env:AppData\XIVLauncher\addon\Hooks\dev"

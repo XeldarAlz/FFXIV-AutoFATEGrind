@@ -31,9 +31,6 @@ public sealed class AutoFateSession
     public bool CompletedByStopCondition;
     public bool AfterActionDispatched;
 
-    // A run that finished no FATEs and gained nothing never actually did anything: history skips it, and
-    // so does the after-run action, so a stop condition that was already true at Start can't log out or
-    // close the game seconds after pressing it.
     public bool DidNothing => CompletedCount == 0 && ExpEarned == 0 && GemstonesEarned == 0;
 
     public void CaptureStartExp()
