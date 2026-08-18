@@ -54,17 +54,16 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
       - name: Download Dalamud dev build
         shell: pwsh
-        # Track staging while API 15 / Patch 7.50 is in beta — the release
-        # channel is still API 14 and won't satisfy Dalamud.NET.Sdk 15.x.
-        # Revert to /latest.zip once Dalamud 15 GAs.
+        # Release channel serves API 15 (Dalamud 15.0.3.2), which satisfies
+        # Dalamud.NET.Sdk 15.x — no need to track staging any more.
         run: |
-          $dalamudUrl = "https://goatcorp.github.io/dalamud-distrib/stg/latest.zip"
+          $dalamudUrl = "https://goatcorp.github.io/dalamud-distrib/latest.zip"
           $dalamudDir = "$env:AppData\XIVLauncher\addon\Hooks\dev"
           New-Item -ItemType Directory -Force -Path $dalamudDir | Out-Null
           Invoke-WebRequest -Uri $dalamudUrl -OutFile dalamud.zip

@@ -26,7 +26,9 @@ public abstract partial class AutoCommon : TaskBase
 
     private const int DelayPollFrames = 2;
 
-    protected async Task DelayMs(int milliseconds)
+    // Deliberately hides clib's AutoTask.DelayMs: that one throws on cancellation, while every AFG
+    // call site is built on a quiet return so cancelled runs unwind through their own MoveOp/fault paths.
+    protected new async Task DelayMs(int milliseconds)
     {
         var deadline = Environment.TickCount64 + milliseconds;
         while (Environment.TickCount64 < deadline)
