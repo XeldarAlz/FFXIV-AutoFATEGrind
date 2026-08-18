@@ -19,9 +19,14 @@ public sealed class AutoAfterRun(AfterRunAction action) : AutoCommon
 
     protected override async Task Execute()
     {
-        // Don't issue the command mid-combat / mid-transition; wait for a clean grounded state first.
-        await WaitUntilTimed(IsSafeToFinish, ReadyWaitMs, "afterrun-ready");
-        if (CancelToken.IsCancellationRequested) return;
+        // Don't issue the command mid-combat / mid-transition. /xlkill hard-terminates the client, so a
+        // guard that never passed has to abort the action rather than fire it anyway on timeout.
+        if (!await WaitUntilTimed(IsSafeToFinish, ReadyWaitMs, "afterrun-ready"))
+        {
+            if (!CancelToken.IsCancellationRequested)
+                Warn($"After-run {action} skipped: no safe state (combat/casting/zone transition) within {ReadyWaitMs / 1000}s.");
+            return;
+        }
 
         switch (action)
         {

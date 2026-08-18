@@ -27,6 +27,12 @@ internal sealed partial class AutoFateController
             return;
         }
 
+        if (s.DidNothing)
+        {
+            Diag($"Run ended by stop condition without doing any work; skipping after-run action {action}.");
+            return;
+        }
+
         Diag($"Run completed by stop condition; starting after-run action {action}.");
         Phase = AutoPhase.Finishing;
         AutoCommon task = action == AfterRunAction.ReturnToInn ? new AutoReturnToInn() : new AutoAfterRun(action);
@@ -43,7 +49,7 @@ internal sealed partial class AutoFateController
     private void FinalizeRun(AutoFateSession? s)
     {
         if (s is null || s.Recorded) return;
-        if (s.CompletedCount == 0 && s.ExpEarned == 0 && s.GemstonesEarned == 0) { s.Recorded = true; return; }
+        if (s.DidNothing) { s.Recorded = true; return; }
         s.Recorded = true;
         try
         {
