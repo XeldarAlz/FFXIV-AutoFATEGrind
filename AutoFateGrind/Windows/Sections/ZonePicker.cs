@@ -103,7 +103,7 @@ internal static class ZonePicker
         if (disabled && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
             ImGui.SetTooltip(controller.Running
                 ? "Stop the runner to change zone selection."
-                : "Locked — attune an aetheryte in this zone first.");
+                : LockedTooltip(zone));
 
         ImGui.SameLine();
         var nameColor = zone.Unlocked ? Styling.TextStrong : Styling.TextMuted;
@@ -123,6 +123,13 @@ internal static class ZonePicker
 
         ImGui.Unindent(6f);
     }
+
+    // A zone with no aetheryte of its own is unlocked by attuning the hub it is entered from, so naming
+    // "an aetheryte in this zone" would send the player looking for one that does not exist.
+    private static string LockedTooltip(ZoneInfo zone)
+        => ZoneAetherytes.TryFindGateway(zone.TerritoryId, out var gateway)
+            ? $"Locked — attune {gateway.Name}; {zone.Name} is entered from there over the aethernet."
+            : "Locked — attune an aetheryte in this zone first.";
 
     private static void DrawActiveFatePill(ZoneInfo zone)
     {

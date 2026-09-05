@@ -36,6 +36,10 @@ internal sealed class MoveOp(System.Func<MoveOp, Task> body) : TaskBase
     public Task Teleport(uint territoryId, Vector3 dest, bool allowSameZoneTeleport)
         => TeleportTo(territoryId, dest, allowSameZoneTeleport);
 
+    // Rides the local aethernet from the hub we are standing in to the shard nearest dest in territoryId.
+    public Task Aethernet(uint territoryId, Vector3 dest)
+        => UseAethernet(territoryId, dest);
+
     public Task Interact(IGameObject obj, System.Func<bool>? waitUntil, UiSkipOptions skip)
         => InteractWith(obj, waitUntil, null, skip);
 

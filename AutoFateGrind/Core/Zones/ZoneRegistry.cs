@@ -42,7 +42,7 @@ public static class ZoneRegistry
     }
 
     // 1 = Standard Field (overworld zones with FATEs).
-    private const byte StandardFieldUse = 1;
+    internal const byte StandardFieldUse = 1;
 
     private static bool IsFateZone(TerritoryType t)
     {

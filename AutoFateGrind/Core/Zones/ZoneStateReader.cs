@@ -4,9 +4,9 @@ namespace AutoFateGrind.Core.Zones;
 
 internal static class ZoneStateReader
 {
-    private static HashSet<uint>? unlockedTerritoryCache;
-    private static long unlockedCacheTickMs;
-    private const int UnlockedCacheLifetimeMs = 1000;
+    private static HashSet<uint>? attunedAetheryteCache;
+    private static long attunedCacheTickMs;
+    private const int AttunedCacheLifetimeMs = 1000;
 
     public static void Refresh(ZoneInfo zone)
     {
@@ -16,24 +16,34 @@ internal static class ZoneStateReader
             : 0;
     }
 
-    public static void InvalidateUnlockedCache() => unlockedTerritoryCache = null;
-
+    // Keyed by attuned aetheryte, not by the territory that aetheryte sits in: The Dravanian Hinterlands
+    // holds no aetheryte of its own, so a territory-keyed set left it locked forever (issue #48).
     private static bool IsTerritoryUnlocked(uint territoryId)
     {
         var now = Environment.TickCount64;
-        if (unlockedTerritoryCache is null || now - unlockedCacheTickMs > UnlockedCacheLifetimeMs)
+        if (attunedAetheryteCache is null || now - attunedCacheTickMs > AttunedCacheLifetimeMs)
         {
-            unlockedTerritoryCache = BuildUnlockedSet();
-            unlockedCacheTickMs = now;
+            attunedAetheryteCache = BuildAttunedSet();
+            attunedCacheTickMs = now;
         }
-        return unlockedTerritoryCache.Contains(territoryId);
+
+        var own = ZoneAetherytes.AttunableIdsIn(territoryId);
+        for (var index = 0; index < own.Length; index++)
+        {
+            if (attunedAetheryteCache.Contains(own[index])) return true;
+        }
+
+        return ZoneAetherytes.TryFindGateway(territoryId, out var gateway)
+            && attunedAetheryteCache.Contains(gateway.AetheryteId);
     }
 
-    private static HashSet<uint> BuildUnlockedSet()
+    private static HashSet<uint> BuildAttunedSet()
     {
         var set = new HashSet<uint>(capacity: 64);
-        foreach (var a in Svc.AetheryteList)
-            if (a.TerritoryId != 0) set.Add(a.TerritoryId);
+        foreach (var entry in Svc.AetheryteList)
+        {
+            if (entry.AetheryteId != 0) set.Add(entry.AetheryteId);
+        }
         return set;
     }
 

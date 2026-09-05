@@ -1,4 +1,5 @@
 using AutoFateGrind.Core.Ipc;
+using AutoFateGrind.Core.Zones;
 using clib.TaskSystem;
 using Dalamud.Game.ClientState.Conditions;
 using ECommons.DalamudServices;
@@ -146,20 +147,39 @@ public abstract partial class AutoCommon
     // operation on one slow timeout. Returns true once we are in the target territory.
     internal async Task<bool> TeleportToTerritory(uint territoryId, Vector3 dest, string label, int perAttemptTimeoutMs, int attempts = 4)
     {
+        // A zone with no aetheryte of its own is a two-leg trip: teleport to the hub the game routes it
+        // through, then ride that hub's aethernet in. Every other zone keeps the single-leg path.
+        var viaGateway = ZoneAetherytes.TryFindGateway(territoryId, out var gateway);
+        var hopTerritoryId = viaGateway ? gateway.TerritoryId : territoryId;
+        var hopDest = viaGateway ? gateway.Position : dest;
+        // A gateway attempt costs more than twice a plain one, so it stops at the point the escalation
+        // ladder is fully exercised: try, try and clear the lock by going home, try once from home.
+        var maxAttempts = viaGateway ? Math.Min(attempts, GatewayAttempts) : attempts;
+
         var returnedHome = false;
-        for (var i = 1; i <= attempts && !CancelToken.IsCancellationRequested; i++)
+        for (var attempt = 1; attempt <= maxAttempts && !CancelToken.IsCancellationRequested; attempt++)
         {
             if (Svc.ClientState.TerritoryType == territoryId) return true;
-            await PrepareForTeleport($"{label}#{i}");
+
+            var scope = $"{label}#{attempt}";
+            await PrepareForTeleport(scope);
             if (CancelToken.IsCancellationRequested) break;
-            var op = new MoveOp(o => o.Teleport(territoryId, dest, allowSameZoneTeleport: false));
-            await RunCancellable(op, perAttemptTimeoutMs, $"{label}#{i}", StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs));
+
+            if (Svc.ClientState.TerritoryType != hopTerritoryId)
+            {
+                var op = new MoveOp(o => o.Teleport(hopTerritoryId, hopDest, allowSameZoneTeleport: false));
+                await RunCancellable(op, perAttemptTimeoutMs, scope, StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs));
+                if (op.Fault is not null) Diag($"{scope} teleport faulted: {op.Fault.Message}");
+            }
+
+            if (viaGateway && Svc.ClientState.TerritoryType == hopTerritoryId)
+                await RideAethernetInto(territoryId, dest, gateway, scope);
+
             if (Svc.ClientState.TerritoryType == territoryId) return true;
-            if (op.Fault is not null) Diag($"{label}#{i} teleport faulted: {op.Fault.Message}");
 
             // After two stalled attempts the teleport is almost certainly blocked by one "already underway";
             // Return home (a separate path) clears it, and the next attempt teleports from the home city.
-            if (!returnedHome && i >= 2)
+            if (!returnedHome && attempt >= 2)
             {
                 returnedHome = true;
                 await TryReturnHome(label);
@@ -170,5 +190,25 @@ public abstract partial class AutoCommon
             }
         }
         return Svc.ClientState.TerritoryType == territoryId;
+    }
+
+    private const int GatewayAttempts = 3;
+    private const int AethernetLegMs = 90_000;
+    private const int AethernetNavmeshWaitMs = 60_000;
+
+    // Second leg of a gateway zone: walk to the hub's aetheryte and ride the aethernet in. Deliberately
+    // runs without IdleStallAbort — the walk-up, the aetheryte menu and the shard hop all hold the
+    // character still in states that guard reads as a teleport that never started.
+    private async Task RideAethernetInto(uint territoryId, Vector3 dest, ZoneGateway gateway, string scope)
+    {
+        Status = $"Riding the aethernet from {gateway.Name}";
+        Diag($"{scope}: reached {gateway.Name}; riding its aethernet into territory {territoryId}");
+
+        await WaitForNavmeshReady(AethernetNavmeshWaitMs, 60);
+        if (CancelToken.IsCancellationRequested) return;
+
+        var op = new MoveOp(o => o.Aethernet(territoryId, dest));
+        await RunCancellable(op, AethernetLegMs, $"{scope}-aethernet");
+        if (op.Fault is { } fault) Diag($"{scope}: aethernet leg faulted: {fault.Message}");
     }
 }
