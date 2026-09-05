@@ -74,7 +74,7 @@ internal static class NavRail
 
             DrawBadge(dl, entry.Page, center, button, missingPlugins, running);
 
-            if (hit.Hovered) ImGui.SetTooltip(Loc.T(entry.Label));
+            if (hit.Hovered) Tooltip.Show(Loc.T(entry.Label));
             if (hit.Clicked) clicked = entry.Page;
         }
 

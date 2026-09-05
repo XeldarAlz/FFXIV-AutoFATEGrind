@@ -263,11 +263,11 @@ internal static class ZoneLibrary
 
         if (hit.Hovered && zone.ActiveFateCount > 0)
         {
-            ImGui.SetTooltip(Loc.Plural(L.Grind.ActiveFates, zone.ActiveFateCount));
+            Tooltip.Show(Loc.Plural(L.Grind.ActiveFates, zone.ActiveFateCount));
         }
         else if (!interactive && Hit.HoveringRect(origin, end))
         {
-            ImGui.SetTooltip(running ? Loc.T(L.Grind.ZonesLockedRunning) : LockedTooltip(zone));
+            Tooltip.Show(running ? Loc.T(L.Grind.ZonesLockedRunning) : LockedTooltip(zone));
         }
     }
 

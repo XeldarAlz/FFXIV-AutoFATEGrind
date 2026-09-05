@@ -152,7 +152,7 @@ internal static class QueueStrip
         var beingDragged = dragIndex == index;
         if (!running && (bodyHovered || beingDragged)) ImGui.SetMouseCursor(ImGuiMouseCursor.ResizeAll);
         if (!running && bodyHovered && !beingDragged && !ImGui.IsMouseDown(ImGuiMouseButton.Left))
-            ImGui.SetTooltip(Loc.T(L.Grind.DragToReorder));
+            Tooltip.Show(Loc.T(L.Grind.DragToReorder));
 
         ImGui.SetCursorScreenPos(new Vector2(origin.X + metrics.BodyWidth, origin.Y));
         var closeClicked = ImGui.InvisibleButton($"##qx{zone.TerritoryId}", new Vector2(end.X - origin.X - metrics.BodyWidth, metrics.Height));
@@ -200,7 +200,7 @@ internal static class QueueStrip
         var closeSize = TextDraw.IconSize(FontAwesomeIcon.Times);
         TextDraw.Icon(FontAwesomeIcon.Times, new Vector2(origin.X + metrics.BodyWidth + metrics.Gap, midY - closeSize.Y * 0.5f), closeColor);
 
-        if (!running && closeHovered) ImGui.SetTooltip(Loc.T(L.Grind.RemoveFromOrder));
+        if (!running && closeHovered) Tooltip.Show(Loc.T(L.Grind.RemoveFromOrder));
     }
 
     private static void DrawDragPreview(string name, Vector2 mouse)

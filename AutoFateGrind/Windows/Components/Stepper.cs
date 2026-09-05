@@ -50,7 +50,7 @@ internal static class Stepper
             }
         }
 
-        if (ImGui.IsItemHovered()) ImGui.SetTooltip(Loc.T(L.Common.DragAdjustHint));
+        if (ImGui.IsItemHovered()) Tooltip.Show(Loc.T(L.Common.DragAdjustHint));
 
         ImGui.SetCursorScreenPos(new Vector2(end.X - height, origin.Y));
         if (IconButton.Draw(FontAwesomeIcon.Plus, "##inc", height, enabled: value < max))

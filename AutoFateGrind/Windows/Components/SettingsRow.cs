@@ -10,7 +10,6 @@ internal static class SettingsRow
 {
     private const float RowHeight = 40f;
     private const float HelpIconGap = 7f;
-    private const float TooltipWrapWidth = 300f;
     private const float CaptionPullUp = 7f;
     private const float CaptionBottomGap = 10f;
     private const float BlockBottomGap = 6f;
@@ -34,7 +33,7 @@ internal static class SettingsRow
 
         if (!string.IsNullOrEmpty(help) && (labelHovered || iconHovered))
         {
-            HelpTooltip(help);
+            Tooltip.Show(help);
         }
 
         DrawControl(area, controlWidth, controlHeight, drawControl);
@@ -81,20 +80,6 @@ internal static class SettingsRow
 
         ImGui.PopTextWrapPos();
         Styling.VSpace(NoteBottomGap);
-    }
-
-    public static void HelpTooltip(string help)
-    {
-        using (ImRaii.Tooltip())
-        {
-            ImGui.PushTextWrapPos(TooltipWrapWidth * ImGuiHelpers.GlobalScale);
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextSecondary))
-            {
-                ImGui.TextUnformatted(help);
-            }
-
-            ImGui.PopTextWrapPos();
-        }
     }
 
     private static RowArea BeginRow()

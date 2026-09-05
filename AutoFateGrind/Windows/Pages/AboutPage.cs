@@ -209,19 +209,16 @@ internal sealed class AboutPage
         var cat = Categories[Math.Max(0, factCat)];
         var line = Loc.T(cat.Lines[factLine]);
         ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
-        using (ImRaii.Tooltip())
+        using (Tooltip.Begin())
         {
-            ImGui.PushTextWrapPos(320f * s);
             using (ImRaii.PushFont(UiBuilder.IconFont))
             using (ImRaii.PushColor(ImGuiCol.Text, cat.Color))
                 ImGui.TextUnformatted(cat.Icon.ToIconString());
-            ImGui.SameLine(0, 6f * s);
+            ImGui.SameLine(0, 8f * s);
             using (ImRaii.PushColor(ImGuiCol.Text, cat.Color))
                 ImGui.TextUnformatted(Loc.T(cat.Header));
             ImGui.Spacing();
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextSecondary))
-                ImGui.TextUnformatted(line);
-            ImGui.PopTextWrapPos();
+            Tooltip.Text(line);
         }
     }
 
@@ -393,8 +390,7 @@ internal sealed class AboutPage
 
         if (!hover) return;
         ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
-        using (ImRaii.Tooltip())
-            ImGui.TextUnformatted(Loc.T(L.About.PatreonHint));
+        Tooltip.Show(Loc.T(L.About.PatreonHint));
         if (ImGui.IsMouseClicked(ImGuiMouseButton.Left)) OpenUrl(PatreonUrl);
         else if (ImGui.IsMouseClicked(ImGuiMouseButton.Right)) ImGui.SetClipboardText(PatreonUrl);
     }
@@ -534,8 +530,7 @@ internal sealed class AboutPage
 
         if (!hovered) return;
         ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
-        using (ImRaii.Tooltip())
-            ImGui.TextUnformatted(Loc.T(L.About.LinkHint));
+        Tooltip.Show(Loc.T(L.About.LinkHint));
         if (ImGui.IsMouseClicked(ImGuiMouseButton.Left)) OpenUrl(url);
         else if (ImGui.IsMouseClicked(ImGuiMouseButton.Right)) ImGui.SetClipboardText(url);
     }

@@ -49,7 +49,7 @@ internal static class PillButton
         var labelSize = TextDraw.Measure(label);
         TextDraw.At(label, new Vector2(x, midY - labelSize.Y * 0.5f), text);
 
-        if (hit.Hovered && tooltip is not null) ImGui.SetTooltip(tooltip);
+        if (hit.Hovered && tooltip is not null) Tooltip.Show(tooltip);
         return hit.Clicked;
     }
 

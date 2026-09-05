@@ -25,7 +25,7 @@ internal static class IconButton
         var glyphColor = enabled ? Vector4.Lerp(tint, Styling.TextStrong, hover * 0.55f) : Styling.TextMuted;
         TextDraw.IconCentered(icon, center, glyphColor);
 
-        if (hit.Hovered && tooltip is not null) ImGui.SetTooltip(tooltip);
+        if (hit.Hovered && tooltip is not null) Tooltip.Show(tooltip);
         return hit.Clicked;
     }
 }

@@ -205,7 +205,7 @@ internal static class PlanCard
         TextDraw.Icon(FontAwesomeIcon.ChevronDown, new Vector2(end.X - TokenPadX * scale - chevronSize.X, midY - chevronSize.Y * 0.5f + 1f * scale),
             Styling.WithAlpha(text, 0.75f));
 
-        if (!enabled && Hit.HoveringRect(origin, end)) ImGui.SetTooltip(Loc.T(L.Grind.PlanLocked));
+        if (!enabled && Hit.HoveringRect(origin, end)) Tooltip.Show(Loc.T(L.Grind.PlanLocked));
         return hit.Clicked;
     }
 

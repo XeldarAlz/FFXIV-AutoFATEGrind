@@ -109,7 +109,7 @@ internal sealed class PluginsPage
         if (Hit.HoveringRect(nameMin, nameMax))
         {
             ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
-            ImGui.SetTooltip(Loc.T(L.Plugins.RepoHint, info.RepoUrl));
+            Tooltip.Show(Loc.T(L.Plugins.RepoHint, info.RepoUrl));
             if (ImGui.IsMouseClicked(ImGuiMouseButton.Left)) UrlActions.OpenInBrowser(info.RepoUrl);
             else if (ImGui.IsMouseClicked(ImGuiMouseButton.Right)) ImGui.SetClipboardText(info.RepoUrl);
         }
@@ -152,7 +152,7 @@ internal sealed class PluginsPage
 
             if (disabled && Hit.HoveringRect(new Vector2(iconX, midY - labelSize.Y), new Vector2(end.X - padX, midY + labelSize.Y)))
             {
-                ImGui.SetTooltip(Loc.T(L.Plugins.TextAdvanceDisabled));
+                Tooltip.Show(Loc.T(L.Plugins.TextAdvanceDisabled));
             }
 
             return end.X - padX - iconX + 12f * scale;

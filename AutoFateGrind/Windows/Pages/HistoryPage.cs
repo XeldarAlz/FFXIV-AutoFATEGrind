@@ -145,7 +145,7 @@ internal sealed class HistoryPage
         if (hovered >= 0)
         {
             var record = records[count - 1 - hovered];
-            ImGui.SetTooltip(Loc.T(L.History.ChartTooltip, RelativeTime(record.EndedAtUtc), record.FatesCompleted, record.GemstonesEarned, Formatting.Elapsed(record.Duration)));
+            Tooltip.Show(Loc.T(L.History.ChartTooltip, RelativeTime(record.EndedAtUtc), record.FatesCompleted, record.GemstonesEarned, Formatting.Elapsed(record.Duration)));
         }
 
         ImGui.Dummy(size);
@@ -200,7 +200,7 @@ internal sealed class HistoryPage
         x -= metricWidth;
         DrawMetric(x, midY, metricWidth, record.FatesCompleted.ToString(Loc.Culture), Loc.T(L.History.TileFates), Styling.AccentBlue);
 
-        if (hit.Hovered) ImGui.SetTooltip(RunTooltip(record));
+        if (hit.Hovered) Tooltip.Show(RunTooltip(record));
     }
 
     private static void DrawMetric(float x, float midY, float width, string value, string label, Vector4 color)
