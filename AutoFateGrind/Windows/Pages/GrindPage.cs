@@ -1,9 +1,6 @@
 using AutoFateGrind.Core.Tasks;
 using AutoFateGrind.Windows.Sections;
 using AutoFateGrind.Windows.Shell;
-using Dalamud.Bindings.ImGui;
-using Dalamud.Interface.Utility;
-using Dalamud.Interface.Utility.Raii;
 
 namespace AutoFateGrind.Windows.Pages;
 
@@ -11,28 +8,15 @@ internal sealed class GrindPage
 {
     private const float SwitchRevealMs = 320f;
 
-    private bool wasRunning;
     private bool scrollToLibrary;
-    private long switchTick = Environment.TickCount64;
 
     public void Draw(Plugin plugin, AppWindow window)
     {
         var cfg = plugin.Configuration;
         var ctrl = plugin.Controller;
         var running = ctrl.Running;
-        if (running != wasRunning)
-        {
-            wasRunning = running;
-            switchTick = Environment.TickCount64;
-        }
 
-        var reveal = Motion.Reveal(switchTick, SwitchRevealMs);
-        if (reveal < 1f)
-        {
-            ImGui.SetCursorPosY(ImGui.GetCursorPosY() + (1f - reveal) * 10f * ImGuiHelpers.GlobalScale);
-        }
-
-        using var alpha = ImRaii.PushStyle(ImGuiStyleVar.Alpha, MathF.Max(0.001f, reveal * ImGui.GetStyle().Alpha));
+        using var reveal = Motion.PushSwitch("##afg_grind_state", running, SwitchRevealMs);
         if (running) RunningPanel.Draw(cfg, ctrl);
         else DrawIdle(plugin, window, cfg, ctrl);
     }

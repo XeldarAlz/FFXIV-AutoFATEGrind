@@ -16,7 +16,8 @@ internal static class ConsumableSettings
     public static void Draw(Configuration cfg)
     {
         DrawConsumableGroup(cfg);
-        if (!cfg.AutoConsume)
+        using var items = Motion.PushSection("##con_items", cfg.AutoConsume);
+        if (items is null)
         {
             return;
         }
@@ -34,6 +35,7 @@ internal static class ConsumableSettings
             () => SettingsControls.DrawToggle(cfg, () => cfg.AutoConsume, v => cfg.AutoConsume = v, "##con_on"),
             SettingsRow.ToggleHeight);
 
+        using var body = Motion.PushSwitch("##con_body", cfg.AutoConsume);
         if (!cfg.AutoConsume)
         {
             SettingsRow.Note(Loc.T(L.Settings.AutoConsumeOff));

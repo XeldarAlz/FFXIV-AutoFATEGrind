@@ -25,6 +25,8 @@ internal static class PlanCard
     private const float PopoverWidth = 420f;
     private const float PopoverSegmentHeight = 40f;
     private const float PopoverGap = 6f;
+    private const float PopoverRevealMs = 220f;
+    private const float PopoverSlide = 8f;
 
     private const string GoalPopup = "##afg_goal_popover";
     private const string AfterPopup = "##afg_after_popover";
@@ -45,6 +47,8 @@ internal static class PlanCard
     private static readonly Segmented.Item[] modeItems = new Segmented.Item[4];
     private static Vector2 goalAnchor;
     private static Vector2 afterAnchor;
+    private static long goalOpenedTick;
+    private static long afterOpenedTick;
 
     private enum PieceKind { Word, Zones, Goal, After }
 
@@ -152,11 +156,11 @@ internal static class PlanCard
                         break;
                     case PieceKind.Goal:
                         goalAnchor = anchor;
-                        if (clicked) ImGui.OpenPopup(GoalPopup);
+                        if (clicked) goalOpenedTick = OpenPopover(GoalPopup);
                         break;
                     case PieceKind.After:
                         afterAnchor = anchor;
-                        if (clicked) ImGui.OpenPopup(AfterPopup);
+                        if (clicked) afterOpenedTick = OpenPopover(AfterPopup);
                         break;
                 }
             }
@@ -244,8 +248,36 @@ internal static class PlanCard
         return anchor with { X = MathF.Max(viewport.WorkPos.X, MathF.Min(anchor.X, maxX)) };
     }
 
-    private static IDisposable PushPopoverStyle()
-        => ImRaii.PushStyle(ImGuiStyleVar.WindowPadding, PopoverPadding * ImGuiHelpers.GlobalScale);
+    private static long OpenPopover(string id)
+    {
+        ImGui.OpenPopup(id);
+        return Environment.TickCount64;
+    }
+
+    private ref struct Popover
+    {
+        private ImRaii.StyleDisposable style;
+        private ImRaii.PopupDisposable popup;
+
+        public Popover(string id, Vector2 anchor, float width, long openedTick)
+        {
+            var scale = ImGuiHelpers.GlobalScale;
+            var reveal = Motion.Reveal(openedTick, PopoverRevealMs);
+            var position = PopoverPosition(anchor, width) - new Vector2(0f, (1f - reveal) * PopoverSlide * scale);
+            ImGui.SetNextWindowPos(position, ImGuiCond.Always);
+            style = ImRaii.PushStyle(ImGuiStyleVar.WindowPadding, PopoverPadding * scale)
+                .Push(ImGuiStyleVar.Alpha, MathF.Max(0.05f, reveal));
+            popup = ImRaii.Popup(id, ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoMove);
+        }
+
+        public bool Open => popup.Alive;
+
+        public void Dispose()
+        {
+            popup.Dispose();
+            style.Dispose();
+        }
+    }
 
     private static void DrawGoalPopover(Configuration cfg)
     {
@@ -257,10 +289,8 @@ internal static class PlanCard
         RefreshModeItems(modes);
         var width = MathF.Max(PopoverWidth * scale, Segmented.PreferredWidth(modeItems.AsSpan(0, visible)));
 
-        ImGui.SetNextWindowPos(PopoverPosition(goalAnchor, width), ImGuiCond.Appearing);
-        using var style = PushPopoverStyle();
-        using var popup = ImRaii.Popup(GoalPopup, ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoMove);
-        if (!popup) return;
+        using var popover = new Popover(GoalPopup, goalAnchor, width, goalOpenedTick);
+        if (!popover.Open) return;
 
         var selected = 0;
         for (var index = 0; index < modes.Count; index++)
@@ -336,10 +366,8 @@ internal static class PlanCard
 
         var scale = ImGuiHelpers.GlobalScale;
         var width = PopoverWidth * scale;
-        ImGui.SetNextWindowPos(PopoverPosition(afterAnchor, width), ImGuiCond.Appearing);
-        using var style = PushPopoverStyle();
-        using var popup = ImRaii.Popup(AfterPopup, ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoMove);
-        if (!popup) return;
+        using var popover = new Popover(AfterPopup, afterAnchor, width, afterOpenedTick);
+        if (!popover.Open) return;
 
         var current = AfterIndex(cfg);
         var heading = Loc.T(L.Grind.WhenGoalReached);

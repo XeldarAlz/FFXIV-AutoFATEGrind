@@ -22,7 +22,8 @@ internal static class RepairSettings
     public static void Draw(Configuration cfg)
     {
         DrawTriggerGroup(cfg);
-        if (!cfg.AutoRepair)
+        using var source = Motion.PushSection("##rp_source", cfg.AutoRepair);
+        if (source is null)
         {
             return;
         }
@@ -40,6 +41,7 @@ internal static class RepairSettings
             () => SettingsControls.DrawToggle(cfg, () => cfg.AutoRepair, v => cfg.AutoRepair = v, "##rp_on"),
             SettingsRow.ToggleHeight);
 
+        using var body = Motion.PushSwitch("##rp_body", cfg.AutoRepair);
         if (!cfg.AutoRepair)
         {
             SettingsRow.Note(Loc.T(L.Settings.AutoRepairOff));
@@ -69,14 +71,17 @@ internal static class RepairSettings
             }));
         SettingsRow.Caption(Loc.T(repairModeChoices[selected].Detail));
 
-        if (cfg.RepairMode != RepairMode.SelfOnly)
+        using var npc = Motion.PushSection("##rp_npc", cfg.RepairMode != RepairMode.SelfOnly);
+        if (npc is null)
         {
-            SettingsRow.DrawBlock(Loc.T(L.Settings.CustomNpc),
-                Loc.T(L.Settings.CustomNpcHelp),
-                () => DrawCustomRepairNpc(cfg));
-
-            SettingsRow.Note(Loc.T(L.Settings.NpcNote));
+            return;
         }
+
+        SettingsRow.DrawBlock(Loc.T(L.Settings.CustomNpc),
+            Loc.T(L.Settings.CustomNpcHelp),
+            () => DrawCustomRepairNpc(cfg));
+
+        SettingsRow.Note(Loc.T(L.Settings.NpcNote));
     }
 
     private static void DrawCustomRepairNpc(Configuration cfg)

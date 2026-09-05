@@ -12,6 +12,7 @@ public sealed class AppWindow : Window, IDisposable
     public enum Page { Grind, Settings, History, Plugins, About }
 
     private const float PageRevealMs = 260f;
+    private const float PageSlide = 12f;
     private const float CollapseMs = 280f;
     private const float GripSize = 12f;
     private const float GripInset = 4f;
@@ -233,13 +234,7 @@ public sealed class AppWindow : Window, IDisposable
             resetScroll = false;
         }
 
-        var reveal = Motion.Reveal(pageShownTick, PageRevealMs);
-        if (reveal < 1f)
-        {
-            ImGui.SetCursorPosY(ImGui.GetCursorPosY() + (1f - reveal) * 12f * ImGuiHelpers.GlobalScale);
-        }
-
-        using var alpha = ImRaii.PushStyle(ImGuiStyleVar.Alpha, MathF.Max(0.001f, reveal * ImGui.GetStyle().Alpha));
+        using var reveal = Motion.PushReveal(Motion.Reveal(pageShownTick, PageRevealMs), PageSlide);
         switch (page)
         {
             case Page.Grind: grindPage.Draw(plugin, this); break;

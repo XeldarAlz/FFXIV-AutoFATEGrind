@@ -29,6 +29,7 @@ internal sealed class SettingsPage
     ];
 
     private Tab activeTab = Tab.General;
+    private bool resetScroll;
 
     public void Draw(Plugin plugin)
     {
@@ -66,15 +67,29 @@ internal sealed class SettingsPage
         for (var index = 0; index < entries.Length; index++)
         {
             var entry = entries[index];
-            if (SidebarTab.Draw(Loc.T(entry.Label), entry.Icon, Styling.AccentViolet, activeTab == entry.Tab)) activeTab = entry.Tab;
+            if (SidebarTab.Draw(Loc.T(entry.Label), entry.Icon, Styling.AccentViolet, activeTab == entry.Tab)) Select(entry.Tab);
         }
+    }
+
+    private void Select(Tab tab)
+    {
+        if (activeTab == tab) return;
+        activeTab = tab;
+        resetScroll = true;
     }
 
     private void DrawContent(Configuration cfg)
     {
+        if (resetScroll)
+        {
+            ImGui.SetScrollY(0f);
+            resetScroll = false;
+        }
+
         var entry = entries[(int)activeTab];
         var scale = ImGuiHelpers.GlobalScale;
 
+        using var reveal = Motion.PushSwitch("##afg_settings_tab", (int)activeTab);
         using var group = ImRaii.Group();
         ImGui.Dummy(new Vector2(0f, 2f * scale));
         PageHeader.Draw(Loc.T(entry.Label), Loc.T(entry.Subtitle));

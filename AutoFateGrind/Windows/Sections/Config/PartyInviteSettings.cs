@@ -17,7 +17,8 @@ internal static class PartyInviteSettings
     public static void Draw(Configuration cfg)
     {
         DrawDeclineGroup(cfg);
-        if (!cfg.DeclinePartyInvites)
+        using var reply = Motion.PushSection("##pi_reply", cfg.DeclinePartyInvites);
+        if (reply is null)
         {
             return;
         }
@@ -35,6 +36,7 @@ internal static class PartyInviteSettings
             () => SettingsControls.DrawToggle(cfg, () => cfg.DeclinePartyInvites, v => cfg.DeclinePartyInvites = v, "##pi_on"),
             SettingsRow.ToggleHeight);
 
+        using var body = Motion.PushSwitch("##pi_body", cfg.DeclinePartyInvites);
         if (!cfg.DeclinePartyInvites)
         {
             SettingsRow.Note(Loc.T(L.Settings.AutoDeclineOff));
@@ -59,7 +61,8 @@ internal static class PartyInviteSettings
             () => SettingsControls.DrawToggle(cfg, () => cfg.DeclineInviteReply, v => cfg.DeclineInviteReply = v, "##pi_reply_on"),
             SettingsRow.ToggleHeight);
 
-        if (!cfg.DeclineInviteReply)
+        using var channel = Motion.PushSection("##pi_channel", cfg.DeclineInviteReply);
+        if (channel is null)
         {
             return;
         }

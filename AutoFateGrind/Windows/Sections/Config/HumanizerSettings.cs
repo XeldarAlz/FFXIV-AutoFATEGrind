@@ -11,7 +11,8 @@ internal static class HumanizerSettings
     public static void Draw(Configuration cfg)
     {
         DrawBreaksGroup(cfg);
-        if (!cfg.HumanizerEnabled)
+        using var more = Motion.PushSection("##hum_more", cfg.HumanizerEnabled);
+        if (more is null)
         {
             return;
         }
@@ -30,6 +31,7 @@ internal static class HumanizerSettings
             () => SettingsControls.DrawToggle(cfg, () => cfg.HumanizerEnabled, v => cfg.HumanizerEnabled = v, "##hum_on"),
             SettingsRow.ToggleHeight);
 
+        using var body = Motion.PushSwitch("##hum_body", cfg.HumanizerEnabled);
         if (!cfg.HumanizerEnabled)
         {
             SettingsRow.Note(Loc.T(L.Settings.HumanizerOff));

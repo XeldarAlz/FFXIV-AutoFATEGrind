@@ -26,7 +26,8 @@ internal static class GemstoneSettings
     public static void Draw(Configuration cfg)
     {
         DrawTriggerGroup(cfg);
-        if (!cfg.TradeOnCap)
+        using var more = Motion.PushSection("##tr_more", cfg.TradeOnCap);
+        if (more is null)
         {
             return;
         }
@@ -46,6 +47,7 @@ internal static class GemstoneSettings
             () => SettingsControls.DrawToggle(cfg, () => cfg.TradeOnCap, v => cfg.TradeOnCap = v, "##tr_oncap"),
             SettingsRow.ToggleHeight);
 
+        using var body = Motion.PushSwitch("##tr_body", cfg.TradeOnCap);
         if (!cfg.TradeOnCap)
         {
             SettingsRow.Note(Loc.T(L.Settings.AutoTradeOff));

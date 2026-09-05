@@ -1,10 +1,18 @@
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface.Utility;
+using Dalamud.Interface.Utility.Raii;
 
 namespace AutoFateGrind.Windows;
 
 internal static class Motion
 {
+    public const float SwitchMs = 240f;
+    public const float SwitchSlide = 10f;
+
+    private readonly record struct Switch(int State, long Tick);
+
     private static readonly Dictionary<int, float> values = new();
+    private static readonly Dictionary<int, Switch> switches = new();
 
     public static bool Reduced => Plugin.PluginInterface.UiBuilder.ShouldUseReducedMotion;
 
@@ -41,6 +49,50 @@ internal static class Motion
         if (Reduced) return 1f;
         var elapsed = Environment.TickCount64 - startedTick - delayMs;
         return EaseOutCubic(Math.Clamp(elapsed / durationMs, 0f, 1f));
+    }
+
+    public static float Transition(int key, bool state, float durationMs = SwitchMs) => Transition(key, state ? 1 : 0, durationMs);
+
+    public static float Transition(int key, int state, float durationMs = SwitchMs)
+    {
+        if (!switches.TryGetValue(key, out var current))
+        {
+            switches[key] = new Switch(state, 0L);
+            return 1f;
+        }
+
+        if (current.State != state)
+        {
+            current = new Switch(state, Environment.TickCount64);
+            switches[key] = current;
+        }
+
+        return Reveal(current.Tick, durationMs);
+    }
+
+    public static ImRaii.StyleDisposable PushAlpha(float progress)
+        => ImRaii.PushStyle(ImGuiStyleVar.Alpha, MathF.Max(0.001f, progress * ImGui.GetStyle().Alpha));
+
+    public static ImRaii.StyleDisposable PushReveal(float progress, float slide = SwitchSlide)
+    {
+        if (progress < 1f)
+        {
+            ImGui.SetCursorPosY(ImGui.GetCursorPosY() + (1f - progress) * slide * ImGuiHelpers.GlobalScale);
+        }
+
+        return PushAlpha(progress);
+    }
+
+    public static ImRaii.StyleDisposable PushSwitch(string id, bool state, float durationMs = SwitchMs, float slide = SwitchSlide)
+        => PushReveal(Transition(Key(id), state, durationMs), slide);
+
+    public static ImRaii.StyleDisposable PushSwitch(string id, int state, float durationMs = SwitchMs, float slide = SwitchSlide)
+        => PushReveal(Transition(Key(id), state, durationMs), slide);
+
+    public static ImRaii.StyleDisposable? PushSection(string id, bool shown, float durationMs = SwitchMs, float slide = SwitchSlide)
+    {
+        var progress = Transition(Key(id), shown, durationMs);
+        return shown ? PushReveal(progress, slide) : null;
     }
 
     public static float EaseOutCubic(float t)

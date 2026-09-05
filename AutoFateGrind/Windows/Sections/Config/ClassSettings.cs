@@ -21,7 +21,8 @@ internal static class ClassSettings
     public static void Draw(Configuration cfg)
     {
         DrawSwitchingGroup(cfg);
-        if (!cfg.ApplyClassOnStart)
+        using var more = Motion.PushSection("##cls_more", cfg.ApplyClassOnStart);
+        if (more is null)
         {
             return;
         }
@@ -40,10 +41,13 @@ internal static class ClassSettings
             () => SettingsControls.DrawToggle(cfg, () => cfg.ApplyClassOnStart, v => cfg.ApplyClassOnStart = v, "##cls_apply"),
             SettingsRow.ToggleHeight);
 
-        if (!cfg.ApplyClassOnStart)
+        using var note = Motion.PushSection("##cls_off_note", !cfg.ApplyClassOnStart);
+        if (note is null)
         {
-            SettingsRow.Note(Loc.T(L.Settings.SwitchingOff));
+            return;
         }
+
+        SettingsRow.Note(Loc.T(L.Settings.SwitchingOff));
     }
 
     private static void DrawDoneGroup(Configuration cfg)

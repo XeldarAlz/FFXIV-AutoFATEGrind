@@ -14,6 +14,7 @@ internal static class ZoneLibrary
 {
     private const float Gap = 8f;
     private const float SummaryRowHeight = 32f;
+    private const float ListSlide = 8f;
     private const int CachedLabelCount = 64;
     private const int SearchMaxLength = 64;
 
@@ -39,7 +40,11 @@ internal static class ZoneLibrary
         DrawHeader(scrollIntoView);
         Styling.VSpace(10f);
 
-        if (searchQuery.Length > 0)
+        var searching = searchQuery.Length > 0;
+        if (!searching) DrawExpansionPicker();
+
+        using var reveal = Motion.PushSwitch("##afg_zone_list", searching ? -1 : currentExpansion, slide: ListSlide);
+        if (searching)
         {
             EnsureMatches();
             DrawSearchSummary();
@@ -47,6 +52,13 @@ internal static class ZoneLibrary
             return;
         }
 
+        var zones = groups[currentExpansion];
+        DrawSummaryRow(cfg, ctrl, zones);
+        DrawGrid(cfg, ctrl, zones, showExpansion: false);
+    }
+
+    private static void DrawExpansionPicker()
+    {
         for (var index = 0; index < expansions.Length; index++)
         {
             segments[index] = new Segmented.Item(null, ExpansionLabels.Name(expansions[index]));
@@ -54,10 +66,6 @@ internal static class ZoneLibrary
 
         Segmented.Draw("##afg_expansions", segments, ref currentExpansion);
         Styling.VSpace(8f);
-
-        var zones = groups[currentExpansion];
-        DrawSummaryRow(cfg, ctrl, zones);
-        DrawGrid(cfg, ctrl, zones, showExpansion: false);
     }
 
     private static void RefreshGroups()

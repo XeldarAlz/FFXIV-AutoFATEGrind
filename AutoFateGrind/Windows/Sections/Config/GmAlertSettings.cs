@@ -45,10 +45,13 @@ internal static class GmAlertSettings
             () => SettingsControls.DrawToggle(cfg, () => cfg.GmAlertSound, v => cfg.GmAlertSound = v, "##gm_sound"),
             SettingsRow.ToggleHeight);
 
-        if (cfg.GmAlertSound)
+        using var beep = Motion.PushSection("##gm_beep", cfg.GmAlertSound);
+        if (beep is null)
         {
-            DrawBeepRows(cfg);
+            return;
         }
+
+        DrawBeepRows(cfg);
     }
 
     private static void DrawBeepRows(Configuration cfg)

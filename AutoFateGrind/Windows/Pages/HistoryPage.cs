@@ -13,6 +13,7 @@ internal sealed class HistoryPage
     private const int ChartRuns = 24;
     private const float PadX = 14f;
     private const float MetricWidth = 64f;
+    private const float ConfirmSlide = 12f;
 
     private bool confirmClear;
 
@@ -239,11 +240,14 @@ internal sealed class HistoryPage
         var scale = ImGuiHelpers.GlobalScale;
         var avail = ImGui.GetContentRegionAvail().X;
         var origin = ImGui.GetCursorScreenPos();
+        var reveal = Motion.Transition(Motion.Key("##afg_hist_clear_state"), confirmClear);
+        var slide = (1f - reveal) * ConfirmSlide * scale;
+        using var alpha = Motion.PushAlpha(reveal);
 
         if (!confirmClear)
         {
             var label = Loc.T(L.History.ClearHistory);
-            ImGui.SetCursorScreenPos(new Vector2(origin.X + avail - PillButton.Width(label, FontAwesomeIcon.Trash), origin.Y));
+            ImGui.SetCursorScreenPos(new Vector2(origin.X + avail - PillButton.Width(label, FontAwesomeIcon.Trash) - slide, origin.Y));
             if (PillButton.Draw("##afg_hist_clear", label, Styling.AccentRose, PillButton.Emphasis.Ghost, FontAwesomeIcon.Trash)) confirmClear = true;
             return;
         }
@@ -257,7 +261,7 @@ internal sealed class HistoryPage
         var gap = 8f * scale;
         var buttonHeight = 28f * scale;
 
-        var x = origin.X + avail - noWidth;
+        var x = origin.X + avail - noWidth - slide;
         ImGui.SetCursorScreenPos(new Vector2(x, origin.Y));
         if (PillButton.Draw("##afg_hist_clear_no", no, Styling.AccentViolet, PillButton.Emphasis.Ghost)) confirmClear = false;
 
