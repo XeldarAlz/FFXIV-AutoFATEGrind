@@ -64,11 +64,18 @@ The plugin needs a few helpers for movement and combat to be installed and loade
 |---|---|
 | `/afg` | Toggle the main window |
 | `/fategrind` | Alias for `/afg` |
-| `/afg config` | Open settings |
-| `/afg deps` | Open dependencies window |
-| `/afg about` | Open credits / links |
+| `/afg config` | Open the Settings page |
+| `/afg stats` | Open the History page |
+| `/afg deps` | Open the Plugins page |
+| `/afg about` | Open the About page |
 | `/afg pause` | Pause or resume the current run |
 | `/afg target` | Log targeted NPC's BaseId (debug helper) |
+
+## Languages
+
+The windows are available in English, Deutsch, Français, Español, Português (Brasil), Русский, Türkçe, 日本語, and 中文. The plugin picks a language from your Dalamud and game client settings on first launch; change it any time under Settings, General, Language. Game data such as zone and FATE names always follows the game client.
+
+Spotted a wrong or awkward translation? Open a [translation issue](https://github.com/XeldarAlz/FFXIV-AutoFATEGrind/issues/new?template=translation_report.yml) and tell me what it should say instead.
 
 ## More from me
 

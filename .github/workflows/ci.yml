@@ -37,6 +37,32 @@ jobs:
             exit 1
           fi
 
+      # Every language catalog must carry exactly the keys of en.json, and the
+      # copy rules ban em dashes in the string table and the catalogs.
+      - name: Verify localization catalogs
+        shell: bash
+        run: |
+          dir=AutoFateGrind/Localization
+          for f in "$dir"/*.json; do
+            jq empty "$f" || { echo "::error::$f is not valid JSON"; exit 1; }
+          done
+          jq -r 'keys_unsorted[]' "$dir/en.json" > /tmp/en.keys
+          for code in de es fr ja pt ru tr zh; do
+            jq -r 'keys_unsorted[]' "$dir/$code.json" > "/tmp/$code.keys"
+            if ! diff -q /tmp/en.keys "/tmp/$code.keys" > /dev/null; then
+              echo "::error::$code.json keys differ from en.json (same keys, same order required):"
+              diff /tmp/en.keys "/tmp/$code.keys" || true
+              exit 1
+            fi
+          done
+          dash=$(printf '\xe2\x80\x94')
+          offenders=$(grep -n -F -- "$dash" "$dir"/*.json AutoFateGrind/Core/Localization/L.cs || true)
+          if [ -n "$offenders" ]; then
+            echo "$offenders"
+            echo "::error::No em dashes in L.cs or the language catalogs. Use commas, colons, or parentheses."
+            exit 1
+          fi
+
   # Full build. Needs Dalamud present at the standard plugin path so
   # Dalamud.NET.Sdk can resolve $(DalamudLibPath).
   build:
