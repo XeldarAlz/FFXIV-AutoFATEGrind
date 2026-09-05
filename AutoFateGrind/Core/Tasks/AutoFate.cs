@@ -44,7 +44,8 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private const int   CollectExpiryTimeoutMs = 90_000;
     private const int   EngageStallTimeoutMs = 60_000;
     private const int   EngageOutOfCombatGraceMs = 30_000;
-    private const float EngageMeleeReachMeters  = 6f;
+    // Reach and tolerances are measured from the mob's hitbox edge, not its centre.
+    private const float EngageMeleeReachMeters  = 4f;
     private const float EngageRangedReachMeters = 25f;
     private const float EngageApproachProgressMeters = 2f;
     private const int   EngageReachStallMs = 10_000;

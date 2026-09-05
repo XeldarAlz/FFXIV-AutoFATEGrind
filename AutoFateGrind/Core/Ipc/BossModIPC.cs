@@ -18,6 +18,7 @@ internal sealed class BossModIPC
     private readonly ICallGateSubscriber<string>       getActive;
     private readonly ICallGateSubscriber<string, string?> getPreset;
     private readonly ICallGateSubscriber<string, string, string, string, bool> addTransient;
+    private readonly ICallGateSubscriber<string, string, string, bool> clearTransient;
     private readonly ICallGateSubscriber<string, bool, bool> createPreset;
     private readonly ICallGateSubscriber<Vector3, float, bool, bool> obstacleGenerate;
     private readonly ICallGateSubscriber<TaskStatus>                 obstacleGetStatus;
@@ -32,6 +33,7 @@ internal sealed class BossModIPC
         getActive            = Svc.PluginInterface.GetIpcSubscriber<string>("BossMod.Presets.GetActive");
         getPreset            = Svc.PluginInterface.GetIpcSubscriber<string, string?>("BossMod.Presets.Get");
         addTransient         = Svc.PluginInterface.GetIpcSubscriber<string, string, string, string, bool>("BossMod.Presets.AddTransientStrategy");
+        clearTransient       = Svc.PluginInterface.GetIpcSubscriber<string, string, string, bool>("BossMod.Presets.ClearTransientStrategy");
         createPreset         = Svc.PluginInterface.GetIpcSubscriber<string, bool, bool>("BossMod.Presets.Create");
         obstacleGenerate     = Svc.PluginInterface.GetIpcSubscriber<Vector3, float, bool, bool>("BossMod.ObstacleMap.Generate");
         obstacleGetStatus    = Svc.PluginInterface.GetIpcSubscriber<TaskStatus>("BossMod.ObstacleMap.GetGenerationStatus");
@@ -56,6 +58,11 @@ internal sealed class BossModIPC
 
     public bool AddTransientStrategy(string preset, string module, string track, string option)
         => IpcGate.Invoke(addTransient.HasFunction, () => addTransient.InvokeFunc(preset, module, track, option), false, "[BossModIPC] AddTransientStrategy failed");
+
+    public bool CanClearTransientStrategy => clearTransient.HasFunction;
+
+    public bool ClearTransientStrategy(string preset, string module, string track)
+        => IpcGate.Invoke(clearTransient.HasFunction, () => clearTransient.InvokeFunc(preset, module, track), false, "[BossModIPC] ClearTransientStrategy failed");
 
     public bool CreatePreset(string serialized, bool overwrite)
         => IpcGate.Invoke(createPreset.HasFunction, () => createPreset.InvokeFunc(serialized, overwrite), false, "[BossModIPC] CreatePreset failed");

@@ -186,7 +186,8 @@ public sealed partial class AutoFate
                     break;
                 }
                 else if (Environment.TickCount64 - lastProgressAtMs > EngageCombatStallMs
-                      && Environment.TickCount64 - lastBounceAtMs > EngageCombatStallMs)
+                      && Environment.TickCount64 - lastBounceAtMs > EngageCombatStallMs
+                      && !(Svc.Condition[ConditionFlag.InCombat] && HasTargetInReach(fateId, reach.Meters)))
                 {
                     lastBounceAtMs = Environment.TickCount64;
                     combatStallBounces++;
@@ -294,7 +295,13 @@ public sealed partial class AutoFate
         if (StuckDetector.IsPositionFrozenLegit()) return false;
         if (Svc.Objects.LocalPlayer is not { } player) return false;
 
-        if (!FateMobScanner.TryFindNearestMob(fateId, player.Position, out var mobPos, out var mobDistance))
+        if (HasTargetInReach(fateId, reach.Meters))
+        {
+            reach.MarkInReach();
+            return false;
+        }
+
+        if (!FateMobScanner.TryFindNearestMob(fateId, player.Position, out var mobPos, out var mobHitbox, out var mobDistance))
         {
             reach.Restart();
             return false;
@@ -306,46 +313,85 @@ public sealed partial class AutoFate
 
         if (reach.Repositions >= MaxEngageRepositions)
         {
-            Diag($"FATE {fateId} ({fateName}) unreachable: still {mobDistance:F0}m from the nearest mob after {MaxEngageRepositions} repositions; abandoning and blacklisting for this session");
+            Diag($"FATE {fateId} ({fateName}) unreachable: still {mobDistance:F0}m from the nearest mob's hitbox after {MaxEngageRepositions} repositions; abandoning and blacklisting for this session");
             abandonedFateId = fateId;
             sessionStuckFateIds.Add(fateId);
             return true;
         }
 
-        await RepositionToFateMob(fateId, fateName, mobPos, mobDistance, reach);
+        await RepositionToFateMob(fateId, fateName, mobPos, mobHitbox, mobDistance, reach);
         reach.Restart();
         Status = $"Engaging {fateName}";
         return false;
     }
 
-    private async Task RepositionToFateMob(uint fateId, string fateName, Vector3 mobPos, float mobDistance, EngageReachTracker reach)
+    private static bool HasTargetInReach(uint fateId, float reachMeters)
+        => Svc.Objects.LocalPlayer is { } player
+        && FateMobScanner.TryGetTargetedMob(fateId, player.Position, out var distance)
+        && distance <= reachMeters;
+
+    private async Task RepositionToFateMob(uint fateId, string fateName, Vector3 mobPos, float mobHitbox, float mobDistance, EngageReachTracker reach)
     {
         reach.CountReposition();
         Status = $"Closing on {fateName}";
-        Diag($"Engagement stalled on FATE {fateId} ({fateName}): nearest mob {mobDistance:F0}m away (reach {reach.Meters:F0}m) with no approach in {EngageReachStallMs / 1000}s; re-pathing with vnav (attempt {reach.Repositions}/{MaxEngageRepositions})");
+        Diag($"Engagement stalled on FATE {fateId} ({fateName}): nearest mob {mobDistance:F0}m from its hitbox (reach {reach.Meters:F0}m) with no approach in {EngageReachStallMs / 1000}s; walking in with vnav (attempt {reach.Repositions}/{MaxEngageRepositions})");
 
         var dest = mobPos.OnMesh();
-        var tolerance = reach.Meters <= EngageMeleeReachMeters
+        var tolerance = mobHitbox + (reach.Meters <= EngageMeleeReachMeters
             ? EngageMeleeApproachToleranceMeters
-            : EngageRangedApproachToleranceMeters;
-        var config = MovementConfig.GroundMove.WithTolerance(tolerance);
+            : EngageRangedApproachToleranceMeters);
+        // On foot only: clib's Mount() has no in-combat guard and spins until the idle abort.
+        var config = MovementConfig.Default.WithTolerance(tolerance);
         var reachMeters = reach.Meters;
 
         bool InRangeOrGone()
         {
             if (PublicEvent.GetFateById(fateId) is not { State: FateState.Running }) return true;
             if (Svc.Objects.LocalPlayer is not { } moving) return true;
-            return FateMobScanner.TryFindNearestMob(fateId, moving.Position, out _, out var live)
+            return FateMobScanner.TryFindNearestMob(fateId, moving.Position, out _, out _, out var live)
                 && live <= reachMeters;
         }
 
-        BossModIPC.Instance.ClearActive();
-        var op = new MoveOp(o => o.MoveInZone(dest, config, InRangeOrGone));
-        await RunCancellable(op, EngageRepositionWatchdogMs, $"engage-reposition-{fateId}",
-            StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs));
+        var preset = Plugin.Cfg.CombatPresetName;
+        var parked = ParkBossModMovement(preset);
+        try
+        {
+            var op = new MoveOp(o => o.MoveInZone(dest, config, InRangeOrGone));
+            await RunCancellable(op, EngageRepositionWatchdogMs, $"engage-reposition-{fateId}",
+                StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs));
 
-        if (op.Fault is { } fault)
-            Diag($"Reposition for FATE {fateId} faulted: {fault.Message}");
+            if (op.Fault is { } fault)
+                Diag($"Reposition for FATE {fateId} faulted: {fault.Message}");
+        }
+        finally
+        {
+            if (parked) ResumeBossModMovement(preset);
+        }
+    }
+
+    private const string NormalMovementModule = "BossMod.Autorotation.MiscAI.NormalMovement";
+    private const string NormalMovementDestinationTrack = "Destination";
+    private const string NormalMovementParkedOption = "None";
+
+    // Hand movement to vnav without dropping the preset so the rotation keeps attacking on the way.
+    // Only park when the override can be cleared again; otherwise fall back to clearing the preset,
+    // which the engage loop re-asserts on its next tick.
+    private static bool ParkBossModMovement(string preset)
+    {
+        if (BossModIPC.Instance.CanClearTransientStrategy
+         && BossModIPC.Instance.AddTransientStrategy(preset, NormalMovementModule, NormalMovementDestinationTrack, NormalMovementParkedOption))
+            return true;
+
+        BossModIPC.Instance.ClearActive();
+        return false;
+    }
+
+    private void ResumeBossModMovement(string preset)
+    {
+        if (BossModIPC.Instance.ClearTransientStrategy(preset, NormalMovementModule, NormalMovementDestinationTrack)) return;
+
+        Diag($"Could not clear the NormalMovement override on preset '{preset}'; re-applying the preset instead");
+        BossModIPC.Instance.ClearActive();
     }
 
     private sealed class EngageReachTracker(float reachMeters)
@@ -362,9 +408,7 @@ public sealed partial class AutoFate
 
             if (nearestDistance <= Meters)
             {
-                anchorDistance = nearestDistance;
-                stalledSinceMs = now;
-                Repositions = 0;
+                MarkInReach();
                 return false;
             }
 
@@ -381,6 +425,12 @@ public sealed partial class AutoFate
         }
 
         public void CountReposition() => Repositions++;
+
+        public void MarkInReach()
+        {
+            Repositions = 0;
+            Restart();
+        }
 
         public void Restart()
         {
