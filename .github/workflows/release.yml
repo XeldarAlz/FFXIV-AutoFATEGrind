@@ -37,8 +37,8 @@ jobs:
           else
             target="$ref_name"
           fi
-          if [[ ! "$target" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
-            echo "::error::Resolved target '$target' is not a v*.*.* tag — pass the tag input or dispatch on a tag ref."
+          if [[ ! "$target" =~ ^v[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Resolved target '$target' is not a four-part v*.*.*.* tag — pass the tag input or dispatch on a tag ref."
             exit 1
           fi
           echo "target=$target" >> "$GITHUB_OUTPUT"

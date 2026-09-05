@@ -29,6 +29,10 @@ jobs:
           build_ver=$(grep -oP '<Version>\K[\d.]+(?=</Version>)' Directory.Build.props)
           assembly_ver=$(jq -r '.[0].AssemblyVersion' repo.json)
           testing_ver=$(jq -r '.[0].TestingAssemblyVersion' repo.json)
+          if [[ ! "$build_ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Directory.Build.props <Version> ($build_ver) must have four parts (Major.Minor.Build.Revision). The SDK pads the shipped manifest's AssemblyVersion to four parts and Dalamud refuses to install when repo.json differs."
+            exit 1
+          fi
           echo "Directory.Build.props <Version>      = $build_ver"
           echo "repo.json AssemblyVersion           = $assembly_ver"
           echo "repo.json TestingAssemblyVersion    = $testing_ver"
