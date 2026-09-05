@@ -97,7 +97,48 @@ internal static class GemstoneSettings
                     cfg.TargetTradeItemId = sortedItems[selectedIndex].ItemId;
                     cfg.SaveDebounced();
                 }
+
+                DrawTraderReach(sortedItems[selectedIndex]);
             });
+    }
+
+    private static uint reachNoteItemId;
+    private static long reachNoteTickMs;
+    private static string? reachNote;
+    private const int ReachRecheckMs = 2000;
+
+    // The dropdown carries every Bicolor item in game data, including ones only sold in expansions the
+    // character has not reached, and picking one used to fail mid-run at the teleport (issue #54).
+    // Resolving a seller walks shop rows and reads Excel, so the answer is cached rather than rebuilt
+    // every frame; the recheck picks up an attunement (or a language switch) made while the page is open.
+    private static void DrawTraderReach(GemstoneTradeItem item)
+    {
+        var now = Environment.TickCount64;
+        if (item.ItemId != reachNoteItemId || now - reachNoteTickMs > ReachRecheckMs)
+        {
+            reachNoteItemId = item.ItemId;
+            reachNoteTickMs = now;
+            reachNote = BuildReachNote(item);
+        }
+
+        if (reachNote is null)
+        {
+            return;
+        }
+
+        SettingsRow.Note(reachNote, Styling.AccentRose);
+    }
+
+    private static string? BuildReachNote(GemstoneTradeItem item)
+    {
+        if (GemstoneTrader.PickForItem(item.ItemId, null, null, out var availability) is not null)
+        {
+            return null;
+        }
+
+        return availability == TraderAvailability.AllLocked
+            ? Loc.T(L.Settings.TraderLocked, item.ItemName, GemstoneTrader.DescribeSellerZones(item.ItemId))
+            : Loc.T(L.Settings.TraderMissing, item.ItemName);
     }
 
     // Catalog order is cost-ascending (the default-target picker relies on that). The dropdown wants A-Z

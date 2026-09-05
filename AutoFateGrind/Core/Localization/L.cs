@@ -454,6 +454,8 @@ internal static class L
         public static readonly LocString ItemToBuy = new("settings.gems.itemToBuy", "Item to buy");
         public static readonly LocString ItemToBuyHelp = new("settings.gems.itemToBuyHelp", "Pulled live from game data, sorted A-Z. Type to search. Cost shown in gems per one.");
         public static readonly LocString NoShopItems = new("settings.gems.noShopItems", "No gem-shop items found.");
+        public static readonly LocString TraderLocked = new("settings.gems.traderLocked", "No trader you can reach sells {0}. It is only sold in {1}. Attune an aetheryte there, or pick another item.");
+        public static readonly LocString TraderMissing = new("settings.gems.traderMissing", "No known Bicolor trader sells {0}. Pick another item.");
         public static readonly LocString GemsSpend = new("settings.gems.spend", "How much to spend");
         public static readonly LocString SpendStrategy = new("settings.gems.spendStrategy", "Spend strategy");
         public static readonly LocString SpendStrategyHelp = new("settings.gems.spendStrategyHelp", "How much each trade spends when it fires.");

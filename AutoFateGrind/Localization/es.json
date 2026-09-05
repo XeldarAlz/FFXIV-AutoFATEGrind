@@ -397,6 +397,8 @@
   "settings.gems.itemToBuy": "Objeto a comprar",
   "settings.gems.itemToBuyHelp": "Obtenido en vivo de los datos del juego, ordenado de A a Z. Escribe para buscar. Precio en gemas por unidad.",
   "settings.gems.noShopItems": "No se encontraron objetos de la tienda de gemas.",
+  "settings.gems.traderLocked": "Ningún comerciante a tu alcance vende {0}. Solo se vende en: {1}. Sintonízate con un eterlito de allí o elige otro objeto.",
+  "settings.gems.traderMissing": "Ningún comerciante de Bicolor conocido vende {0}. Elige otro objeto.",
   "settings.gems.spend": "Cuánto gastar",
   "settings.gems.spendStrategy": "Estrategia de gasto",
   "settings.gems.spendStrategyHelp": "Cuánto gasta cada canje cuando se dispara.",

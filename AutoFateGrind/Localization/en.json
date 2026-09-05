@@ -397,6 +397,8 @@
   "settings.gems.itemToBuy": "Item to buy",
   "settings.gems.itemToBuyHelp": "Pulled live from game data, sorted A-Z. Type to search. Cost shown in gems per one.",
   "settings.gems.noShopItems": "No gem-shop items found.",
+  "settings.gems.traderLocked": "No trader you can reach sells {0}. It is only sold in {1}. Attune an aetheryte there, or pick another item.",
+  "settings.gems.traderMissing": "No known Bicolor trader sells {0}. Pick another item.",
   "settings.gems.spend": "How much to spend",
   "settings.gems.spendStrategy": "Spend strategy",
   "settings.gems.spendStrategyHelp": "How much each trade spends when it fires.",

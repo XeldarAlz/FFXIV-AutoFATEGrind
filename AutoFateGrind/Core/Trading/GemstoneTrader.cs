@@ -14,6 +14,13 @@ public sealed record TraderLocation(
     ExpansionKind Expansion,
     bool IsHub);
 
+public enum TraderAvailability
+{
+    Reachable,
+    NoSeller,
+    AllLocked,
+}
+
 public static class GemstoneTrader
 {
     public static readonly TraderLocation[] Traders =
@@ -117,20 +124,33 @@ public static class GemstoneTrader
         return accum.ToDictionary(kv => kv.Key, kv => kv.Value.ToArray());
     }
 
-    // Preference: in-zone → same-expansion hub → same-expansion → any hub → any seller.
-    public static TraderLocation? PickForItem(uint itemId, uint? preferTerritoryId, ExpansionKind? preferExpansion)
+    // Preference: in-zone → same-expansion hub → same-expansion → any hub → any seller, over the traders
+    // the character can actually teleport to.
+    public static TraderLocation? PickForItem(uint itemId, uint? preferTerritoryId, ExpansionKind? preferExpansion,
+        out TraderAvailability availability)
     {
+        availability = TraderAvailability.NoSeller;
+
         var item = GemstoneCatalog.FindById(itemId);
         if (item is null) return null;
 
-        var sellers = new List<TraderLocation>();
-        foreach (var shopId in item.ShopRowIds)
-        {
-            if (!ShopToTraders.TryGetValue(shopId, out var owners)) continue;
-            foreach (var t in owners)
-                if (!sellers.Contains(t)) sellers.Add(t);
-        }
+        var sellers = SellersOf(item);
         if (sellers.Count == 0) return null;
+
+        // A trader standing in a zone the character never attuned is not a destination: the teleport is
+        // rejected outright and the whole trade errors out after minutes of retries (issue #54). Every
+        // trader territory owns attunable aetherytes, so attunement alone answers reachability here.
+        if (ZoneStateReader.AnyAetheryteAttuned())
+        {
+            sellers.RemoveAll(t => !ZoneStateReader.IsTerritoryUnlocked(t.TerritoryId));
+            if (sellers.Count == 0)
+            {
+                availability = TraderAvailability.AllLocked;
+                return null;
+            }
+        }
+
+        availability = TraderAvailability.Reachable;
 
         if (preferTerritoryId is { } tid)
         {
@@ -146,5 +166,42 @@ public static class GemstoneTrader
         }
         var anyHub = sellers.FirstOrDefault(t => t.IsHub);
         return anyHub ?? sellers[0];
+    }
+
+    // The zones an item can be bought in, attuned or not, so a locked target can say where to go.
+    public static string DescribeSellerZones(uint itemId)
+    {
+        var item = GemstoneCatalog.FindById(itemId);
+        if (item is null) return "";
+
+        var sellers = SellersOf(item);
+        var zones = new List<string>(ListedZoneLimit);
+        for (var index = 0; index < sellers.Count && zones.Count < ListedZoneLimit; index++)
+        {
+            var name = ZoneName(sellers[index].TerritoryId);
+            if (!zones.Contains(name)) zones.Add(name);
+        }
+        return string.Join(", ", zones);
+    }
+
+    private const int ListedZoneLimit = 3;
+
+    private static List<TraderLocation> SellersOf(GemstoneTradeItem item)
+    {
+        var sellers = new List<TraderLocation>();
+        foreach (var shopId in item.ShopRowIds)
+        {
+            if (!ShopToTraders.TryGetValue(shopId, out var owners)) continue;
+            foreach (var t in owners)
+                if (!sellers.Contains(t)) sellers.Add(t);
+        }
+        return sellers;
+    }
+
+    private static string ZoneName(uint territoryId)
+    {
+        var name = Svc.Data.GetExcelSheet<TerritoryType>()?
+            .GetRowOrDefault(territoryId)?.PlaceName.ValueNullable?.Name.ExtractText();
+        return string.IsNullOrWhiteSpace(name) ? $"territory {territoryId}" : name;
     }
 }

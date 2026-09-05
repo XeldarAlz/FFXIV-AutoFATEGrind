@@ -397,6 +397,8 @@
   "settings.gems.itemToBuy": "Objet à acheter",
   "settings.gems.itemToBuyHelp": "Tiré en direct des données du jeu, trié de A à Z. Tapez pour rechercher. Prix affiché en gemmes l'unité.",
   "settings.gems.noShopItems": "Aucun objet de marchand de gemmes trouvé.",
+  "settings.gems.traderLocked": "Aucun marchand accessible ne vend {0}. Cet objet n'est vendu qu'ici : {1}. Harmonisez-vous avec un éthéryte sur place, ou choisissez un autre objet.",
+  "settings.gems.traderMissing": "Aucun marchand Bicolor connu ne vend {0}. Choisissez un autre objet.",
   "settings.gems.spend": "Combien dépenser",
   "settings.gems.spendStrategy": "Stratégie de dépense",
   "settings.gems.spendStrategyHelp": "Combien chaque échange dépense quand il se déclenche.",

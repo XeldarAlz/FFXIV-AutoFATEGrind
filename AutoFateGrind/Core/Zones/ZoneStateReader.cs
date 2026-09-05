@@ -18,7 +18,25 @@ internal static class ZoneStateReader
 
     // Keyed by attuned aetheryte, not by the territory that aetheryte sits in: The Dravanian Hinterlands
     // holds no aetheryte of its own, so a territory-keyed set left it locked forever (issue #48).
-    private static bool IsTerritoryUnlocked(uint territoryId)
+    public static bool IsTerritoryUnlocked(uint territoryId)
+    {
+        var attuned = AttunedSet();
+
+        var own = ZoneAetherytes.AttunableIdsIn(territoryId);
+        for (var index = 0; index < own.Length; index++)
+        {
+            if (attuned.Contains(own[index])) return true;
+        }
+
+        return ZoneAetherytes.TryFindGateway(territoryId, out var gateway)
+            && attuned.Contains(gateway.AetheryteId);
+    }
+
+    // An empty list is "the game has not published one yet", not "nothing is attuned": callers that would
+    // otherwise lock themselves out of every destination (issue #54) use this to fall back to no filtering.
+    public static bool AnyAetheryteAttuned() => AttunedSet().Count > 0;
+
+    private static HashSet<uint> AttunedSet()
     {
         var now = Environment.TickCount64;
         if (attunedAetheryteCache is null || now - attunedCacheTickMs > AttunedCacheLifetimeMs)
@@ -26,15 +44,7 @@ internal static class ZoneStateReader
             attunedAetheryteCache = BuildAttunedSet();
             attunedCacheTickMs = now;
         }
-
-        var own = ZoneAetherytes.AttunableIdsIn(territoryId);
-        for (var index = 0; index < own.Length; index++)
-        {
-            if (attunedAetheryteCache.Contains(own[index])) return true;
-        }
-
-        return ZoneAetherytes.TryFindGateway(territoryId, out var gateway)
-            && attunedAetheryteCache.Contains(gateway.AetheryteId);
+        return attunedAetheryteCache;
     }
 
     private static HashSet<uint> BuildAttunedSet()

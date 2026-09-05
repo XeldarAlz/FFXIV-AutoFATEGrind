@@ -36,13 +36,15 @@ public static class GemstoneCatalog
         return true;
     }
 
-    // Picks the cheapest routable item as a default so fresh installs don't no-op trade-on-cap.
+    // Picks the cheapest item with a trader the character can reach, so fresh installs don't no-op
+    // trade-on-cap or default to a vendor sitting behind an expansion they don't own (issue #54).
+    // A target the player picked themselves is never re-pointed: only an unset or stale id is replaced.
     public static uint EnsurePersistedTarget()
     {
         var cfg = Plugin.Cfg;
         if (cfg.TargetTradeItemId != 0 && FindById(cfg.TargetTradeItemId) is not null)
             return cfg.TargetTradeItemId;
-        var fallback = Array.Find(All, i => GemstoneTrader.PickForItem(i.ItemId, null, null) is not null);
+        var fallback = Array.Find(All, i => GemstoneTrader.PickForItem(i.ItemId, null, null, out _) is not null);
         if (fallback is null) return 0;
         cfg.TargetTradeItemId = fallback.ItemId;
         cfg.Save();

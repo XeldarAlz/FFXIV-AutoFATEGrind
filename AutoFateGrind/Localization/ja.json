@@ -397,6 +397,8 @@
   "settings.gems.itemToBuy": "購入アイテム",
   "settings.gems.itemToBuyHelp": "ゲームデータから取得、五十音・アルファベット順。入力して検索できます。価格は1個あたりの宝石数です。",
   "settings.gems.noShopItems": "宝石交換のアイテムが見つかりません。",
+  "settings.gems.traderLocked": "到達できる交換NPCが {0} を扱っていません。{1} でのみ購入できます。現地のエーテライトを開放するか、別のアイテムを選んでください。",
+  "settings.gems.traderMissing": "{0} を扱うバイカラージェムの交換NPCが見つかりません。別のアイテムを選んでください。",
   "settings.gems.spend": "使う量",
   "settings.gems.spendStrategy": "消費方針",
   "settings.gems.spendStrategyHelp": "交換のたびにどれだけ使うかです。",

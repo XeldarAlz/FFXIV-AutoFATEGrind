@@ -397,6 +397,8 @@
   "settings.gems.itemToBuy": "Gegenstand",
   "settings.gems.itemToBuyHelp": "Live aus den Spieldaten geladen, A-Z sortiert. Tippe zum Suchen. Preis in Steinen pro Stück.",
   "settings.gems.noShopItems": "Keine Steinhändler-Gegenstände gefunden.",
+  "settings.gems.traderLocked": "Kein erreichbarer Händler verkauft {0}. Der Gegenstand wird nur hier verkauft: {1}. Stimme dich dort auf einen Ätheryten ein oder wähle einen anderen Gegenstand.",
+  "settings.gems.traderMissing": "Kein bekannter Bicolor-Händler verkauft {0}. Wähle einen anderen Gegenstand.",
   "settings.gems.spend": "Wie viel ausgegeben wird",
   "settings.gems.spendStrategy": "Ausgabestrategie",
   "settings.gems.spendStrategyHelp": "Wie viel jeder Tausch ausgibt, wenn er ausgelöst wird.",

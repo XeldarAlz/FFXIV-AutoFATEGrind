@@ -397,6 +397,8 @@
   "settings.gems.itemToBuy": "Item a comprar",
   "settings.gems.itemToBuyHelp": "Obtido ao vivo dos dados do jogo, em ordem de A a Z. Digite para buscar. Custo em gemas por unidade.",
   "settings.gems.noShopItems": "Nenhum item da loja de gemas encontrado.",
+  "settings.gems.traderLocked": "Nenhum comerciante ao seu alcance vende {0}. Só é vendido em: {1}. Sintonize um aetheryte lá ou escolha outro item.",
+  "settings.gems.traderMissing": "Nenhum comerciante Bicolor conhecido vende {0}. Escolha outro item.",
   "settings.gems.spend": "Quanto gastar",
   "settings.gems.spendStrategy": "Estratégia de gasto",
   "settings.gems.spendStrategyHelp": "Quanto cada troca gasta quando é disparada.",

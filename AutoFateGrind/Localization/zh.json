@@ -397,6 +397,8 @@
   "settings.gems.itemToBuy": "购买的物品",
   "settings.gems.itemToBuyHelp": "实时取自游戏数据，按字母排序。输入以搜索。价格为每个所需宝石数。",
   "settings.gems.noShopItems": "未找到宝石商店的物品。",
+  "settings.gems.traderLocked": "没有你能前往的商人出售{0}。该物品只在以下区域出售：{1}。请先感应当地的以太之光，或改选其他物品。",
+  "settings.gems.traderMissing": "没有已知的双色宝石商人出售{0}。请改选其他物品。",
   "settings.gems.spend": "花费多少",
   "settings.gems.spendStrategy": "花费策略",
   "settings.gems.spendStrategyHelp": "每次兑换触发时花费多少。",

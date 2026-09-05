@@ -487,10 +487,12 @@ public sealed partial class AutoFate
             return false;
         }
 
-        var trader = GemstoneTrader.PickForItem(targetId, zone.TerritoryId, zone.Expansion);
+        var trader = GemstoneTrader.PickForItem(targetId, zone.TerritoryId, zone.Expansion, out var availability);
         if (trader is null)
         {
-            Diag($"Trade-on-cap skipped: no registered Bicolor trader sells {target.ItemName}. Pick a different item in /afg config → Trader.");
+            Diag(availability == TraderAvailability.AllLocked
+                ? $"Trade-on-cap skipped: every Bicolor trader selling {target.ItemName} stands in an unattuned zone ({GemstoneTrader.DescribeSellerZones(targetId)}). Pick a different item in /afg config → Trader."
+                : $"Trade-on-cap skipped: no registered Bicolor trader sells {target.ItemName}. Pick a different item in /afg config → Trader.");
             return false;
         }
 

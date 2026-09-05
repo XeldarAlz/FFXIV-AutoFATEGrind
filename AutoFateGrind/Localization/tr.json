@@ -397,6 +397,8 @@
   "settings.gems.itemToBuy": "Alınacak eşya",
   "settings.gems.itemToBuyHelp": "Oyun verilerinden canlı çekilir, A-Z sıralıdır. Aramak için yazın. Fiyat birim başına taş olarak gösterilir.",
   "settings.gems.noShopItems": "Taş dükkânı eşyası bulunamadı.",
+  "settings.gems.traderLocked": "Ulaşabileceğiniz hiçbir tüccar {0} satmıyor. Yalnızca şuralarda satılıyor: {1}. Oradaki bir aetheryte ile uyumlanın ya da başka bir eşya seçin.",
+  "settings.gems.traderMissing": "{0} satan bilinen bir Bicolor tüccarı yok. Başka bir eşya seçin.",
   "settings.gems.spend": "Ne kadar harcanacak",
   "settings.gems.spendStrategy": "Harcama stratejisi",
   "settings.gems.spendStrategyHelp": "Tetiklenen her takasın ne kadar harcayacağı.",

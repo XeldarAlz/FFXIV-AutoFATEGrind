@@ -29,7 +29,9 @@ public sealed class AutoTrade(uint targetItemId, uint originTerritoryId, Expansi
         var item = GemstoneCatalog.FindById(targetItemId);
         ErrorIf(item is null, "No target item set. Open /afg config → Trader and pick one.");
 
-        var trader = GemstoneTrader.PickForItem(targetItemId, originTerritoryId, originExpansion);
+        var trader = GemstoneTrader.PickForItem(targetItemId, originTerritoryId, originExpansion, out var availability);
+        ErrorIf(availability == TraderAvailability.AllLocked,
+            $"Every Bicolor trader selling {item!.ItemName} stands in a zone you have not attuned ({GemstoneTrader.DescribeSellerZones(targetItemId)}). Attune one, or pick another item in /afg config → Trader.");
         ErrorIf(trader is null, $"No registered Bicolor trader sells {item!.ItemName}.");
 
         Diag($"AutoTrade start: item={item!.ItemName}({item.ItemId}) trader={trader!.Name} terr={trader.TerritoryId} from={originTerritoryId}");
