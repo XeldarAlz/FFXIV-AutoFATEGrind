@@ -20,12 +20,20 @@ public sealed class AutoHumanize(uint cityTerritoryId, int durationMs) : AutoCom
     // break from a teleport-abort, so a skipped break re-triggers on the next FATE instead of being consumed.
     public bool BreakTaken { get; private set; }
 
-    private const int   TeleportWatchdogMs = 60_000;
-    private const int   WalkWatchdogMs     = 90_000;
-    private const int   DismountWatchdogMs = 30_000;
-    private const int   NavmeshReadyWaitMs = 60_000;
-    private const int   PlayerWaitPollMs   = 500;
-    private const float ArrivalTolerance   = 4f;
+    private const int   TeleportWatchdogMs    = 60_000;
+    private const int   WalkWatchdogMs        = 90_000;
+    private const int   DismountWatchdogMs    = 30_000;
+    private const int   NavmeshReadyWaitMs    = 60_000;
+    private const int   PlayerWaitPollMs      = 500;
+    private const int   RouteQueryTimeoutMs   = 5_000;
+    private const int   CandidateAttempts     = 8;
+    private const float ArrivalTolerance      = 4f;
+    private const float CandidateHalfExtentXZ = 10f;
+    private const float CandidateHalfExtentY  = 5f;
+    // vnavmesh appends the raw target after a Detour partial path, so a route whose last leg is longer
+    // than mesh noise ends at a wall and would then push straight through it.
+    private const float PartialRouteGapMeters = 0.75f;
+    private const float MaxDetourRatio        = 2f;
 
     private static readonly Random rng = new();
 
@@ -88,7 +96,8 @@ public sealed class AutoHumanize(uint cityTerritoryId, int durationMs) : AutoCom
             var player = Svc.Objects.LocalPlayer;
             if (player is null) { await DelayMs(PlayerWaitPollMs); continue; }
 
-            var dest = PickRandomDestination(player.Position);
+            var dest = await PickRandomDestination(player.Position);
+            if (CancelToken.IsCancellationRequested) return;
             if (dest is null)
             {
                 Status = $"Idling in {label}";
@@ -105,7 +114,7 @@ public sealed class AutoHumanize(uint cityTerritoryId, int durationMs) : AutoCom
             if (perHopBudget < 4_000) break;
 
             var move = new MoveOp(o => o.Move(cityTerritoryId, dest.Value,
-                MovementConfig.Everything.WithTolerance(ArrivalTolerance),
+                MovementConfig.Default.WithTolerance(ArrivalTolerance),
                 allowTeleportIfFaster: false,
                 stopCondition: () => Environment.TickCount64 >= deadline || CancelToken.IsCancellationRequested,
                 allowAethernetWithinTerritory: false));
@@ -128,11 +137,12 @@ public sealed class AutoHumanize(uint cityTerritoryId, int durationMs) : AutoCom
         await DelayMs(cappedPauseMs);
     }
 
-    private Vector3? PickRandomDestination(Vector3 from)
+    private async Task<Vector3?> PickRandomDestination(Vector3 from)
     {
         var (minR, maxR) = WanderRange();
-        for (var attempt = 0; attempt < 8; attempt++)
+        for (var attempt = 0; attempt < CandidateAttempts; attempt++)
         {
+            if (CancelToken.IsCancellationRequested) return null;
             var angle = rng.NextDouble() * Math.PI * 2;
             var radius = minR + (float)rng.NextDouble() * (maxR - minR);
             var candidate = new Vector3(
@@ -140,10 +150,45 @@ public sealed class AutoHumanize(uint cityTerritoryId, int durationMs) : AutoCom
                 from.Y,
                 from.Z + (float)Math.Sin(angle) * radius);
 
-            var snapped = NavmeshIPC.Instance.NearestPointReachable(candidate, halfExtentXZ: 10f, halfExtentY: 20f);
-            if (snapped is not null && Vector3.Distance(snapped.Value, from) >= minR * 0.5f)
-                return snapped;
+            var snapped = NavmeshIPC.Instance.NearestPointReachable(candidate, CandidateHalfExtentXZ, CandidateHalfExtentY);
+            if (snapped is null || Vector3.Distance(snapped.Value, from) < minR * 0.5f) continue;
+
+            var route = await QueryWalkRoute(from, snapped.Value);
+            var rejection = RejectRoute(route, from, snapped.Value);
+            if (rejection is null) return snapped;
+            Diag($"Humanize candidate {snapped.Value} rejected: {rejection}");
         }
+        return null;
+    }
+
+    private async Task<List<Vector3>?> QueryWalkRoute(Vector3 from, Vector3 to)
+    {
+        var pending = NavmeshIPC.Instance.Pathfind(from, to, fly: false);
+        if (pending is null) return null;
+        var deadline = Environment.TickCount64 + RouteQueryTimeoutMs;
+        while (!pending.IsCompleted)
+        {
+            if (CancelToken.IsCancellationRequested || Environment.TickCount64 >= deadline) return null;
+            await NextFrame();
+        }
+        return pending.IsCompletedSuccessfully ? pending.Result : null;
+    }
+
+    private static string? RejectRoute(List<Vector3>? route, Vector3 from, Vector3 dest)
+    {
+        if (route is null || route.Count < 2) return "no route";
+
+        var gap = Vector3.Distance(route[^2], route[^1]);
+        if (gap > PartialRouteGapMeters) return $"route stops {gap:F1}m short of the target (partial path)";
+
+        var length = Vector3.Distance(from, route[0]);
+        for (var pointIndex = 1; pointIndex < route.Count; pointIndex++)
+        {
+            length += Vector3.Distance(route[pointIndex - 1], route[pointIndex]);
+        }
+        var straight = Vector3.Distance(from, dest);
+        if (length > straight * MaxDetourRatio) return $"detour of {length:F0}m for {straight:F0}m straight";
+
         return null;
     }
 }
