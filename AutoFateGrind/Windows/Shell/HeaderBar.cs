@@ -21,6 +21,8 @@ internal static class HeaderBar
     private const int ButtonCount = 3;
     private const float CompactBarWidth = 90f;
 
+    public const float MinimumWidth = PadX * 2f + IconBox + 12f + ButtonSize * ButtonCount + ButtonGap * (ButtonCount - 1);
+
     public static float ButtonsWidth() => (ButtonSize * ButtonCount + ButtonGap * (ButtonCount - 1)) * ImGuiHelpers.GlobalScale;
 
     public static bool HandleDrag(Vector2 windowPos, float width, float height)
@@ -53,18 +55,22 @@ internal static class HeaderBar
         var iconMin = new Vector2(origin.X + padX, midY - iconBox * 0.5f);
         AppIcon.Draw(dl, iconMin, iconMin + new Vector2(iconBox, iconBox), 7f * scale);
 
+        var buttonsLeft = end.X - padX - ButtonsWidth();
         var x = iconMin.X + iconBox + 12f * scale;
         using (Fonts.PushHeadline())
         {
             var titleSize = TextDraw.Measure(Title);
-            TextDraw.At(Title, new Vector2(x, midY - titleSize.Y * 0.5f), Styling.TextStrong);
-            x += titleSize.X + 14f * scale;
+            if (x + titleSize.X <= buttonsLeft)
+            {
+                TextDraw.At(Title, new Vector2(x, midY - titleSize.Y * 0.5f), Styling.TextStrong);
+                x += titleSize.X + 14f * scale;
+            }
         }
 
         var info = ReadyState.Resolve(plugin.Configuration, plugin.Controller);
-        x = DrawStatusPill(dl, info, x, midY) + 14f * scale;
+        var pillEnd = DrawStatusPill(dl, info, x, buttonsLeft, midY);
+        if (pillEnd > x) x = pillEnd + 14f * scale;
 
-        var buttonsLeft = end.X - padX - ButtonsWidth();
         if (compact) DrawCompactInfo(plugin, info, x, buttonsLeft - 14f * scale, midY);
 
         DrawButtons(window, plugin, end, midY, compact);
@@ -103,7 +109,7 @@ internal static class HeaderBar
         }
     }
 
-    private static float DrawStatusPill(ImDrawListPtr dl, ReadyState.Info info, float x, float midY)
+    private static float DrawStatusPill(ImDrawListPtr dl, ReadyState.Info info, float x, float rightLimit, float midY)
     {
         var scale = ImGuiHelpers.GlobalScale;
         var label = ReadyState.ShortLabel(info.Kind);
@@ -116,6 +122,8 @@ internal static class HeaderBar
             var pillHeight = labelSize.Y + 8f * scale;
             var pillMin = new Vector2(x, midY - pillHeight * 0.5f);
             var pillMax = pillMin + new Vector2(padX * 2f + dotRadius * 2f + 6f * scale + labelSize.X, pillHeight);
+            if (pillMax.X > rightLimit) return x;
+
             Paint.Pill(dl, pillMin, pillMax, Styling.WithAlpha(info.Accent, 0.16f), Styling.WithAlpha(info.Accent, 0.45f));
 
             var animated = info.Kind is ReadyState.Kind.Running;
@@ -132,6 +140,7 @@ internal static class HeaderBar
         var dl = ImGui.GetWindowDrawList();
         var ctrl = plugin.Controller;
         var cfg = plugin.Configuration;
+        if (rightX - x < CompactBarWidth * scale) return;
 
         if (!ctrl.Running)
         {
@@ -157,12 +166,15 @@ internal static class HeaderBar
         else if (ctrl.Paused) Paint.Bar(dl, barOrigin, barWidth, barHeight, 0f, info.Accent);
         else Paint.IndeterminateBar(dl, barOrigin, barWidth, barHeight, info.Accent);
 
+        var textWidth = barX - 12f * scale - x;
+        if (textWidth <= 0f) return;
+
         var phase = ctrl.Paused ? Loc.T(L.Run.PhasePaused) : ReadyState.PhaseLabel(ctrl.Phase);
         var text = inFate ? $"{phase}  ·  L{fate!.Level} {fate.Name}" : $"{phase}  ·  {ctrl.Status}";
         using (Fonts.PushCaption())
         {
             var textSize = TextDraw.Measure(text);
-            TextDraw.At(TextDraw.Truncate(text, barX - 12f * scale - x), new Vector2(x, midY - textSize.Y * 0.5f), Styling.TextSecondary);
+            TextDraw.At(TextDraw.Truncate(text, textWidth), new Vector2(x, midY - textSize.Y * 0.5f), Styling.TextSecondary);
         }
     }
 }

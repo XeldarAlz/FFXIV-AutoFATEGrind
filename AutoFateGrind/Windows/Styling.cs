@@ -142,8 +142,8 @@ internal static class Styling
             .Push(ImGuiCol.TextDisabled, TextMuted)
             .Push(ImGuiCol.Separator, Hairline)
             .Push(ImGuiCol.ResizeGrip, Vector4.Zero)
-            .Push(ImGuiCol.ResizeGripHovered, new Vector4(1f, 1f, 1f, 0.15f))
-            .Push(ImGuiCol.ResizeGripActive, new Vector4(1f, 1f, 1f, 0.25f))
+            .Push(ImGuiCol.ResizeGripHovered, Vector4.Zero)
+            .Push(ImGuiCol.ResizeGripActive, Vector4.Zero)
             .Push(ImGuiCol.TextSelectedBg, WithAlpha(AccentViolet, 0.35f));
 
         return new ChromeScope(style, color);

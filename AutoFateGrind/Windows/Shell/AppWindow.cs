@@ -13,11 +13,13 @@ public sealed class AppWindow : Window, IDisposable
 
     private const float PageRevealMs = 260f;
     private const float CollapseMs = 280f;
+    private const float GripSize = 12f;
+    private const float GripInset = 4f;
     private const ImGuiWindowFlags BaseFlags =
         ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse | ImGuiWindowFlags.NoCollapse;
 
     private static readonly Vector2 DefaultSize = new(1040, 780);
-    private static readonly Vector2 MinimumSize = new(700, 520);
+    private static readonly Vector2 MinimumSize = new(HeaderBar.MinimumWidth, Layout.HeaderHeight);
 
     private readonly Plugin plugin;
     private readonly GrindPage grindPage = new();
@@ -45,7 +47,11 @@ public sealed class AppWindow : Window, IDisposable
         this.plugin = plugin;
         Size = DefaultSize;
         SizeCondition = ImGuiCond.FirstUseEver;
-        SizeConstraints = ExpandedConstraints();
+        SizeConstraints = new WindowSizeConstraints
+        {
+            MinimumSize = MinimumSize,
+            MaximumSize = new Vector2(float.MaxValue, float.MaxValue),
+        };
     }
 
     public Page Current => page;
@@ -94,7 +100,6 @@ public sealed class AppWindow : Window, IDisposable
             var height = expandedSize.Y + (Layout.HeaderHeight - expandedSize.Y) * collapse;
             Size = new Vector2(expandedSize.X, height);
             SizeCondition = ImGuiCond.Always;
-            SizeConstraints = CollapsingConstraints();
             Flags = BaseFlags | ImGuiWindowFlags.NoResize;
             settlePending = !compact;
             return;
@@ -104,7 +109,6 @@ public sealed class AppWindow : Window, IDisposable
         {
             Size = expandedSize;
             SizeCondition = ImGuiCond.Always;
-            SizeConstraints = ExpandedConstraints();
             Flags = BaseFlags;
             settlePending = false;
             return;
@@ -166,6 +170,22 @@ public sealed class AppWindow : Window, IDisposable
 
         using var bodyAlpha = ImRaii.PushStyle(ImGuiStyleVar.Alpha, MathF.Max(0.001f, 1f - collapse));
         DrawBody(windowPos, windowSize, headerHeight, windowRounding);
+        if (!sizeDriven) DrawResizeGrip(dl, windowPos + windowSize);
+    }
+
+    private static void DrawResizeGrip(ImDrawListPtr dl, Vector2 corner)
+    {
+        var scale = ImGuiHelpers.GlobalScale;
+        var grip = GripSize * scale;
+        var inset = GripInset * scale;
+        var anchor = corner - new Vector2(inset, inset);
+        var hovered = ImGui.IsMouseHoveringRect(corner - new Vector2(grip + inset, grip + inset), corner);
+        var color = Paint.Col(Styling.WithAlpha(Styling.TextStrong, hovered ? 0.38f : 0.14f));
+        for (var lineIndex = 1; lineIndex <= 3; lineIndex++)
+        {
+            var offset = lineIndex * grip / 3f;
+            dl.AddLine(anchor - new Vector2(offset, 0f), anchor - new Vector2(0f, offset), color, 1.4f * scale);
+        }
     }
 
     private void DrawBody(Vector2 windowPos, Vector2 windowSize, float headerHeight, float windowRounding)
@@ -229,16 +249,4 @@ public sealed class AppWindow : Window, IDisposable
             case Page.About: aboutPage.Draw(pageShownTick); break;
         }
     }
-
-    private static WindowSizeConstraints ExpandedConstraints() => new()
-    {
-        MinimumSize = MinimumSize,
-        MaximumSize = new Vector2(float.MaxValue, float.MaxValue),
-    };
-
-    private static WindowSizeConstraints CollapsingConstraints() => new()
-    {
-        MinimumSize = new Vector2(MinimumSize.X, Layout.HeaderHeight),
-        MaximumSize = new Vector2(float.MaxValue, float.MaxValue),
-    };
 }
