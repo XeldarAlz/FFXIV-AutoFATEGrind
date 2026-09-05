@@ -15,6 +15,7 @@ public sealed class AutoTrade(uint targetItemId, uint originTerritoryId, Expansi
 
     private const int TeleportWatchdogMs = 60_000;
     private const int MoveWatchdogMs = 120_000;
+    private const float WalkToleranceMeters = 4f;
     private const int InteractWaitMs = 15_000;
     private const int ShopOpenWaitMs = 15_000;
     private const int ConfirmWaitMs = 10_000;
@@ -49,12 +50,13 @@ public sealed class AutoTrade(uint targetItemId, uint originTerritoryId, Expansi
         {
             var traderPos = trader.Position;
             var traderTerr = trader.TerritoryId;
-            var move = new MoveOp(o => o.Move(traderTerr, traderPos,
-                MovementConfig.Everything.WithTolerance(4f),
-                allowTeleportIfFaster: false,
-                stopCondition: null,
-                allowAethernetWithinTerritory: true));
-            await RunCancellable(move, MoveWatchdogMs, "trade-walk");
+            await WalkWithRetries(
+                () => new MoveOp(o => o.Move(traderTerr, traderPos,
+                    MovementConfig.Everything.WithTolerance(WalkToleranceMeters),
+                    allowTeleportIfFaster: false,
+                    stopCondition: null,
+                    allowAethernetWithinTerritory: true)),
+                MoveWatchdogMs, "trade-walk", () => WithinReach(traderPos, WalkToleranceMeters));
         });
 
         var npc = RepairOps.FindNearestObjectByBaseId(trader.EnpcBaseId);

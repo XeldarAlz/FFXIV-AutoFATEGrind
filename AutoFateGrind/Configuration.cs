@@ -100,7 +100,7 @@ public sealed class Configuration : IPluginConfiguration
     public int HumanizerWanderMinMeters { get; set; } = 25;
     public int HumanizerWanderMaxMeters { get; set; } = 80;
     // TerritoryIds from Core.Zones.CityCatalog; defaults to every expansion's main hub.
-    public HashSet<uint> HumanizerCities { get; set; } = [129, 132, 1185, 1205];
+    public HashSet<uint> HumanizerCities { get; set; } = [129, 132, 1185, Core.Zones.CityCatalog.SolutionNineTerritoryId];
 
     public bool AutoConsume { get; set; } = false;
     // 0 = only re-eat once Well Fed has fully worn off.

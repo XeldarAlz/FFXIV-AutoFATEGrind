@@ -99,7 +99,7 @@ public sealed partial class AutoFate
         // pathfind, follow) and abort the move the moment forward progress stalls in a way that isn't a
         // legitimate wait. The tracker distinguishes a vnav terrain wedge from a fully-idle pre-pathfind
         // wedge (e.g. a teleport that never started casting) so neither phase is blind.
-        var stuck = new TravelStuckTracker();
+        var stuck = new MoveStallTracker();
         bool AbortIfFrozen()
         {
             if (stopReason != MoveStopReason.None) return false;
@@ -119,7 +119,7 @@ public sealed partial class AutoFate
             Diag(Svc.Condition[ConditionFlag.InCombat]
                 ? $"Move to FATE {targetId} ({fate.Name}) stalled in combat ({kind}); cancelling to clear aggro (teleport is blocked in combat)"
                 : kind == StallKind.NavWedge
-                    ? $"Move to FATE {targetId} ({fate.Name}) wedged: vnav following but no progress in {HardStuckTimeoutMs/1000}s; cancelling to retry"
+                    ? $"Move to FATE {targetId} ({fate.Name}) wedged: no progress toward the next waypoint in {StuckDetector.NavWedgeTimeoutMs / 1000}s; cancelling to retry"
                     : $"Move to FATE {targetId} ({fate.Name}) idle: no nav/cast/mount progress in {StuckDetector.IdleStallTimeoutMs/1000}s (clib teleport likely never started); cancelling to retry");
             return true;
         }
@@ -244,7 +244,7 @@ public sealed partial class AutoFate
         if (!Svc.Condition[ConditionFlag.InCombat]) return;
 
         Status = "Clearing aggro";
-        Diag("In combat during travel; enabling rotation to fight free before resuming");
+        Diag("In combat outside a FATE; enabling rotation to fight free before continuing");
 
         var preset = Plugin.Cfg.CombatPresetName;
         EnsureCombatPreset(preset);
@@ -273,61 +273,6 @@ public sealed partial class AutoFate
 
         if (Svc.Condition[ConditionFlag.InCombat])
             Diag($"Still in combat after {CombatClearTimeoutMs / 1000}s of fighting; will retry travel");
-    }
-
-    internal enum StallKind { None, NavWedge, Idle }
-
-    // Watches a single move for lack of forward progress. It partitions every non-progress case a clib
-    // MoveTo can land in, so no phase is blind (the IsRunning-only gate used to miss the teleport phase):
-    //   • NavWedge — vnav is actively following a path yet the character hasn't moved (terrain snag).
-    //   • Idle     — no movement while NOTHING legitimate is happening: not following, not pathfinding,
-    //                not casting/mounting/zone-transitioning. That is a wedged pre-pathfind phase, almost
-    //                always a clib teleport that was issued but never started casting.
-    // Anything legitimate (movement, vnav busy, or a frozen-legit state like a teleport cast) resets the
-    // matching timer, so neither false-fires. Both surface as StuckRetry/StuckInCombat; the caller
-    // escalates to a teleport-recovery only if the same FATE stalls again, so a transient block is given
-    // a chance to clear on retry before we resort to teleporting.
-    private sealed class TravelStuckTracker
-    {
-        private Vector3? lastPos;
-        private long navWedgeSinceMs = Environment.TickCount64;
-        private long idleSinceMs = Environment.TickCount64;
-
-        public StallKind Check()
-        {
-            var player = Svc.Objects.LocalPlayer;
-            if (player is null) return StallKind.None;
-
-            var now = Environment.TickCount64;
-            var pos = player.Position;
-
-            // lastPos is a PERSISTENT anchor, advanced only once we've actually displaced past the
-            // threshold — NOT every poll. (Resetting it each poll made steady travel look stationary,
-            // because <1.5m moves between 67ms polls never cleared the threshold, false-firing the wedge
-            // timer mid-flight.) Real displacement resets both timers; "stuck" is measured from the
-            // anchor.
-            if (lastPos is null || Vector3.Distance(lastPos.Value, pos) > StuckDetector.StuckMoveThresholdMeters)
-            {
-                lastPos = pos;
-                navWedgeSinceMs = now;
-                idleSinceMs = now;
-                return StallKind.None;
-            }
-
-            var legitFrozen = StuckDetector.IsPositionFrozenLegit();
-            var navRunning = NavmeshIPC.Instance.IsRunning();
-            var navBusy = NavmeshIPC.Instance.IsBusy(); // running OR pathfind-in-progress
-
-            // vnav following but no displacement from the anchor → terrain snag.
-            if (legitFrozen || !navRunning) navWedgeSinceMs = now;
-            else if (now - navWedgeSinceMs >= HardStuckTimeoutMs) return StallKind.NavWedge;
-
-            // No displacement and nothing legitimate in progress → wedged pre-pathfind phase.
-            if (legitFrozen || navBusy) idleSinceMs = now;
-            else if (now - idleSinceMs >= StuckDetector.IdleStallTimeoutMs) return StallKind.Idle;
-
-            return StallKind.None;
-        }
     }
 
     private void EnsureCombatPreset(string preset)

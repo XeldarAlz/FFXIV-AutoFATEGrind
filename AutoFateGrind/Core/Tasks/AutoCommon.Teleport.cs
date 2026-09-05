@@ -94,7 +94,7 @@ public abstract partial class AutoCommon
         var territory = Svc.ClientState.TerritoryType;
         var move = new MoveOp(o => o.Move(territory, dest, MovementConfig.Everything.WithTolerance(3f),
             allowTeleportIfFaster: false, stopCondition: null, allowAethernetWithinTerritory: false));
-        await RunCancellable(move, UnstickMoveMs, $"{scope}-ground", StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs));
+        await RunCancellable(move, UnstickMoveMs, $"{scope}-ground", StuckDetector.MoveStallAbort($"{scope}-ground"));
     }
 
     private const int  ReturnHomeWaitMs    = 30_000;
@@ -141,12 +141,19 @@ public abstract partial class AutoCommon
         am->UseAction(ActionType.GeneralAction, ReturnGeneralActionId);
     }
 
+    private const int MaxTeleportFaults = 2;
+    private const int StallsBeforeReturnHome = 2;
+
     // Resilient cross-zone teleport. clib's TeleportTo can accept the teleport yet never start casting
     // (a brief post-FATE/combat teleport lock), then spin until a watchdog fires. IdleStallAbort catches
     // that in ~8s; we retry with a short backoff so the lock can clear, instead of failing the whole
-    // operation on one slow timeout. Returns true once we are in the target territory.
+    // operation on one slow timeout. A fault is a different animal: the request was answered (no
+    // aetheryte in that territory, not attuned) and the same request gets the same answer, so it earns
+    // one retry and never the Return-home escalation. Returns true once we are in the target territory.
     internal async Task<bool> TeleportToTerritory(uint territoryId, Vector3 dest, string label, int perAttemptTimeoutMs, int attempts = 4)
     {
+        if (Svc.ClientState.TerritoryType == territoryId) return true;
+
         // A zone with no aetheryte of its own is a two-leg trip: teleport to the hub the game routes it
         // through, then ride that hub's aethernet in. Every other zone keeps the single-leg path.
         var viaGateway = ZoneAetherytes.TryFindGateway(territoryId, out var gateway);
@@ -156,7 +163,15 @@ public abstract partial class AutoCommon
         // ladder is fully exercised: try, try and clear the lock by going home, try once from home.
         var maxAttempts = viaGateway ? Math.Min(attempts, GatewayAttempts) : attempts;
 
+        if (ZoneAetherytes.AttunableIdsIn(hopTerritoryId).Length == 0)
+        {
+            Warn($"{label}: territory {hopTerritoryId} has no aetheryte to teleport to; giving up");
+            return false;
+        }
+
         var returnedHome = false;
+        var stalls = 0;
+        var faults = 0;
         for (var attempt = 1; attempt <= maxAttempts && !CancelToken.IsCancellationRequested; attempt++)
         {
             if (Svc.ClientState.TerritoryType == territoryId) return true;
@@ -168,8 +183,16 @@ public abstract partial class AutoCommon
             if (Svc.ClientState.TerritoryType != hopTerritoryId)
             {
                 var op = new MoveOp(o => o.Teleport(hopTerritoryId, hopDest, allowSameZoneTeleport: false));
-                await RunCancellable(op, perAttemptTimeoutMs, scope, StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs));
-                if (op.Fault is not null) Diag($"{scope} teleport faulted: {op.Fault.Message}");
+                var completed = await RunCancellable(op, perAttemptTimeoutMs, scope, StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs));
+                if (op.Fault is { } fault)
+                {
+                    faults++;
+                    Diag($"{scope} teleport faulted ({faults}/{MaxTeleportFaults}): {fault.Message}");
+                }
+                else if (!completed)
+                {
+                    stalls++;
+                }
             }
 
             if (viaGateway && Svc.ClientState.TerritoryType == hopTerritoryId)
@@ -177,9 +200,15 @@ public abstract partial class AutoCommon
 
             if (Svc.ClientState.TerritoryType == territoryId) return true;
 
+            if (faults >= MaxTeleportFaults)
+            {
+                Diag($"{label}: teleport rejected {faults} times, not a stuck cast; giving up without Return");
+                break;
+            }
+
             // After two stalled attempts the teleport is almost certainly blocked by one "already underway";
             // Return home (a separate path) clears it, and the next attempt teleports from the home city.
-            if (!returnedHome && attempt >= 2)
+            if (!returnedHome && stalls >= StallsBeforeReturnHome)
             {
                 returnedHome = true;
                 await TryReturnHome(label);

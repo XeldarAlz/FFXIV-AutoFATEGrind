@@ -20,6 +20,10 @@ internal sealed class NavmeshIPC
     private readonly ICallGateSubscriber<float> navBuildProgress;
     private readonly ICallGateSubscriber<Vector3, float, float, Vector3?> nearestPointReachable;
     private readonly ICallGateSubscriber<object> pathStop;
+    private readonly ICallGateSubscriber<int> pathNumWaypoints;
+    private readonly ICallGateSubscriber<List<Vector3>> pathListWaypoints;
+
+    public const int WaypointsUnavailable = -1;
 
     private NavmeshIPC()
     {
@@ -30,6 +34,8 @@ internal sealed class NavmeshIPC
         navBuildProgress            = Svc.PluginInterface.GetIpcSubscriber<float>("vnavmesh.Nav.BuildProgress");
         nearestPointReachable       = Svc.PluginInterface.GetIpcSubscriber<Vector3, float, float, Vector3?>("vnavmesh.Query.Mesh.NearestPointReachable");
         pathStop                    = Svc.PluginInterface.GetIpcSubscriber<object>("vnavmesh.Path.Stop");
+        pathNumWaypoints            = Svc.PluginInterface.GetIpcSubscriber<int>("vnavmesh.Path.NumWaypoints");
+        pathListWaypoints           = Svc.PluginInterface.GetIpcSubscriber<List<Vector3>>("vnavmesh.Path.ListWaypoints");
     }
 
     // True once the current zone's navmesh is fully built and queryable; obstacle-map/pathfind IPC throw
@@ -64,6 +70,17 @@ internal sealed class NavmeshIPC
         => IpcGate.Invoke(nearestPointReachable.HasFunction,
             () => nearestPointReachable.InvokeFunc(position, halfExtentXZ, halfExtentY),
             (Vector3?)null, "[NavmeshIPC] NearestPointReachable failed");
+
+    // Waypoints left on the path vnav is following; WaypointsUnavailable when this vnavmesh has no such IPC.
+    public int NumWaypoints()
+        => IpcGate.Invoke(pathNumWaypoints.HasFunction, pathNumWaypoints.InvokeFunc, WaypointsUnavailable, "[NavmeshIPC] NumWaypoints failed");
+
+    // The waypoint vnav is steering toward right now. The IPC copies the whole list, so callers cache it.
+    public Vector3? CurrentWaypoint()
+    {
+        var waypoints = IpcGate.Invoke<List<Vector3>?>(pathListWaypoints.HasFunction, pathListWaypoints.InvokeFunc, null, "[NavmeshIPC] ListWaypoints failed");
+        return waypoints is { Count: > 0 } ? waypoints[0] : null;
+    }
 
     public void Stop()
         => IpcGate.Run(pathStop.HasFunction, pathStop.InvokeAction, "[NavmeshIPC] Stop failed");

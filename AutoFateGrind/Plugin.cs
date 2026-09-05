@@ -53,6 +53,7 @@ public sealed class Plugin : IDalamudPlugin
 
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         Cfg = Configuration;
+        if (Core.Zones.CityCatalog.MigrateSelection(Configuration.HumanizerCities)) Configuration.Save();
         History = new RunHistory();
         Controller = new AutoFateController();
         gmAlertWatcher = new GmAlertWatcher();

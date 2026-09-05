@@ -11,6 +11,7 @@ public sealed class AutoRepair : AutoCommon
 {
     private const int TeleportWatchdogMs   = 60_000;
     private const int MoveWatchdogMs       = 120_000;
+    private const float WalkToleranceMeters  = 4f;
     private const int InteractWaitMs       = 15_000;
     private const int RepairAddonWaitMs    = 10_000;
     private const int YesnoWaitMs          = 5_000;
@@ -103,12 +104,15 @@ public sealed class AutoRepair : AutoCommon
 
         await RunWithStatusPinned($"Walking to {m.Name}", async () =>
         {
-            var move = new MoveOp(o => o.Move(m.TerritoryId, m.Position,
-                MovementConfig.Everything.WithTolerance(4f),
-                allowTeleportIfFaster: false,
-                stopCondition: null,
-                allowAethernetWithinTerritory: true));
-            await RunCancellable(move, MoveWatchdogMs, "repair-walk");
+            var menderPos = m.Position;
+            var menderTerr = m.TerritoryId;
+            await WalkWithRetries(
+                () => new MoveOp(o => o.Move(menderTerr, menderPos,
+                    MovementConfig.Everything.WithTolerance(WalkToleranceMeters),
+                    allowTeleportIfFaster: false,
+                    stopCondition: null,
+                    allowAethernetWithinTerritory: true)),
+                MoveWatchdogMs, "repair-walk", () => WithinReach(menderPos, WalkToleranceMeters));
         });
 
         if (Svc.Condition[ConditionFlag.Mounted])

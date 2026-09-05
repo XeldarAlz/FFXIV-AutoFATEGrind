@@ -212,12 +212,14 @@ public sealed partial class AutoFate
         {
             var activateLabel = $"Activating {fate.Name}";
             var npcPos = npc.Position;
-            var move = new MoveOp(o => o.Move(zone.TerritoryId, npcPos,
-                MovementConfig.InteractRange,
-                allowTeleportIfFaster: false,
-                stopCondition: () => { Status = activateLabel; return fate.State == FateState.Running; },
-                allowAethernetWithinTerritory: false));
-            await RunCancellable(move, ActivateMoveWatchdogMs, $"activate-move-{fate.Id}");
+            await WalkWithRetries(
+                () => new MoveOp(o => o.Move(zone.TerritoryId, npcPos,
+                    MovementConfig.InteractRange,
+                    allowTeleportIfFaster: false,
+                    stopCondition: () => { Status = activateLabel; return fate.State == FateState.Running; },
+                    allowAethernetWithinTerritory: false)),
+                ActivateMoveWatchdogMs, $"activate-move-{fate.Id}",
+                () => fate.State == FateState.Running || WithinReach(npcPos, InteractRangeMeters));
 
             if (fate.State == FateState.Running) return;
             if (Svc.Condition[ConditionFlag.Mounted]) await DismountViaOp($"dismount-activate-{fate.Id}");

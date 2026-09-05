@@ -244,32 +244,42 @@ public sealed partial class AutoFate
 
             if (AdvanceClassQueueIfCapHit()) return ExitReason.Quit;
 
-            if (Plugin.Cfg.AutoRepair
-                && RepairOps.NeedsRepair(Plugin.Cfg.AutoRepairThresholdPct))
+            if (QueueHandoffIfDue())
             {
-                Diag($"Repair threshold tripped (lowest equipped at {RepairOps.LowestEquippedConditionPct():F0}% ≤ {Plugin.Cfg.AutoRepairThresholdPct}%); queueing repair hand-off.");
-                session.PendingRepair = true;
-                session.PendingRepairFromZone = zone;
-                return ExitReason.Quit;
-            }
-
-            if (Plugin.Cfg.TradeOnCap && session.GemstoneCurrent >= Plugin.Cfg.TradeThreshold)
-            {
-                if (TryQueueTrade()) return ExitReason.Quit;
-            }
-
-            if (Plugin.Cfg.HumanizerEnabled
-             && Plugin.Cfg.HumanizerCities.Count > 0
-             && session.FatesSinceLastBreak >= Math.Max(1, Plugin.Cfg.HumanizerFatesBeforeBreak))
-            {
-                Diag($"Humanizer threshold {Plugin.Cfg.HumanizerFatesBeforeBreak} reached (counter {session.FatesSinceLastBreak}); queueing break hand-off.");
-                session.PendingHumanize = true;
-                session.PendingHumanizeFromZone = zone;
+                await ClearBlockingCombat();
                 return ExitReason.Quit;
             }
         }
 
         return ExitReason.Continue;
+    }
+
+    // Hand-off tasks run with the rotation off, and their teleport is rejected for as long as a stray
+    // add keeps the character in combat, so the grind fights free before it quits.
+    private bool QueueHandoffIfDue()
+    {
+        if (Plugin.Cfg.AutoRepair && RepairOps.NeedsRepair(Plugin.Cfg.AutoRepairThresholdPct))
+        {
+            Diag($"Repair threshold tripped (lowest equipped at {RepairOps.LowestEquippedConditionPct():F0}% ≤ {Plugin.Cfg.AutoRepairThresholdPct}%); queueing repair hand-off.");
+            session.PendingRepair = true;
+            session.PendingRepairFromZone = zone;
+            return true;
+        }
+
+        if (Plugin.Cfg.TradeOnCap && session.GemstoneCurrent >= Plugin.Cfg.TradeThreshold && TryQueueTrade())
+            return true;
+
+        if (Plugin.Cfg.HumanizerEnabled
+         && Plugin.Cfg.HumanizerCities.Count > 0
+         && session.FatesSinceLastBreak >= Math.Max(1, Plugin.Cfg.HumanizerFatesBeforeBreak))
+        {
+            Diag($"Humanizer threshold {Plugin.Cfg.HumanizerFatesBeforeBreak} reached (counter {session.FatesSinceLastBreak}); queueing break hand-off.");
+            session.PendingHumanize = true;
+            session.PendingHumanizeFromZone = zone;
+            return true;
+        }
+
+        return false;
     }
 
     private static float EngageReachMeters()
@@ -358,7 +368,7 @@ public sealed partial class AutoFate
         {
             var op = new MoveOp(o => o.MoveInZone(dest, config, InRangeOrGone));
             await RunCancellable(op, EngageRepositionWatchdogMs, $"engage-reposition-{fateId}",
-                StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs));
+                StuckDetector.MoveStallAbort($"engage-reposition-{fateId}"));
 
             if (op.Fault is { } fault)
                 Diag($"Reposition for FATE {fateId} faulted: {fault.Message}");

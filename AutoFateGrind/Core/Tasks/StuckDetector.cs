@@ -13,6 +13,9 @@ internal static class StuckDetector
     // transition). That is a wedged op — typically a clib teleport that was issued but never started
     // casting. Long enough that the ~1-2s gap before a real teleport's cast can't trip it.
     internal const int IdleStallTimeoutMs = 8_000;
+    // A vnav-driven move that closes on its current waypoint by less than the epsilon for this long is wedged.
+    internal const int   NavWedgeTimeoutMs = 3_000;
+    internal const float ProgressEpsilonMeters = 1.0f;
 
     // Stationary-but-legitimate states. Excludes Mounted (a mount snagged on terrain is a real freeze)
     // but includes Mounting (the summon holds the character still for ~1-2s).
@@ -26,6 +29,19 @@ internal static class StuckDetector
         || Svc.Condition[ConditionFlag.OccupiedInCutSceneEvent]
         || Svc.Condition[ConditionFlag.WatchingCutscene]
         || Svc.Condition[ConditionFlag.WatchingCutscene78];
+
+    // Abort predicate for a vnav move: trips on a terrain wedge or an idle wedge (see MoveStallTracker).
+    internal static Func<bool> MoveStallAbort(string label)
+    {
+        var tracker = new MoveStallTracker();
+        return () =>
+        {
+            var kind = tracker.Check();
+            if (kind == StallKind.None) return false;
+            Svc.Log.Info($"{AfgConstants.LogPrefix} {label} stalled ({kind}); aborting the move");
+            return true;
+        };
+    }
 
     // A reusable abort predicate: trips when the player makes no physical progress while nothing
     // legitimate is in progress — no vnav follow/pathfind, no cast/mount/zone-transition. That is a clib

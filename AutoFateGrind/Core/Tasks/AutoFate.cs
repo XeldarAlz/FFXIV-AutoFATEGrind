@@ -30,7 +30,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private readonly HashSet<uint> sessionStuckFateIds = new();
     private static readonly HashSet<uint> obstacleMapBlacklist = new() { 1831, 1832, 1914, 1915 };
 
-    private const int   HardStuckTimeoutMs = 3_000;
+    private const float InteractRangeMeters = 3f;
     private const float TeleportRetryProgressMeters = 3.0f;
     private const float TeleportShortcutMinSavingMeters = 300f;
     private const int   MoveToFateWatchdogMs = 60_000;

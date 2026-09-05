@@ -79,7 +79,7 @@ public sealed class AutoReturnToInn : AutoCommon
             allowTeleportIfFaster: false,
             stopCondition: () => CancelToken.IsCancellationRequested,
             allowAethernetWithinTerritory: true));
-        await RunCancellable(walk, WalkWatchdogMs, "inn-walk", StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs));
+        await RunCancellable(walk, WalkWatchdogMs, "inn-walk", StuckDetector.MoveStallAbort("inn-walk"));
         if (CancelToken.IsCancellationRequested) return;
 
         await EnterInn(inn);
@@ -111,7 +111,7 @@ public sealed class AutoReturnToInn : AutoCommon
                     allowTeleportIfFaster: false,
                     stopCondition: () => CancelToken.IsCancellationRequested,
                     allowAethernetWithinTerritory: false));
-                await RunCancellable(step, ApproachWatchdogMs, "inn-approach", StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs));
+                await RunCancellable(step, ApproachWatchdogMs, "inn-approach", StuckDetector.MoveStallAbort("inn-approach"));
                 continue;
             }
 
