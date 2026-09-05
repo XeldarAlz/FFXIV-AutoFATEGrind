@@ -1,4 +1,5 @@
 using AutoFateGrind.Core.Game.Ops;
+using AutoFateGrind.Core.Localization;
 using AutoFateGrind.Windows.Components;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
@@ -25,38 +26,38 @@ internal static class ConsumableSettings
 
     private static void DrawConsumableGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin("Consumables");
+        using var group = SettingsGroup.Begin(Loc.T(L.Settings.ConsumablesGroup));
 
-        SettingsRow.Draw("Auto-consume food & medicine",
-            "Use food and medicine between FATEs to keep their buffs up; Well Fed alone is a free +3% EXP. Items are consumed only when out of combat, and refreshed before the buff runs out.",
+        SettingsRow.Draw(Loc.T(L.Settings.AutoConsume),
+            Loc.T(L.Settings.AutoConsumeHelp),
             SettingsControls.ToggleWidth,
             () => SettingsControls.DrawToggle(cfg, () => cfg.AutoConsume, v => cfg.AutoConsume = v, "##con_on"),
             SettingsRow.ToggleHeight);
 
         if (!cfg.AutoConsume)
         {
-            SettingsRow.Note("Auto-consume is off. Enable it to pick items.");
+            SettingsRow.Note(Loc.T(L.Settings.AutoConsumeOff));
             return;
         }
 
-        SettingsRow.Draw("Refresh when under",
-            "Re-consume once the buff has fewer than this many minutes left. 0 only re-applies after it fully wears off. Food and medicine last 30 minutes.",
+        SettingsRow.Draw(Loc.T(L.Settings.RefreshUnder),
+            Loc.T(L.Settings.RefreshUnderHelp),
             SettingsControls.RowSliderWidth,
             () => SettingsControls.DrawIntSlider(cfg, "##con_min",
                 () => cfg.AutoConsumeMinMinutes, v => cfg.AutoConsumeMinMinutes = Math.Clamp(v, 0, 29),
-                0, 29, cfg.AutoConsumeMinMinutes == 0 ? "only when worn off" : "%d min left"));
+                0, 29, cfg.AutoConsumeMinMinutes == 0 ? Loc.T(L.Settings.RefreshWornOff) : Loc.T(L.Settings.RefreshFormat)));
     }
 
     private static void DrawItemsGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin("Items");
+        using var group = SettingsGroup.Begin(Loc.T(L.Settings.ConsumablesItems));
 
-        SettingsRow.DrawBlock("Add an item",
-            "Pick from the food and medicine in your bag. HQ is used automatically when you have it.",
+        SettingsRow.DrawBlock(Loc.T(L.Settings.AddItem),
+            Loc.T(L.Settings.AddItemHelp),
             () => DrawAddConsumableRow(cfg));
 
-        SettingsRow.DrawBlock("Active items",
-            "Each is kept active in order; the next available one is consumed if the first runs out.",
+        SettingsRow.DrawBlock(Loc.T(L.Settings.ActiveItems),
+            Loc.T(L.Settings.ActiveItemsHelp),
             () => DrawConsumableList(cfg));
     }
 
@@ -67,16 +68,17 @@ internal static class ConsumableSettings
         var catalog = FoodOps.Catalog.Where(FoodOps.IsAvailable).ToArray();
         if (catalog.Length == 0)
         {
-            SettingsRow.Note("No food or medicine in your bag. Stock some, then add it here.");
+            SettingsRow.Note(Loc.T(L.Settings.NoneInBag));
             return;
         }
 
         var queued = cfg.AutoConsumeItems.Select(e => e.ItemId).ToHashSet();
+        var addedSuffix = "  " + Loc.T(L.Settings.Added);
         var labels = catalog.Select(e =>
         {
-            var kind = e.StatusId == FoodOps.WellFedStatusId ? "Food" : "Medicine";
-            var taken = queued.Contains(e.ItemId) ? "  (added)" : "";
-            return $"{e.Name}  [{kind}]{taken}";
+            var kind = e.StatusId == FoodOps.WellFedStatusId ? Loc.T(L.Settings.KindFood) : Loc.T(L.Settings.KindMedicine);
+            var taken = queued.Contains(e.ItemId) ? addedSuffix : "";
+            return Loc.T(L.Settings.ItemLabel, e.Name, kind, taken);
         }).ToArray();
 
         consumablePickerSelection = Math.Clamp(consumablePickerSelection, 0, catalog.Length - 1);
@@ -89,7 +91,7 @@ internal static class ConsumableSettings
         var addBtnSize = new Vector2(96f * ImGuiHelpers.GlobalScale, ImGui.GetFrameHeight());
         using (ImRaii.Disabled(duplicate))
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentMint))
-            if (ImGui.Button("Add##con_add", addBtnSize))
+            if (ImGui.Button($"{Loc.T(L.Common.Add)}##con_add", addBtnSize))
             {
                 cfg.AutoConsumeItems.Add(new ConsumableEntry
                 {
@@ -106,7 +108,7 @@ internal static class ConsumableSettings
             {
                 ImGui.SameLine();
                 ImGui.AlignTextToFramePadding();
-                ImGui.TextUnformatted("Already added.");
+                ImGui.TextUnformatted(Loc.T(L.Settings.AlreadyAdded));
             }
     }
 
@@ -114,7 +116,7 @@ internal static class ConsumableSettings
     {
         if (cfg.AutoConsumeItems.Count == 0)
         {
-            SettingsRow.Note("No items added - nothing will be consumed.");
+            SettingsRow.Note(Loc.T(L.Settings.NoItemsAdded));
             return;
         }
 
@@ -131,16 +133,14 @@ internal static class ConsumableSettings
                 ImGui.TextUnformatted(e.Name);
 
             ImGui.SameLine();
-            var kind = e.StatusId == FoodOps.WellFedStatusId ? "Well Fed" : "Medicated";
+            var kind = e.StatusId == FoodOps.WellFedStatusId ? Loc.T(L.Settings.WellFed) : Loc.T(L.Settings.Medicated);
             var inBag = FoodOps.IsAvailable(e);
             using (ImRaii.PushColor(ImGuiCol.Text, inBag ? Styling.TextMuted : Styling.AccentRose))
-                ImGui.TextUnformatted(inBag ? $"  {kind}" : $"  {kind}, none in bag");
+                ImGui.TextUnformatted("  " + (inBag ? kind : Loc.T(L.Settings.NoneInBagShort, kind)));
 
             ImGui.SameLine(SettingsGroup.InnerRightLocalX() - btnSize);
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentRose))
-            using (ImRaii.PushFont(UiBuilder.IconFont))
-                if (ImGui.Button(FontAwesomeIcon.Times.ToIconString() + $"##con_rm_{i}", new Vector2(btnSize, btnSize)))
-                    remove = i;
+            if (IconButton.Draw(FontAwesomeIcon.Times, $"##con_rm_{i}", btnSize, Styling.AccentRose, Loc.T(L.Common.Remove)))
+                remove = i;
         }
 
         if (remove is int r)

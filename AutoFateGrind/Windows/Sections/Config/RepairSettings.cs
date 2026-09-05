@@ -1,4 +1,5 @@
 using AutoFateGrind.Core.Game.Ops;
+using AutoFateGrind.Core.Localization;
 using AutoFateGrind.Windows.Components;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Utility.Raii;
@@ -13,9 +14,9 @@ internal static class RepairSettings
 
     private static readonly SettingsControls.Choices.Choice[] repairModeChoices =
     [
-        new("Self, then NPC", "Use Dark Matter from your bag first; fall back to the Grand Company mender when you run out."),
-        new("Self only", "Repair with Dark Matter from your bag. No travel."),
-        new("NPC only", "Travel to your Grand Company mender (or a custom NPC) and pay in seals."),
+        new(L.Settings.RepairSelfThenNpcName, L.Settings.RepairSelfThenNpcDetail),
+        new(L.Settings.RepairSelfOnlyName, L.Settings.RepairSelfOnlyDetail),
+        new(L.Settings.RepairNpcOnlyName, L.Settings.RepairNpcOnlyDetail),
     ];
 
     public static void Draw(Configuration cfg)
@@ -31,22 +32,22 @@ internal static class RepairSettings
 
     private static void DrawTriggerGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin("Repair trigger");
+        using var group = SettingsGroup.Begin(Loc.T(L.Settings.RepairTrigger));
 
-        SettingsRow.Draw("Auto-repair gear",
-            "Between FATEs, when the lowest equipped item drops to or below the threshold, the plugin runs a repair. At 0% the gear stops working, so keep some margin.",
+        SettingsRow.Draw(Loc.T(L.Settings.AutoRepair),
+            Loc.T(L.Settings.AutoRepairHelp),
             SettingsControls.ToggleWidth,
             () => SettingsControls.DrawToggle(cfg, () => cfg.AutoRepair, v => cfg.AutoRepair = v, "##rp_on"),
             SettingsRow.ToggleHeight);
 
         if (!cfg.AutoRepair)
         {
-            SettingsRow.Note("Auto-repair is off. Enable it to configure repair.");
+            SettingsRow.Note(Loc.T(L.Settings.AutoRepairOff));
             return;
         }
 
-        SettingsRow.Draw("Repair threshold",
-            "Trips when the worst equipped slot reaches this condition percentage. 20% leaves comfortable margin before the 0% breakdown.",
+        SettingsRow.Draw(Loc.T(L.Settings.RepairThreshold),
+            Loc.T(L.Settings.RepairThresholdHelp),
             SettingsControls.RowSliderWidth,
             () => SettingsControls.DrawIntSlider(cfg, "##rp_threshold",
                 () => cfg.AutoRepairThresholdPct, v => cfg.AutoRepairThresholdPct = Math.Clamp(v, 5, 80),
@@ -55,26 +56,26 @@ internal static class RepairSettings
 
     private static void DrawSourceGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin("Repair source");
+        using var group = SettingsGroup.Begin(Loc.T(L.Settings.RepairSource));
 
         var selected = Math.Max(0, Array.IndexOf(repairModes, cfg.RepairMode));
-        SettingsRow.Draw("Repair source",
-            "How the repair is performed. Self-repair uses Dark Matter from your bag (no travel). NPC repair travels to your Grand Company mender.",
+        SettingsRow.Draw(Loc.T(L.Settings.RepairSource),
+            Loc.T(L.Settings.RepairSourceHelp),
             SettingsControls.RowComboWidth,
             () => SettingsControls.Choices.DrawCombo("##rp_mode", repairModeChoices, selected, choice =>
             {
                 cfg.RepairMode = repairModes[choice];
                 cfg.SaveDebounced();
             }));
-        SettingsRow.Caption(repairModeChoices[selected].Detail);
+        SettingsRow.Caption(Loc.T(repairModeChoices[selected].Detail));
 
         if (cfg.RepairMode != RepairMode.SelfOnly)
         {
-            SettingsRow.DrawBlock("Custom repair NPC",
-                "Optional. Travel to any repair NPC instead of the Grand Company mender. Target the NPC in-game, then click \"Set from target\". Clear to fall back to the GC mender.",
+            SettingsRow.DrawBlock(Loc.T(L.Settings.CustomNpc),
+                Loc.T(L.Settings.CustomNpcHelp),
                 () => DrawCustomRepairNpc(cfg));
 
-            SettingsRow.Note("NPC repair uses your custom repair NPC if set, otherwise your Grand Company mender (teleports there and pays in company seals). A custom NPC removes the Grand Company requirement.");
+            SettingsRow.Note(Loc.T(L.Settings.NpcNote));
         }
     }
 
@@ -84,31 +85,31 @@ internal static class RepairSettings
         if (npc is not null)
         {
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentMint))
-                ImGui.TextWrapped($"{npc.Name}  (territory {npc.TerritoryId})");
+                ImGui.TextWrapped(Loc.T(L.Settings.NpcSet, npc.Name, npc.TerritoryId));
         }
         else
         {
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
-                ImGui.TextWrapped("None - using Grand Company mender.");
+                ImGui.TextWrapped(Loc.T(L.Settings.NpcNone));
         }
 
-        if (ImGui.Button("Set from target"))
+        if (ImGui.Button($"{Loc.T(L.Settings.SetFromTarget)}##rp_set"))
         {
             var captured = RepairOps.CaptureCurrentTargetAsRepairNpc();
             if (captured is null)
-                Svc.Chat.PrintError("[AFG] No target - target a repair NPC first, then click again.");
+                Svc.Chat.PrintError(Loc.T(L.Settings.NoTargetChat));
             else
             {
                 cfg.PreferredRepairNpc = captured;
                 cfg.SaveDebounced();
-                Svc.Chat.Print($"[AFG] Custom repair NPC set: {captured.Name} (territory {captured.TerritoryId}).");
+                Svc.Chat.Print(Loc.T(L.Settings.NpcSetChat, captured.Name, captured.TerritoryId));
             }
         }
 
         if (npc is not null)
         {
             ImGui.SameLine();
-            if (ImGui.Button("Clear"))
+            if (ImGui.Button($"{Loc.T(L.Common.Clear)}##rp_clear"))
             {
                 cfg.PreferredRepairNpc = null;
                 cfg.SaveDebounced();

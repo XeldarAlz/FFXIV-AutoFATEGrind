@@ -7,10 +7,9 @@ namespace AutoFateGrind.Windows.Components;
 
 internal sealed class SettingsGroup : IDisposable
 {
-    private const float PaddingX = 12f;
-    private const float PaddingY = 6f;
-    private const float GroupGap = 14f;
-    private const float FootnoteFontScale = 0.92f;
+    private const float PaddingX = 14f;
+    private const float PaddingY = 8f;
+    private const float GroupGap = 18f;
     private const float FootnotePullUp = 6f;
     private const float FootnoteIndent = 4f;
 
@@ -25,7 +24,7 @@ internal sealed class SettingsGroup : IDisposable
         if (title.Length > 0)
         {
             Styling.SectionLabel(title);
-            Styling.VSpace(2f);
+            Styling.VSpace(6f);
         }
 
         return new SettingsGroup();
@@ -56,8 +55,7 @@ internal sealed class SettingsGroup : IDisposable
         var drawList = ImGui.GetWindowDrawList();
         drawList.ChannelsSetCurrent(0);
         var rounding = Styling.CardRounding * scale;
-        drawList.AddRectFilled(cardOrigin, cardEnd, ImGui.GetColorU32(Styling.CardBgSoft), rounding);
-        drawList.AddRect(cardOrigin, cardEnd, ImGui.GetColorU32(Styling.WithAlpha(Styling.BorderDim, 0.55f)), rounding);
+        Paint.Surface(drawList, cardOrigin, cardEnd, rounding, Styling.WithAlpha(Styling.Surface1, 0.55f), Styling.WithAlpha(Styling.BorderDim, 0.5f));
         drawList.ChannelsMerge();
 
         ImGui.SetCursorScreenPos(new Vector2(cardOrigin.X, cardEnd.Y));
@@ -70,13 +68,12 @@ internal sealed class SettingsGroup : IDisposable
         var scale = ImGuiHelpers.GlobalScale;
         ImGui.SetCursorPosY(ImGui.GetCursorPosY() - FootnotePullUp * scale);
         ImGui.Indent(FootnoteIndent * scale);
-        ImGui.SetWindowFontScale(FootnoteFontScale);
+        using (Fonts.PushCaption())
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
         {
             ImGui.TextWrapped(text);
         }
 
-        ImGui.SetWindowFontScale(1f);
         ImGui.Unindent(FootnoteIndent * scale);
         Styling.VSpace(GroupGap);
     }

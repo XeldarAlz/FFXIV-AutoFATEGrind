@@ -1,3 +1,4 @@
+using AutoFateGrind.Core.Localization;
 using AutoFateGrind.Windows.Components;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Utility;
@@ -6,11 +7,9 @@ using System.Numerics;
 
 namespace AutoFateGrind.Windows.Sections.Config;
 
-// Shared widgets used across the config tabs, so each tab stays focused on its own settings rather than
-// re-declaring the same toggle/slider/combo plumbing.
 internal static class SettingsControls
 {
-    public const float ToggleWidth = 38f;
+    public const float ToggleWidth = 40f;
     public const float RowSliderWidth = 180f;
     public const float RowComboWidth = 170f;
 
@@ -60,11 +59,33 @@ internal static class SettingsControls
         }
     }
 
-    // Type-to-filter combo for long lists: a search box pinned to the top of the popup narrows the
-    // Selectables below it. Labels are matched case-insensitively, so the caller can fold extra detail
-    // (cost, tags) into each label and still have it be searchable. Returns true when the selection moves.
+    public static void DrawLanguageCombo(Configuration cfg, float width = RowComboWidth)
+    {
+        ImGui.SetNextItemWidth(width * ImGuiHelpers.GlobalScale);
+        using var frameColors = PushFrameColors();
+        using var combo = ImRaii.Combo("##afg_language", Loc.Current.NativeName);
+        if (!combo) return;
+
+        var languages = Languages.All;
+        for (var index = 0; index < languages.Length; index++)
+        {
+            var language = languages[index];
+            var selected = ReferenceEquals(language, Loc.Current);
+            if (ImGui.Selectable(language.NativeName, selected) && !selected) ApplyLanguage(cfg, language.Code);
+        }
+    }
+
+    private static void ApplyLanguage(Configuration cfg, string code)
+    {
+        cfg.Language = code;
+        cfg.Save();
+        Loc.SetLanguage(code);
+        Fonts.OnLanguageChanged();
+        Plugin.Instance.OnLanguageChanged();
+    }
+
     public static bool DrawSearchableCombo(string id, string preview, string[] labels, ref int selectedIndex,
-        float width, string hint = "Search...")
+        float width, string? hint = null)
     {
         var scale = ImGuiHelpers.GlobalScale;
         ImGui.SetNextItemWidth(width * scale);
@@ -91,7 +112,7 @@ internal static class SettingsControls
         }
 
         ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X);
-        ImGui.InputTextWithHint($"{id}_search", hint, ref filter, SearchComboFilterMaxLength);
+        ImGui.InputTextWithHint($"{id}_search", hint ?? Loc.T(L.Settings.SearchHint), ref filter, SearchComboFilterMaxLength);
         searchComboFilters[id] = filter;
 
         var changed = false;
@@ -169,7 +190,7 @@ internal static class SettingsControls
 
     internal static class Choices
     {
-        public readonly record struct Choice(string Name, string Detail);
+        public readonly record struct Choice(LocString Name, LocString Detail);
 
         private const float PopupWidth = 320f;
         private const float ItemPaddingX = 6f;
@@ -184,7 +205,7 @@ internal static class SettingsControls
             ImGui.SetNextWindowSizeConstraints(new Vector2(PopupWidth * scale, 0f), new Vector2(PopupWidth * scale, 600f * scale));
 
             using var frameColors = PushFrameColors();
-            using var combo = ImRaii.Combo(id, options[selected].Name);
+            using var combo = ImRaii.Combo(id, Loc.T(options[selected].Name));
             if (!combo)
             {
                 return;
@@ -207,8 +228,10 @@ internal static class SettingsControls
             var nameDetailGap = NameDetailGap * scale;
             var lineHeight = ImGui.GetTextLineHeight();
             var wrapWidth = ImGui.GetContentRegionAvail().X - paddingX * 2f;
+            var name = Loc.T(option.Name);
+            var detail = Loc.T(option.Detail);
 
-            var detailSize = ImGui.CalcTextSize(option.Detail, false, wrapWidth);
+            var detailSize = ImGui.CalcTextSize(detail, false, wrapWidth);
             var itemHeight = paddingY * 2f + lineHeight + nameDetailGap + detailSize.Y;
 
             var itemOrigin = ImGui.GetCursorScreenPos();
@@ -217,10 +240,10 @@ internal static class SettingsControls
 
             var drawList = ImGui.GetWindowDrawList();
             var nameColor = selected ? Styling.AccentVioletSoft : Styling.TextStrong;
-            drawList.AddText(itemOrigin + new Vector2(paddingX, paddingY), ImGui.GetColorU32(nameColor), option.Name);
+            drawList.AddText(itemOrigin + new Vector2(paddingX, paddingY), ImGui.GetColorU32(nameColor), name);
             drawList.AddText(ImGui.GetFont(), ImGui.GetFontSize(),
                 itemOrigin + new Vector2(paddingX, paddingY + lineHeight + nameDetailGap),
-                ImGui.GetColorU32(Styling.TextMuted), option.Detail, wrapWidth);
+                ImGui.GetColorU32(Styling.TextMuted), detail, wrapWidth);
 
             return clicked;
         }

@@ -8,17 +8,16 @@ namespace AutoFateGrind.Windows.Components;
 
 internal static class SettingsRow
 {
-    private const float RowHeight = 36f;
+    private const float RowHeight = 40f;
     private const float HelpIconGap = 7f;
     private const float TooltipWrapWidth = 300f;
-    private const float CaptionFontScale = 0.92f;
     private const float CaptionPullUp = 7f;
-    private const float CaptionBottomGap = 8f;
+    private const float CaptionBottomGap = 10f;
     private const float BlockBottomGap = 6f;
-    private const float NoteTopGap = 4f;
-    private const float NoteBottomGap = 6f;
+    private const float NoteTopGap = 6f;
+    private const float NoteBottomGap = 8f;
 
-    public const float ToggleHeight = 20f;
+    public const float ToggleHeight = 22f;
 
     private readonly record struct RowArea(Vector2 Origin, float RightEdge, float MiddleY, bool Hovered)
     {
@@ -58,7 +57,7 @@ internal static class SettingsRow
         ImGui.SetCursorScreenPos(cursor with { Y = cursor.Y - CaptionPullUp * scale });
 
         var wrapLocalX = ImGui.GetCursorPosX() + (SettingsGroup.ContentRightEdge - ImGui.GetCursorScreenPos().X);
-        ImGui.SetWindowFontScale(CaptionFontScale);
+        using (Fonts.PushCaption())
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
         {
             ImGui.PushTextWrapPos(wrapLocalX);
@@ -66,7 +65,6 @@ internal static class SettingsRow
             ImGui.PopTextWrapPos();
         }
 
-        ImGui.SetWindowFontScale(1f);
         Styling.VSpace(CaptionBottomGap);
     }
 

@@ -1,5 +1,6 @@
 using AutoFateGrind.Core.External;
 using AutoFateGrind.Core.Game.Fates;
+using AutoFateGrind.Core.Localization;
 using AutoFateGrind.Windows.Components;
 using clib.Utils;
 using Dalamud.Bindings.ImGui;
@@ -22,16 +23,16 @@ internal static class FilterSettings
 
     private static void DrawEligibilityGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin("Eligibility");
+        using var group = SettingsGroup.Begin(Loc.T(L.Settings.FiltersEligibility));
 
-        SettingsRow.Draw("Minimum time remaining",
-            "Skip FATEs that have less than this many seconds left. Keeps you off corpse-FATEs other players are finishing.",
+        SettingsRow.Draw(Loc.T(L.Settings.MinTime),
+            Loc.T(L.Settings.MinTimeHelp),
             SettingsControls.RowSliderWidth,
             () => SettingsControls.DrawIntSlider(cfg, "##filt_mintime",
-                () => cfg.MinTimeRemainingSec, v => cfg.MinTimeRemainingSec = v, 30, 600, "%d s"));
+                () => cfg.MinTimeRemainingSec, v => cfg.MinTimeRemainingSec = v, 30, 600, Loc.T(L.Settings.MinTimeFormat)));
 
-        SettingsRow.Draw("Maximum progress",
-            "Skip FATEs already past this percent. Keeps you off near-finished FATEs others are clearing.",
+        SettingsRow.Draw(Loc.T(L.Settings.MaxProgress),
+            Loc.T(L.Settings.MaxProgressHelp),
             SettingsControls.RowSliderWidth,
             () => SettingsControls.DrawIntSlider(cfg, "##filt_maxprog",
                 () => cfg.MaxProgressPct, v => cfg.MaxProgressPct = v, 50, 99, "%d%%"));
@@ -39,32 +40,32 @@ internal static class FilterSettings
 
     private static void DrawSkipTypesGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin("FATE types");
+        using var group = SettingsGroup.Begin(Loc.T(L.Settings.FiltersTypes));
 
-        SettingsRow.DrawBlock("Skip FATE types",
-            "Toggle on a type to skip every FATE of that kind. Useful if you don't enjoy escorts or collect hand-ins.",
+        SettingsRow.DrawBlock(Loc.T(L.Settings.SkipTypes),
+            Loc.T(L.Settings.SkipTypesHelp),
             () => DrawFateRuleSkipList(cfg));
     }
 
     private static void DrawPriorityGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin("Priority");
+        using var group = SettingsGroup.Begin(Loc.T(L.Settings.FiltersPriority));
 
-        SettingsRow.DrawBlock("FATE priority",
-            "Order the rules used to pick the next FATE. Top rule wins; ties fall through to the next. Reset restores the recommended order.",
+        SettingsRow.DrawBlock(Loc.T(L.Settings.FatePriority),
+            Loc.T(L.Settings.FatePriorityHelp),
             () => DrawSortOrderList(cfg));
     }
 
     private static void DrawBlacklistGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin("Blacklist");
+        using var group = SettingsGroup.Begin(Loc.T(L.Settings.FiltersBlacklist));
 
-        SettingsRow.DrawBlock("Add a FATE by name",
-            "Pulled live from game data, sorted A-Z. Type to search. Use this for FATEs you never want to trigger, like a world boss everyone is waiting on, without needing it to be up.",
+        SettingsRow.DrawBlock(Loc.T(L.Settings.AddByName),
+            Loc.T(L.Settings.AddByNameHelp),
             () => DrawBlacklistPicker(cfg));
 
-        SettingsRow.DrawBlock("Blacklisted FATEs",
-            "Blacklisted FATEs are skipped while grinding. The ban button in the Live FATEs window adds to this list too. Remove one here to grind it again.",
+        SettingsRow.DrawBlock(Loc.T(L.Settings.Blacklisted),
+            Loc.T(L.Settings.BlacklistedHelp),
             () => DrawBlacklistList(cfg));
     }
 
@@ -75,7 +76,7 @@ internal static class FilterSettings
         var catalog = FateCatalog.All;
         if (catalog.Length == 0)
         {
-            SettingsRow.Note("No FATEs found in game data.", Styling.AccentRose);
+            SettingsRow.Note(Loc.T(L.Settings.NoFatesInData), Styling.AccentRose);
             return;
         }
 
@@ -86,7 +87,7 @@ internal static class FilterSettings
 
         ImGui.SameLine();
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentMint))
-            if (ImGui.SmallButton("Add##bl_add"))
+            if (ImGui.SmallButton($"{Loc.T(L.Common.Add)}##bl_add"))
                 FateBlacklist.Add(cfg, FateType.Normal, catalog[blacklistAddSelection].FateIds);
     }
 
@@ -96,7 +97,7 @@ internal static class FilterSettings
         if (groups.Count == 0)
         {
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
-                ImGui.TextUnformatted("No FATEs blacklisted.");
+                ImGui.TextUnformatted(Loc.T(L.Settings.NoBlacklisted));
             return;
         }
 
@@ -111,34 +112,34 @@ internal static class FilterSettings
                 ImGui.TextUnformatted(entryGroup.Name);
 
             ImGui.SameLine(SettingsGroup.InnerRightLocalX() - buttonSize);
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentRose))
-                if (IconButton.Draw(FontAwesomeIcon.Times, $"##bl_rm_{entryGroup.Name}", buttonSize))
-                    removeGroup = entryGroup;
-            if (ImGui.IsItemHovered())
-                ImGui.SetTooltip("Remove from blacklist.");
+            if (IconButton.Draw(FontAwesomeIcon.Times, $"##bl_rm_{entryGroup.Name}", buttonSize, Styling.AccentRose, Loc.T(L.Settings.RemoveFromBlacklist)))
+                removeGroup = entryGroup;
         }
 
         if (removeGroup is { } groupToRemove)
             FateBlacklist.Remove(cfg, groupToRemove);
     }
 
-    private static readonly (FateSortCriterion Criterion, string Label)[] sortCriterionLabels =
+    private static readonly (FateSortCriterion Criterion, LocString Label)[] sortCriterionLabels =
     [
-        (FateSortCriterion.HasBonusWithTwist,   "Bonus FATE (skip while Twist active)"),
-        (FateSortCriterion.Progress,            "Progress %"),
-        (FateSortCriterion.HasBonus,            "Bonus FATE"),
-        (FateSortCriterion.TimeRemainingUrgent, "About to expire"),
-        (FateSortCriterion.Distance,            "Closest to me"),
-        (FateSortCriterion.TimeRemaining,       "Time remaining"),
-        (FateSortCriterion.Level,               "Level"),
-        (FateSortCriterion.Name,                "Name"),
+        (FateSortCriterion.HasBonusWithTwist,   L.Settings.SortBonusTwist),
+        (FateSortCriterion.Progress,            L.Settings.SortProgress),
+        (FateSortCriterion.HasBonus,            L.Settings.SortBonus),
+        (FateSortCriterion.TimeRemainingUrgent, L.Settings.SortUrgent),
+        (FateSortCriterion.Distance,            L.Settings.SortDistance),
+        (FateSortCriterion.TimeRemaining,       L.Settings.SortTimeRemaining),
+        (FateSortCriterion.Level,               L.Settings.SortLevel),
+        (FateSortCriterion.Name,                L.Settings.SortName),
     ];
 
-    private static string LabelFor(FateSortCriterion c)
+    private static string LabelFor(FateSortCriterion criterion)
     {
-        foreach (var (crit, label) in sortCriterionLabels)
-            if (crit == c) return label;
-        return c.ToString();
+        for (var index = 0; index < sortCriterionLabels.Length; index++)
+        {
+            if (sortCriterionLabels[index].Criterion == criterion) return Loc.T(sortCriterionLabels[index].Label);
+        }
+
+        return criterion.ToString();
     }
 
     private static int sortAddSelection;
@@ -166,18 +167,14 @@ internal static class FilterSettings
             ImGui.SameLine(SettingsGroup.InnerRightLocalX() - rowRightWidth);
 
             var dirIcon = entry.Descending ? FontAwesomeIcon.SortAmountDown : FontAwesomeIcon.SortAmountUp;
-            if (IconButton.Draw(dirIcon, $"##sort_dir_{i}", btnSize))
+            if (IconButton.Draw(dirIcon, $"##sort_dir_{i}", btnSize, tooltip: entry.Descending ? Loc.T(L.Common.Descending) : Loc.T(L.Common.Ascending)))
             { entry.Descending = !entry.Descending; cfg.SaveDebounced(); }
             ImGui.SameLine(0, spacingX);
-            using (ImRaii.Disabled(i == 0))
-                if (IconButton.Draw(FontAwesomeIcon.ArrowUp, $"##sort_up_{i}", btnSize)) moveUp = i;
+            if (IconButton.Draw(FontAwesomeIcon.ArrowUp, $"##sort_up_{i}", btnSize, tooltip: Loc.T(L.Common.MoveUp), enabled: i > 0)) moveUp = i;
             ImGui.SameLine(0, spacingX);
-            using (ImRaii.Disabled(i == cfg.FateSortOrder.Count - 1))
-                if (IconButton.Draw(FontAwesomeIcon.ArrowDown, $"##sort_dn_{i}", btnSize)) moveDown = i;
+            if (IconButton.Draw(FontAwesomeIcon.ArrowDown, $"##sort_dn_{i}", btnSize, tooltip: Loc.T(L.Common.MoveDown), enabled: i < cfg.FateSortOrder.Count - 1)) moveDown = i;
             ImGui.SameLine(0, spacingX);
-            using (ImRaii.Disabled(cfg.FateSortOrder.Count <= 1))
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentRose))
-                if (IconButton.Draw(FontAwesomeIcon.Times, $"##sort_rm_{i}", btnSize)) remove = i;
+            if (IconButton.Draw(FontAwesomeIcon.Times, $"##sort_rm_{i}", btnSize, Styling.AccentRose, Loc.T(L.Common.Remove), enabled: cfg.FateSortOrder.Count > 1)) remove = i;
         }
 
         if (ListReorder.Apply(cfg.FateSortOrder, cfg.FateSortOrder.Count, moveUp, moveDown, remove))
@@ -187,39 +184,40 @@ internal static class FilterSettings
         if (missing.Length > 0)
         {
             ImGui.Spacing();
-            var labels = missing.Select(m => m.Label).ToArray();
+            var labels = missing.Select(m => Loc.T(m.Label)).ToArray();
             sortAddSelection = Math.Clamp(sortAddSelection, 0, labels.Length - 1);
             SettingsControls.DrawPlainCombo("##sort_add_pick", ref sortAddSelection, labels, 260f);
             ImGui.SameLine();
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentMint))
-                if (ImGui.SmallButton("Add##sort_add"))
+                if (ImGui.SmallButton($"{Loc.T(L.Common.Add)}##sort_add"))
                 { cfg.FateSortOrder.Add(new FateSortEntry { Criterion = missing[sortAddSelection].Criterion, Descending = true }); cfg.SaveDebounced(); }
         }
 
         ImGui.Spacing();
-        if (ImGui.SmallButton("Reset to recommended##sort_reset"))
+        if (ImGui.SmallButton($"{Loc.T(L.Settings.ResetRecommended)}##sort_reset"))
         {
             cfg.FateSortOrder = FateScanner.DefaultSortOrder.Select(e => new FateSortEntry { Criterion = e.Criterion, Descending = e.Descending }).ToList();
             cfg.SaveDebounced();
         }
     }
 
-    private static readonly (PublicEvent.FateRule Rule, string Label, string Helper)[] fateRuleRows =
+    private static readonly (PublicEvent.FateRule Rule, LocString Label, LocString Helper)[] fateRuleRows =
     [
-        (PublicEvent.FateRule.Normal,          "Slay enemies",      "Kill the target mobs in the FATE ring."),
-        (PublicEvent.FateRule.Collect,         "Collect / hand-in", "Gather items off mobs or nodes and turn them in."),
-        (PublicEvent.FateRule.Escort,          "Escort",            "Protect an NPC that walks a fixed path."),
-        (PublicEvent.FateRule.Defend,          "Defend",            "Hold a point or NPC against waves."),
-        (PublicEvent.FateRule.EventFate,       "Talk to NPC",       "Dialogue-style FATE that starts by interacting with an NPC."),
-        (PublicEvent.FateRule.Chase,           "Chase",             "Pursue a moving enemy across the zone."),
-        (PublicEvent.FateRule.ConcertedWorks,  "Boss",              "Single-boss encounter (notorious monster style)."),
-        (PublicEvent.FateRule.Fete,            "Fete",              "Special seasonal / community FATE."),
+        (PublicEvent.FateRule.Normal,          L.Settings.RuleNormal,  L.Settings.RuleNormalHelp),
+        (PublicEvent.FateRule.Collect,         L.Settings.RuleCollect, L.Settings.RuleCollectHelp),
+        (PublicEvent.FateRule.Escort,          L.Settings.RuleEscort,  L.Settings.RuleEscortHelp),
+        (PublicEvent.FateRule.Defend,          L.Settings.RuleDefend,  L.Settings.RuleDefendHelp),
+        (PublicEvent.FateRule.EventFate,       L.Settings.RuleEvent,   L.Settings.RuleEventHelp),
+        (PublicEvent.FateRule.Chase,           L.Settings.RuleChase,   L.Settings.RuleChaseHelp),
+        (PublicEvent.FateRule.ConcertedWorks,  L.Settings.RuleBoss,    L.Settings.RuleBossHelp),
+        (PublicEvent.FateRule.Fete,            L.Settings.RuleFete,    L.Settings.RuleFeteHelp),
     ];
 
     private static void DrawFateRuleSkipList(Configuration cfg)
     {
-        foreach (var (rule, label, helper) in fateRuleRows)
+        for (var index = 0; index < fateRuleRows.Length; index++)
         {
+            var (rule, label, helper) = fateRuleRows[index];
             var key = (int)rule;
             var skipped = cfg.SkippedFateRules.Contains(key);
             var id = $"##filt_rule_{key}";
@@ -232,10 +230,10 @@ internal static class FilterSettings
             ImGui.SameLine();
             ImGui.AlignTextToFramePadding();
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextStrong))
-                ImGui.TextUnformatted(label);
+                ImGui.TextUnformatted(Loc.T(label));
             ImGui.SameLine();
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
-                ImGui.TextUnformatted(helper);
+                ImGui.TextUnformatted(Loc.T(helper));
 
             if (rule == PublicEvent.FateRule.Collect && !skipped
                 && ExternalPlugins.IsInstalledButDisabled(ExternalPlugin.TextAdvance))
@@ -243,10 +241,7 @@ internal static class FilterSettings
                 var pad = ImGui.GetFrameHeight() + 8f * ImGuiHelpers.GlobalScale;
                 ImGui.Indent(pad);
                 using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentAmber))
-                    ImGui.TextWrapped(
-                        "TextAdvance is installed but disabled. Collect hand-ins usually work anyway "
-                        + "(AFG drives the turn-in directly), but enabling TextAdvance's \"Enable plugin\" "
-                        + "toggle is the safe fallback if a hand-in stalls.");
+                    ImGui.TextWrapped(Loc.T(L.Settings.CollectTextAdvanceNote));
                 ImGui.Unindent(pad);
             }
         }

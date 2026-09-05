@@ -1,4 +1,5 @@
 using AutoFateGrind.Core.External;
+using AutoFateGrind.Core.Localization;
 using AutoFateGrind.Core.Trading;
 using AutoFateGrind.Windows.Components;
 
@@ -11,15 +12,15 @@ internal static class GemstoneSettings
 
     private static readonly SettingsControls.Choices.Choice[] spendModeChoices =
     [
-        new("Spend all gemstones", "Spend everything above the reserve on each trade."),
-        new("Spend up to a set amount", "Cap how many gems each trade is allowed to spend."),
-        new("Buy a fixed number", "Buy a set quantity of the item on each trade."),
+        new(L.Settings.SpendAllName, L.Settings.SpendAllDetail),
+        new(L.Settings.SpendUpToName, L.Settings.SpendUpToDetail),
+        new(L.Settings.BuyFixedName, L.Settings.BuyFixedDetail),
     ];
 
     private static readonly SettingsControls.Choices.Choice[] afterTradeChoices =
     [
-        new("Resume the grind", "Keep grinding FATEs in the same zone after the buy."),
-        new("Stop the run", "End the run once the buy succeeds."),
+        new(L.Settings.AfterResumeName, L.Settings.AfterResumeDetail),
+        new(L.Settings.AfterStopName, L.Settings.AfterStopDetail),
     ];
 
     public static void Draw(Configuration cfg)
@@ -37,34 +38,31 @@ internal static class GemstoneSettings
 
     private static void DrawTriggerGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin("Trade trigger");
+        using var group = SettingsGroup.Begin(Loc.T(L.Settings.GemsTrigger));
 
-        SettingsRow.Draw("Auto-trade at threshold",
-            "When your Bicolor Gemstone inventory reaches the threshold below, the plugin teleports to a trader and buys the item.",
+        SettingsRow.Draw(Loc.T(L.Settings.AutoTrade),
+            Loc.T(L.Settings.AutoTradeHelp),
             SettingsControls.ToggleWidth,
             () => SettingsControls.DrawToggle(cfg, () => cfg.TradeOnCap, v => cfg.TradeOnCap = v, "##tr_oncap"),
             SettingsRow.ToggleHeight);
 
         if (!cfg.TradeOnCap)
         {
-            SettingsRow.Note("Auto-trade is off. Enable it to configure the trade.");
+            SettingsRow.Note(Loc.T(L.Settings.AutoTradeOff));
             return;
         }
 
         if (ExternalPlugins.IsInstalledButDisabled(ExternalPlugin.TextAdvance))
         {
-            SettingsRow.Note(
-                "TextAdvance is installed but disabled. Auto-trade may stall at the trader's "
-                + "dialogue; turn on TextAdvance's \"Enable plugin\" toggle for reliable trading.",
-                Styling.AccentAmber);
+            SettingsRow.Note(Loc.T(L.Settings.TradeTextAdvanceNote), Styling.AccentAmber);
         }
 
-        SettingsRow.Draw("Trade threshold",
-            "Gem count that triggers the trade. Game cap is 1500. Lower values trade more often so fewer FATEs are wasted near cap.",
+        SettingsRow.Draw(Loc.T(L.Settings.Threshold),
+            Loc.T(L.Settings.ThresholdHelp),
             SettingsControls.RowSliderWidth,
             () => SettingsControls.DrawIntSlider(cfg, "##tr_threshold",
                 () => cfg.TradeThreshold, v => cfg.TradeThreshold = Math.Clamp(v, 100, Core.AfgConstants.BicolorCap),
-                100, Core.AfgConstants.BicolorCap, "%d gems"));
+                100, Core.AfgConstants.BicolorCap, Loc.T(L.Settings.GemsFormat)));
     }
 
     private static GemstoneTradeItem[]? sortedItems;
@@ -72,16 +70,16 @@ internal static class GemstoneSettings
 
     private static void DrawItemGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin("What to buy");
+        using var group = SettingsGroup.Begin(Loc.T(L.Settings.GemsItem));
 
-        SettingsRow.DrawBlock("Item to buy",
-            "Pulled live from game data, sorted A-Z. Type to search. Cost shown in gems per one.",
+        SettingsRow.DrawBlock(Loc.T(L.Settings.ItemToBuy),
+            Loc.T(L.Settings.ItemToBuyHelp),
             () =>
             {
                 EnsureSortedCatalog();
                 if (sortedItems is null || sortedItems.Length == 0)
                 {
-                    SettingsRow.Note("No gem-shop items found.", Styling.AccentRose);
+                    SettingsRow.Note(Loc.T(L.Settings.NoShopItems), Styling.AccentRose);
                     return;
                 }
 
@@ -116,68 +114,68 @@ internal static class GemstoneSettings
         for (var itemIndex = 0; itemIndex < sortedItems.Length; itemIndex++)
         {
             var item = sortedItems[itemIndex];
-            sortedLabels[itemIndex] = $"{item.ItemName}  ({item.CostPerOne}g)";
+            sortedLabels[itemIndex] = Loc.T(L.Settings.ItemCostLabel, item.ItemName, item.CostPerOne);
         }
     }
 
     private static void DrawSpendGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin("How much to spend");
+        using var group = SettingsGroup.Begin(Loc.T(L.Settings.GemsSpend));
 
         var selected = Math.Max(0, Array.IndexOf(spendModes, cfg.SpendMode));
-        SettingsRow.Draw("Spend strategy",
-            "How much each trade spends when it fires.",
+        SettingsRow.Draw(Loc.T(L.Settings.SpendStrategy),
+            Loc.T(L.Settings.SpendStrategyHelp),
             SettingsControls.RowComboWidth,
             () => SettingsControls.Choices.DrawCombo("##tr_spend_mode", spendModeChoices, selected, choice =>
             {
                 cfg.SpendMode = spendModes[choice];
                 cfg.SaveDebounced();
             }));
-        SettingsRow.Caption(spendModeChoices[selected].Detail);
+        SettingsRow.Caption(Loc.T(spendModeChoices[selected].Detail));
 
         if (cfg.SpendMode == GemstoneSpendMode.SpendGems)
         {
-            SettingsRow.Draw("Spend up to",
-                "Maximum gems spent per trade.",
+            SettingsRow.Draw(Loc.T(L.Settings.SpendUpTo),
+                Loc.T(L.Settings.SpendUpToHelp),
                 SettingsControls.RowSliderWidth,
                 () => SettingsControls.DrawIntSlider(cfg, "##tr_spend_gems",
                     () => cfg.SpendGemsAmount, v => cfg.SpendGemsAmount = Math.Clamp(v, 50, Core.AfgConstants.BicolorCap),
-                    50, Core.AfgConstants.BicolorCap, "%d gems"));
+                    50, Core.AfgConstants.BicolorCap, Loc.T(L.Settings.GemsFormat)));
         }
         else if (cfg.SpendMode == GemstoneSpendMode.BuyQuantity)
         {
-            SettingsRow.Draw("Buy quantity",
-                "How many of the item to buy per trade.",
+            SettingsRow.Draw(Loc.T(L.Settings.BuyQuantity),
+                Loc.T(L.Settings.BuyQuantityHelp),
                 SettingsControls.RowSliderWidth,
                 () => SettingsControls.DrawIntSlider(cfg, "##tr_buy_qty",
                     () => cfg.BuyQuantityAmount, v => cfg.BuyQuantityAmount = Math.Clamp(v, 1, 99),
-                    1, 99, "%d x item"));
+                    1, 99, Loc.T(L.Settings.BuyQuantityFormat)));
         }
 
-        SettingsRow.Draw("Keep in reserve",
-            "Gems left untouched on every trade. Use this when you want to save toward a pricier item without turning auto-trade off.",
+        SettingsRow.Draw(Loc.T(L.Settings.Reserve),
+            Loc.T(L.Settings.ReserveHelp),
             SettingsControls.RowSliderWidth,
             () => SettingsControls.DrawIntSlider(cfg, "##tr_reserve",
                 () => cfg.KeepGemstonesReserve, v => cfg.KeepGemstonesReserve = Math.Clamp(v, 0, Core.AfgConstants.BicolorCap),
-                0, Core.AfgConstants.BicolorCap, "%d gems"));
+                0, Core.AfgConstants.BicolorCap, Loc.T(L.Settings.GemsFormat)));
 
         DrawSpendPreview(cfg);
     }
 
     private static void DrawAfterGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin("After the trade");
+        using var group = SettingsGroup.Begin(Loc.T(L.Settings.GemsAfter));
 
         var selected = cfg.AfterTrade == AfterTradeAction.Stop ? 1 : 0;
-        SettingsRow.Draw("When done",
-            "What to do once the buy succeeds.",
+        SettingsRow.Draw(Loc.T(L.Settings.WhenDone),
+            Loc.T(L.Settings.WhenDoneHelp),
             SettingsControls.RowComboWidth,
             () => SettingsControls.Choices.DrawCombo("##tr_after", afterTradeChoices, selected, choice =>
             {
                 cfg.AfterTrade = choice == 1 ? AfterTradeAction.Stop : AfterTradeAction.Resume;
                 cfg.SaveDebounced();
             }));
-        SettingsRow.Caption(afterTradeChoices[selected].Detail);
+        SettingsRow.Caption(Loc.T(afterTradeChoices[selected].Detail));
     }
 
     private static void DrawSpendPreview(Configuration cfg)
@@ -189,8 +187,8 @@ internal static class GemstoneSettings
 
         var color = qty <= 0 ? Styling.AccentRose : Styling.TextMuted;
         SettingsRow.Note(qty <= 0
-            ? $"Threshold/reserve won't afford any {item.ItemName} at {item.CostPerOne}g each."
-            : $"At threshold {cfg.TradeThreshold}g (keeping {cfg.KeepGemstonesReserve}g), next trade buys ~{qty} x {item.ItemName} for {qty * item.CostPerOne}g.",
+            ? Loc.T(L.Settings.PreviewCannotAfford, item.ItemName, item.CostPerOne)
+            : Loc.T(L.Settings.PreviewBuy, cfg.TradeThreshold, cfg.KeepGemstonesReserve, qty, item.ItemName, qty * item.CostPerOne),
             color);
     }
 }

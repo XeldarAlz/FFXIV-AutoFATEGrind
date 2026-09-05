@@ -1,55 +1,46 @@
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Utility;
-using Dalamud.Interface.Utility.Raii;
 using System.Numerics;
 
 namespace AutoFateGrind.Windows.Components;
 
-// One metric in the running dashboard's stat strip: an uppercase dim label across the top, a strong value
-// anchored to the bottom-left, and an optional dim sub on the bottom-right. A thin accent tick on the left
-// edge ties the tile to its metric's color, matching the sidebar-tab / segment language.
 internal static class StatTile
 {
-    public static void Draw(string label, string value, string? sub, Vector4 accent, float width)
+    private const float PadX = 13f;
+    private const float PadY = 10f;
+
+    public static void Draw(string label, string value, string? sub, Vector4 accent, float width, float height = Layout.StatTileHeight)
     {
         var scale = ImGuiHelpers.GlobalScale;
-        var height = Layout.StatTileHeight * scale;
+        var size = new Vector2(width, height * scale);
         var origin = ImGui.GetCursorScreenPos();
-        var end = origin + new Vector2(width, height);
+        var end = origin + size;
         var dl = ImGui.GetWindowDrawList();
 
-        dl.AddRectFilled(origin, end, ImGui.GetColorU32(Styling.CardBgSoft), 6f);
-        dl.AddRect(origin, end, ImGui.GetColorU32(Styling.WithAlpha(Styling.BorderDim, 0.6f)), 6f);
-        dl.AddRectFilled(origin, new Vector2(origin.X + 3f * scale, end.Y), ImGui.GetColorU32(Styling.WithAlpha(accent, 0.85f)), 2f);
+        Paint.Glass(dl, origin, end, Styling.CardRounding * scale, accent, 0.05f);
 
-        var padX = 11f * scale;
-        var padY = 7f * scale;
+        var padX = PadX * scale;
+        var padY = PadY * scale;
+        var labelSize = TextDraw.SmallCapsSize(label);
+        var dotRadius = 3f * scale;
+        dl.AddCircleFilled(new Vector2(origin.X + padX + dotRadius, origin.Y + padY + labelSize.Y * 0.5f), dotRadius, Paint.Col(accent));
+        TextDraw.SmallCaps(label, new Vector2(origin.X + padX + dotRadius * 2f + 6f * scale, origin.Y + padY), Styling.TextDim);
 
-        ImGui.SetWindowFontScale(0.80f);
-        ImGui.SetCursorScreenPos(new Vector2(origin.X + padX, origin.Y + padY));
-        using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
-            ImGui.TextUnformatted(label.ToUpperInvariant());
-        ImGui.SetWindowFontScale(1f);
-
-        ImGui.SetWindowFontScale(1.25f);
-        var valSize = ImGui.CalcTextSize(value);
-        var valY = end.Y - padY - valSize.Y;
-        ImGui.SetCursorScreenPos(new Vector2(origin.X + padX, valY));
-        using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextStrong))
-            ImGui.TextUnformatted(value);
-        ImGui.SetWindowFontScale(1f);
+        using (Fonts.PushHeadline())
+        {
+            var valueSize = TextDraw.Measure(value);
+            TextDraw.At(value, new Vector2(origin.X + padX, end.Y - padY - valueSize.Y), Styling.TextStrong);
+        }
 
         if (!string.IsNullOrEmpty(sub))
         {
-            ImGui.SetWindowFontScale(0.80f);
-            var subSize = ImGui.CalcTextSize(sub);
-            ImGui.SetCursorScreenPos(new Vector2(end.X - padX - subSize.X, valY + valSize.Y - subSize.Y));
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
-                ImGui.TextUnformatted(sub);
-            ImGui.SetWindowFontScale(1f);
+            using (Fonts.PushCaption())
+            {
+                var subSize = TextDraw.Measure(sub);
+                TextDraw.At(sub, new Vector2(end.X - padX - subSize.X, end.Y - padY - subSize.Y - 1f * scale), Styling.TextDim);
+            }
         }
 
-        ImGui.SetCursorScreenPos(origin);
-        ImGui.Dummy(new Vector2(width, height));
+        ImGui.Dummy(size);
     }
 }

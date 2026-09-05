@@ -1,9 +1,9 @@
+using AutoFateGrind.Core.Localization;
 using AutoFateGrind.Windows.Components;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
-using System.Numerics;
 
 namespace AutoFateGrind.Windows.Sections.Config;
 
@@ -19,28 +19,28 @@ internal static class GmAlertSettings
 
     private static void DrawAlertsGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin("Alerts");
+        using var group = SettingsGroup.Begin(Loc.T(L.Settings.GmAlerts));
 
-        SettingsRow.Draw("Stop the run",
-            "Halt automation immediately when a GM appears in your zone. Strongly recommended; the rest of the alerts are useless if the bot keeps grinding.",
+        SettingsRow.Draw(Loc.T(L.Settings.GmStopRun),
+            Loc.T(L.Settings.GmStopRunHelp),
             SettingsControls.ToggleWidth,
             () => SettingsControls.DrawToggle(cfg, () => cfg.GmAlertStopRun, v => cfg.GmAlertStopRun = v, "##gm_stop"),
             SettingsRow.ToggleHeight);
 
-        SettingsRow.Draw("Toast notification",
-            "Pop a Dalamud toast: \"GM <name> is nearby!\"",
+        SettingsRow.Draw(Loc.T(L.Settings.GmToast),
+            Loc.T(L.Settings.GmToastHelp),
             SettingsControls.ToggleWidth,
             () => SettingsControls.DrawToggle(cfg, () => cfg.GmAlertToast, v => cfg.GmAlertToast = v, "##gm_toast"),
             SettingsRow.ToggleHeight);
 
-        SettingsRow.Draw("Chat alert",
-            "Print a red chat warning into your local log.",
+        SettingsRow.Draw(Loc.T(L.Settings.GmChat),
+            Loc.T(L.Settings.GmChatHelp),
             SettingsControls.ToggleWidth,
             () => SettingsControls.DrawToggle(cfg, () => cfg.GmAlertChat, v => cfg.GmAlertChat = v, "##gm_chat"),
             SettingsRow.ToggleHeight);
 
-        SettingsRow.Draw("Sound beeps",
-            "Plays a series of system beeps through your speakers. Loud enough to grab your attention if you're tabbed away.",
+        SettingsRow.Draw(Loc.T(L.Settings.GmSound),
+            Loc.T(L.Settings.GmSoundHelp),
             SettingsControls.ToggleWidth,
             () => SettingsControls.DrawToggle(cfg, () => cfg.GmAlertSound, v => cfg.GmAlertSound = v, "##gm_sound"),
             SettingsRow.ToggleHeight);
@@ -53,42 +53,42 @@ internal static class GmAlertSettings
 
     private static void DrawBeepRows(Configuration cfg)
     {
-        SettingsRow.Draw("Beep count",
-            "How many beeps to play in the burst.",
+        SettingsRow.Draw(Loc.T(L.Settings.BeepCount),
+            Loc.T(L.Settings.BeepCountHelp),
             SettingsControls.RowSliderWidth,
             () => SettingsControls.DrawIntSlider(cfg, "##gm_beep_count",
-                () => cfg.GmAlertBeepCount, v => cfg.GmAlertBeepCount = Math.Clamp(v, 1, 20), 1, 20, "%d beeps"));
+                () => cfg.GmAlertBeepCount, v => cfg.GmAlertBeepCount = Math.Clamp(v, 1, 20), 1, 20, Loc.T(L.Settings.BeepCountFormat)));
 
-        SettingsRow.Draw("Beep length",
-            "How long each beep lasts.",
+        SettingsRow.Draw(Loc.T(L.Settings.BeepLength),
+            Loc.T(L.Settings.BeepLengthHelp),
             SettingsControls.RowSliderWidth,
             () => SettingsControls.DrawIntSlider(cfg, "##gm_beep_dur",
-                () => cfg.GmAlertBeepDurationMs, v => cfg.GmAlertBeepDurationMs = Math.Clamp(v, 50, 1000), 50, 1000, "%d ms each"));
+                () => cfg.GmAlertBeepDurationMs, v => cfg.GmAlertBeepDurationMs = Math.Clamp(v, 50, 1000), 50, 1000, Loc.T(L.Settings.BeepLengthFormat)));
 
-        SettingsRow.Draw("Beep pitch",
-            "Tone frequency of each beep.",
+        SettingsRow.Draw(Loc.T(L.Settings.BeepPitch),
+            Loc.T(L.Settings.BeepPitchHelp),
             SettingsControls.RowSliderWidth,
             () => SettingsControls.DrawIntSlider(cfg, "##gm_beep_freq",
-                () => cfg.GmAlertBeepFrequencyHz, v => cfg.GmAlertBeepFrequencyHz = Math.Clamp(v, 100, 5000), 100, 5000, "%d Hz"));
+                () => cfg.GmAlertBeepFrequencyHz, v => cfg.GmAlertBeepFrequencyHz = Math.Clamp(v, 100, 5000), 100, 5000, Loc.T(L.Settings.BeepPitchFormat)));
 
-        SettingsRow.DrawBlock("Test", null, () =>
+        SettingsRow.DrawBlock(Loc.T(L.Common.Test), null, () =>
         {
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentAmber))
-                if (ImGui.SmallButton("Preview##gm_beep_preview"))
+                if (ImGui.SmallButton($"{Loc.T(L.Common.Preview)}##gm_beep_preview"))
                     Core.Game.Watchers.GmAlertWatcher.PlayBeeps(cfg.GmAlertBeepCount, cfg.GmAlertBeepFrequencyHz, cfg.GmAlertBeepDurationMs);
         });
     }
 
     private static void DrawActionsGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin("Actions");
+        using var group = SettingsGroup.Begin(Loc.T(L.Settings.GmActions));
 
-        SettingsRow.DrawBlock("Custom commands",
-            "Chat commands to run when a GM is spotted. Useful for things like /logout, /sh stay calm, or a macro.",
+        SettingsRow.DrawBlock(Loc.T(L.Settings.GmCommands),
+            Loc.T(L.Settings.GmCommandsHelp),
             () => DrawGmCommandList(cfg));
 
-        SettingsRow.Draw("Kill the game",
-            "Hard-terminate the game process via /xlkill. The last-resort option; no goodbyes, no cutscene, no logout. You'll get a disconnect.",
+        SettingsRow.Draw(Loc.T(L.Settings.GmKill),
+            Loc.T(L.Settings.GmKillHelp),
             SettingsControls.ToggleWidth,
             () => SettingsControls.DrawToggle(cfg, () => cfg.GmAlertKillGame, v => cfg.GmAlertKillGame = v, "##gm_kill"),
             SettingsRow.ToggleHeight);
@@ -116,7 +116,7 @@ internal static class GmAlertSettings
 
         ImGui.SameLine();
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentMint))
-            if (ImGui.SmallButton("Add##gm_cmd_add"))
+            if (ImGui.SmallButton($"{Loc.T(L.Common.Add)}##gm_cmd_add"))
             {
                 AddCommand(cfg, gmCommandDraft);
                 gmCommandDraft = string.Empty;
@@ -124,7 +124,7 @@ internal static class GmAlertSettings
 
         if (cfg.GmAlertCommands.Count == 0)
         {
-            SettingsRow.Note("No commands queued.");
+            SettingsRow.Note(Loc.T(L.Settings.NoCommands));
             return;
         }
 
@@ -140,10 +140,8 @@ internal static class GmAlertSettings
                 ImGui.TextUnformatted(cfg.GmAlertCommands[i]);
 
             ImGui.SameLine(SettingsGroup.InnerRightLocalX() - btnSize);
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentRose))
-            using (ImRaii.PushFont(UiBuilder.IconFont))
-                if (ImGui.Button(FontAwesomeIcon.Times.ToIconString() + $"##gm_cmd_rm_{i}", new Vector2(btnSize, btnSize)))
-                    remove = i;
+            if (IconButton.Draw(FontAwesomeIcon.Times, $"##gm_cmd_rm_{i}", btnSize, Styling.AccentRose, Loc.T(L.Common.Remove)))
+                remove = i;
         }
 
         if (remove is int r)

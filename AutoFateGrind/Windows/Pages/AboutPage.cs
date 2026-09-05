@@ -1,22 +1,18 @@
+using AutoFateGrind.Core.Localization;
 using AutoFateGrind.Windows.Components;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
-using Dalamud.Interface.Windowing;
 using ECommons.DalamudServices;
-using System.Collections.Generic;
-using System.IO;
 using System.Numerics;
 
-namespace AutoFateGrind.Windows;
+namespace AutoFateGrind.Windows.Pages;
 
-public sealed class AboutWindow : Window, IDisposable
+internal sealed class AboutPage
 {
     private const string Name = "Auto FATE Grind";
     private const string RepoUrl = "https://github.com/XeldarAlz/FFXIV-AutoFATEGrind";
-    private const string IconFile = "Icon.png";
-    private const string WindowId = "AutoFateGrindAbout";
 
     private const string PatreonUrl = "https://www.patreon.com/XeldarAlz";
     private const string DiscordUrl = "https://discord.gg/3HbJCscMyS";
@@ -27,14 +23,14 @@ public sealed class AboutWindow : Window, IDisposable
     private const string DiscussionsUrl = RepoUrl + "/discussions";
     private const string SecurityUrl = RepoUrl + "/security/advisories/new";
 
-    private static readonly (FontAwesomeIcon Icon, string Label, string Url, int AccentId)[] Links =
+    private static readonly (FontAwesomeIcon Icon, LocString Label, string Url, int AccentId)[] Links =
     {
-        (FontAwesomeIcon.CodeBranch, "GitHub", RepoUrl, 0),
-        (FontAwesomeIcon.Hashtag, "Discord", DiscordUrl, 5),
-        (FontAwesomeIcon.Comments, "Discussions", DiscussionsUrl, 1),
-        (FontAwesomeIcon.Bug, "Report a bug", IssuesUrl, 2),
-        (FontAwesomeIcon.ThLarge, "More plugins", HubUrl, 3),
-        (FontAwesomeIcon.ShieldAlt, "Security", SecurityUrl, 4),
+        (FontAwesomeIcon.CodeBranch, L.About.LinkGitHub, RepoUrl, 0),
+        (FontAwesomeIcon.Hashtag, L.About.LinkDiscord, DiscordUrl, 5),
+        (FontAwesomeIcon.Comments, L.About.LinkDiscussions, DiscussionsUrl, 1),
+        (FontAwesomeIcon.Bug, L.About.LinkBug, IssuesUrl, 2),
+        (FontAwesomeIcon.ThLarge, L.About.LinkMore, HubUrl, 3),
+        (FontAwesomeIcon.ShieldAlt, L.About.LinkSecurity, SecurityUrl, 4),
     };
 
     private static readonly Vector2[] BloomOffsets =
@@ -44,62 +40,10 @@ public sealed class AboutWindow : Window, IDisposable
 
     private static readonly FactCategory[] Categories =
     {
-        new(FontAwesomeIcon.Heart, "A little reminder", Styling.AccentRose, new[]
-        {
-            "Been at it a while? Roll your shoulders and take one slow breath.",
-            "Hydration check. When did you last drink some water?",
-            "Blink a few times and let your eyes rest for a moment.",
-            "Stand up, stretch, and shake out your hands. Future you says thanks.",
-            "Sit up and settle in comfortably. Your back will thank you later.",
-            "Remember to eat something today. You matter more than any score.",
-            "Eyes feel tired? Look at something far away for twenty seconds.",
-            "Whatever you're chasing, you're allowed to take a break whenever.",
-            "You're doing great. Be a little kinder to yourself today.",
-            "A glass of water and a quick stretch can reset a long session.",
-            "Unclench your jaw and drop your shoulders. There you go.",
-            "Rest is part of the journey too. Step away whenever you need to.",
-        }),
-        new(FontAwesomeIcon.Lightbulb, "Did you know?", Styling.AccentAmberSoft, new[]
-        {
-            "Honey never spoils. Jars over 3,000 years old have been found still edible.",
-            "Octopuses have three hearts and blue blood.",
-            "A day on Venus is longer than a whole year on Venus.",
-            "Bananas are berries, but strawberries aren't.",
-            "There are more possible chess games than atoms in the observable universe.",
-            "Sharks have been around longer than trees have.",
-            "A group of flamingos is called a flamboyance.",
-            "Honeybees can recognize individual human faces.",
-            "Wombat droppings are cube shaped.",
-            "The Eiffel Tower can grow over 15 cm taller on a hot day.",
-            "Hot water can sometimes freeze faster than cold water.",
-            "A bolt of lightning is roughly five times hotter than the surface of the Sun.",
-        }),
-        new(FontAwesomeIcon.Star, "Words to live by", Styling.AccentMintSoft, new[]
-        {
-            "Done is better than perfect. You can always polish later.",
-            "Small steps every day add up to surprising distances.",
-            "Comparison is the thief of joy. Run your own race.",
-            "Progress, not perfection.",
-            "You don't have to be great to start, but you have to start to be great.",
-            "Be patient with yourself. Growth takes time.",
-            "The best time to begin was yesterday. The second best is right now.",
-            "Celebrate the small wins. They count too.",
-            "Slow progress is still progress.",
-            "Your only real competition is who you were yesterday.",
-        }),
-        new(FontAwesomeIcon.GrinBeam, "Just for fun", Styling.AccentBlueSoft, new[]
-        {
-            "Why don't scientists trust atoms? Because they make up everything.",
-            "I would tell you a chemistry joke, but I know I wouldn't get a reaction.",
-            "Why did the scarecrow win an award? He was outstanding in his field.",
-            "I'm reading a book about anti-gravity. It's impossible to put down.",
-            "Why don't skeletons fight each other? They don't have the guts.",
-            "What do you call fake spaghetti? An impasta.",
-            "Why did the bicycle fall over? It was two tired.",
-            "What do you call cheese that isn't yours? Nacho cheese.",
-            "I'm on a seafood diet. I see food, and I eat it.",
-            "I only know 25 letters of the alphabet. I don't know y.",
-        }),
+        new(FontAwesomeIcon.Heart, L.About.ReminderTitle, Styling.AccentRose, L.About.Reminders),
+        new(FontAwesomeIcon.Lightbulb, L.About.FactsTitle, Styling.AccentAmberSoft, L.About.Facts),
+        new(FontAwesomeIcon.Star, L.About.QuotesTitle, Styling.AccentMintSoft, L.About.Quotes),
+        new(FontAwesomeIcon.GrinBeam, L.About.JokesTitle, Styling.AccentBlueSoft, L.About.Jokes),
     };
 
     private static readonly Dictionary<string, float> pillHover = new();
@@ -112,26 +56,11 @@ public sealed class AboutWindow : Window, IDisposable
 
     private long openTick = long.MinValue / 2;
 
-    public AboutWindow() : base($"{Name}: About###{WindowId}")
+    public void Draw(long shownTick)
     {
-        Size = new Vector2(540, 700);
-        SizeCondition = ImGuiCond.FirstUseEver;
-        SizeConstraints = new WindowSizeConstraints
-        {
-            MinimumSize = new Vector2(100, 100),
-            MaximumSize = new Vector2(float.MaxValue, float.MaxValue),
-        };
-    }
+        openTick = shownTick;
 
-    public void Dispose() { }
-
-    public override void OnOpen() => openTick = Environment.TickCount64;
-
-    public override void Draw()
-    {
-        using var style = Styling.PushWindowStyle();
-
-        using (ImRaii.PushStyle(ImGuiStyleVar.Alpha, MathF.Max(0.0001f, Reveal(0))))
+        using (ImRaii.PushStyle(ImGuiStyleVar.Alpha, MathF.Max(0.0001f, Reveal(0) * ImGui.GetStyle().Alpha)))
             AmbientBackground();
 
         RevealSection(0, () =>
@@ -146,7 +75,7 @@ public sealed class AboutWindow : Window, IDisposable
         });
         RevealSection(2, () =>
         {
-            SectionHeader(FontAwesomeIcon.Link, "Connect", Styling.AccentBlue);
+            SectionHeader(FontAwesomeIcon.Link, Loc.T(L.About.Connect), Styling.AccentBlue);
             Styling.VSpace(6);
             DrawConnect();
             Styling.VSpace(16);
@@ -160,7 +89,7 @@ public sealed class AboutWindow : Window, IDisposable
         const float stagger = 95f;
         var elapsed = Environment.TickCount64 - openTick;
         var x = (elapsed - index * stagger) / dur;
-        return Smooth01(Math.Clamp((float)x, 0f, 1f));
+        return Motion.Smoothstep(Math.Clamp((float)x, 0f, 1f));
     }
 
     private void RevealSection(int index, Action draw)
@@ -168,7 +97,7 @@ public sealed class AboutWindow : Window, IDisposable
         var a = Reveal(index);
         if (a < 1f)
             ImGui.SetCursorPosY(ImGui.GetCursorPosY() + (1f - a) * 12f * ImGuiHelpers.GlobalScale);
-        using (ImRaii.PushStyle(ImGuiStyleVar.Alpha, MathF.Max(0.0001f, a)))
+        using (ImRaii.PushStyle(ImGuiStyleVar.Alpha, MathF.Max(0.0001f, a * ImGui.GetStyle().Alpha)))
             draw();
     }
 
@@ -183,11 +112,11 @@ public sealed class AboutWindow : Window, IDisposable
         var dl = ImGui.GetWindowDrawList();
         dl.PushClipRect(rmin, rmax, true);
 
-        SoftBlob(rmin + new Vector2(w * (0.26f + 0.12f * Wave(11000)), h * (0.20f + 0.10f * Wave(13700))),
+        SoftBlob(rmin + new Vector2(w * (0.26f + 0.12f * Motion.Wave(11000)), h * (0.20f + 0.10f * Motion.Wave(13700))),
             w * 0.55f, Styling.AccentViolet, 0.075f);
-        SoftBlob(rmin + new Vector2(w * (0.80f + 0.12f * Wave(15500)), h * (0.32f + 0.10f * Wave(9300))),
+        SoftBlob(rmin + new Vector2(w * (0.80f + 0.12f * Motion.Wave(15500)), h * (0.32f + 0.10f * Motion.Wave(9300))),
             w * 0.48f, Styling.AccentPink, 0.060f);
-        SoftBlob(rmin + new Vector2(w * (0.55f + 0.14f * Wave(17900)), h * (0.82f + 0.08f * Wave(12100))),
+        SoftBlob(rmin + new Vector2(w * (0.55f + 0.14f * Motion.Wave(17900)), h * (0.82f + 0.08f * Motion.Wave(12100))),
             w * 0.52f, Styling.AccentBlue, 0.050f);
 
         dl.PopClipRect();
@@ -216,7 +145,7 @@ public sealed class AboutWindow : Window, IDisposable
         const float ringR = 120f;
         var start = ImGui.GetCursorScreenPos();
         var availX = ImGui.GetContentRegionAvail().X;
-        var bob = Wave(3000) * 3f * s;
+        var bob = Motion.Wave(3000) * 3f * s;
         var center = new Vector2(start.X + availX * 0.5f, start.Y + ringR * s + bob);
 
         ProgressRing.Glow(center, ringR * s, Styling.AccentViolet, 0.55f + 0.5f * Styling.Pulse(Styling.PulseBreath));
@@ -230,17 +159,7 @@ public sealed class AboutWindow : Window, IDisposable
         var imax = new Vector2(center.X + half, center.Y + half);
 
         var rounding = iconSize * 0.20f * s;
-        var iconPath = Path.Combine(Svc.PluginInterface.AssemblyLocation.DirectoryName ?? "", "Images", IconFile);
-        if (File.Exists(iconPath))
-        {
-            var tex = Svc.Texture.GetFromFile(iconPath).GetWrapOrEmpty();
-            if (tex != null)
-            {
-                var alpha = 0.92f + 0.08f * Styling.Pulse(2200.0);
-                dl.AddImageRounded(tex.Handle, imin, imax, Vector2.Zero, Vector2.One,
-                    ImGui.GetColorU32(new Vector4(1f, 1f, 1f, alpha)), rounding, ImDrawFlags.RoundCornersAll);
-            }
-        }
+        AppIcon.Draw(dl, imin, imax, rounding, 0.92f + 0.08f * Styling.Pulse(2200.0));
         dl.AddRect(imin, imax, ImGui.GetColorU32(Styling.WithAlpha(Styling.AccentVioletSoft, 0.55f)),
             rounding, ImDrawFlags.RoundCornersAll, 1.5f * s);
 
@@ -250,11 +169,11 @@ public sealed class AboutWindow : Window, IDisposable
         ImGui.Dummy(new Vector2(availX, ringR * 2f * s));
 
         Styling.VSpace(10);
-        ShimmerCentered(Name, Styling.TextStrong, Styling.AccentVioletSoft, 1.85f, Styling.PulseOrbit, 0.42f);
+        ShimmerCentered(Name, Styling.TextStrong, Styling.AccentVioletSoft, Styling.PulseOrbit, 0.42f);
         Styling.VSpace(9);
 
-        var version = typeof(AboutWindow).Assembly.GetName().Version?.ToString() ?? "?";
-        CenteredPill($"v {version}", Styling.TextSecondary,
+        var version = typeof(AboutPage).Assembly.GetName().Version?.ToString() ?? "?";
+        CenteredPill(Loc.T(L.About.Version, version), Styling.TextSecondary,
             Styling.WithAlpha(Styling.AccentViolet, 0.45f), Styling.CardBgSoft);
     }
 
@@ -274,7 +193,7 @@ public sealed class AboutWindow : Window, IDisposable
 
     private static void IconEasterEgg(Vector2 min, Vector2 max, float s)
     {
-        if (!ImGui.IsMouseHoveringRect(min, max))
+        if (!Hit.HoveringRect(min, max))
         {
             iconHovered = false;
             return;
@@ -288,7 +207,7 @@ public sealed class AboutWindow : Window, IDisposable
         }
 
         var cat = Categories[Math.Max(0, factCat)];
-        var line = cat.Lines[factLine];
+        var line = Loc.T(cat.Lines[factLine]);
         ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
         using (ImRaii.Tooltip())
         {
@@ -298,7 +217,7 @@ public sealed class AboutWindow : Window, IDisposable
                 ImGui.TextUnformatted(cat.Icon.ToIconString());
             ImGui.SameLine(0, 6f * s);
             using (ImRaii.PushColor(ImGuiCol.Text, cat.Color))
-                ImGui.TextUnformatted(cat.Header);
+                ImGui.TextUnformatted(Loc.T(cat.Header));
             ImGui.Spacing();
             using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextSecondary))
                 ImGui.TextUnformatted(line);
@@ -306,7 +225,7 @@ public sealed class AboutWindow : Window, IDisposable
         }
     }
 
-    private readonly record struct FactCategory(FontAwesomeIcon Icon, string Header, Vector4 Color, string[] Lines);
+    private readonly record struct FactCategory(FontAwesomeIcon Icon, LocString Header, Vector4 Color, LocString[] Lines);
 
     private static int NextLineInCategory(int cat)
     {
@@ -347,8 +266,8 @@ public sealed class AboutWindow : Window, IDisposable
         var pulse = Styling.Pulse(Styling.PulseBreath);
         var accent = Styling.PulseColor(Styling.AccentPink, Styling.AccentViolet, 5200.0);
 
-        const string title = "Made with care";
-        const string body = "I build and maintain this in my spare time. If it has helped you, a Patreon membership lets me keep improving it. No pressure, and thank you for being here.";
+        var title = Loc.T(L.About.SupportTitle);
+        var body = Loc.T(L.About.SupportBody);
 
         var slotOrigin = ImGui.GetCursorScreenPos();
         var fullAvail = ImGui.GetContentRegionAvail().X;
@@ -361,7 +280,9 @@ public sealed class AboutWindow : Window, IDisposable
         var innerW = availX - pad * 2f;
         var lineH = ImGui.GetTextLineHeight();
         var spacing = ImGui.GetStyle().ItemSpacing.Y;
-        var titleH = lineH * 1.12f;
+        float titleH;
+        using (Fonts.PushHeadline())
+            titleH = ImGui.GetTextLineHeight();
 
         var bodyLines = WrapLines(body, innerW);
         var bodyBlockH = bodyLines.Count * lineH + MathF.Max(0, bodyLines.Count - 1) * spacing;
@@ -370,19 +291,20 @@ public sealed class AboutWindow : Window, IDisposable
         var end = new Vector2(origin.X + availX, origin.Y + height);
         var centerX = origin.X + availX * 0.5f;
 
-        dl.AddRectFilled(origin, end, ImGui.GetColorU32(Vector4.Lerp(Styling.CardBg, Styling.AccentPink, 0.07f)), Styling.CardRounding);
+        dl.AddRectFilled(origin, end, ImGui.GetColorU32(Vector4.Lerp(Styling.CardBg, Styling.AccentPink, 0.07f)), Styling.CardRounding * s);
         dl.AddRect(origin, end, ImGui.GetColorU32(Styling.WithAlpha(accent, 0.55f + 0.35f * pulse)),
-            Styling.CardRounding, ImDrawFlags.None, 1.5f);
+            Styling.CardRounding * s, ImDrawFlags.None, 1.5f);
 
         var beat = Heartbeat(1400.0);
         var medC = new Vector2(centerX, origin.Y + pad + medR);
         ProgressRing.Glow(medC, medR, accent, 0.4f + 0.7f * beat);
         dl.AddCircleFilled(medC, medR, ImGui.GetColorU32(Vector4.Lerp(Styling.CardBg, accent, 0.28f)));
         ProgressRing.Track(medC, medR, 1.5f * s, Styling.WithAlpha(accent, 0.85f));
-        ProgressRing.CenterIcon(medC, FontAwesomeIcon.Heart, Lighten(accent, 0.25f), medR * (0.80f + 0.22f * beat));
+        ProgressRing.CenterIcon(medC, FontAwesomeIcon.Heart, Styling.Lighten(accent, 0.25f), medR * (0.80f + 0.22f * beat));
 
         ImGui.SetCursorScreenPos(new Vector2(slotOrigin.X, origin.Y + pad + medR * 2f + 12f * s));
-        Styling.TextCentered(title, Styling.TextStrong, 1.12f);
+        using (Fonts.PushHeadline())
+            Styling.TextCentered(title, Styling.TextStrong);
         foreach (var ln in bodyLines)
             Styling.TextCentered(ln, Styling.TextSecondary);
 
@@ -420,10 +342,10 @@ public sealed class AboutWindow : Window, IDisposable
         var s = ImGuiHelpers.GlobalScale;
         var dl = ImGui.GetWindowDrawList();
         var end = origin + size;
-        var hover = ImGui.IsMouseHoveringRect(origin, end);
+        var hover = Hit.HoveringRect(origin, end);
         var rounding = size.Y * 0.5f;
 
-        var fill = (hover ? Lighten(accent, 0.16f) : accent) with { W = 1f };
+        var fill = (hover ? Styling.Lighten(accent, 0.16f) : accent) with { W = 1f };
 
         var glowPulse = 0.5f + 0.5f * Styling.Pulse(Styling.PulseBreath);
         for (var i = 3; i >= 1; i--)
@@ -441,7 +363,7 @@ public sealed class AboutWindow : Window, IDisposable
         dl.AddRect(origin, end, ImGui.GetColorU32(new Vector4(1f, 1f, 1f, hover ? 0.42f : 0.18f)),
             rounding, ImDrawFlags.None, 1f);
 
-        const string label = "Support on Patreon";
+        var label = Loc.T(L.About.SupportButton);
         var iconStr = FontAwesomeIcon.HandHoldingHeart.ToIconString();
         Vector2 iconSize;
         using (ImRaii.PushFont(UiBuilder.IconFont))
@@ -472,7 +394,7 @@ public sealed class AboutWindow : Window, IDisposable
         if (!hover) return;
         ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
         using (ImRaii.Tooltip())
-            ImGui.TextUnformatted("Open Patreon · right-click to copy");
+            ImGui.TextUnformatted(Loc.T(L.About.PatreonHint));
         if (ImGui.IsMouseClicked(ImGuiMouseButton.Left)) OpenUrl(PatreonUrl);
         else if (ImGui.IsMouseClicked(ImGuiMouseButton.Right)) ImGui.SetClipboardText(PatreonUrl);
     }
@@ -513,7 +435,7 @@ public sealed class AboutWindow : Window, IDisposable
 
         var widths = new float[Links.Length];
         for (var i = 0; i < Links.Length; i++)
-            widths[i] = PillWidth(Links[i].Icon, Links[i].Label);
+            widths[i] = PillWidth(Links[i].Icon, Loc.T(Links[i].Label));
 
         var rows = new List<List<int>>();
         var cur = new List<int>();
@@ -543,7 +465,7 @@ public sealed class AboutWindow : Window, IDisposable
                 if (j == 0) ImGui.SetCursorPosX(startX);
                 else ImGui.SameLine(0, gap);
                 var (icon, label, url, accentId) = Links[row[j]];
-                LinkPill(icon, label, url, accents[accentId % accents.Length], new Vector2(widths[row[j]], pillH));
+                LinkPill(icon, Loc.T(label), url, accents[accentId % accents.Length], new Vector2(widths[row[j]], pillH));
             }
         }
     }
@@ -562,7 +484,7 @@ public sealed class AboutWindow : Window, IDisposable
     {
         var s = ImGuiHelpers.GlobalScale;
         var slotOrigin = ImGui.GetCursorScreenPos();
-        var hovered = ImGui.IsMouseHoveringRect(slotOrigin, slotOrigin + size);
+        var hovered = Hit.HoveringRect(slotOrigin, slotOrigin + size);
 
         pillHover.TryGetValue(url, out var h);
         var dt = ImGui.GetIO().DeltaTime;
@@ -613,7 +535,7 @@ public sealed class AboutWindow : Window, IDisposable
         if (!hovered) return;
         ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
         using (ImRaii.Tooltip())
-            ImGui.TextUnformatted("Click to open · right-click to copy");
+            ImGui.TextUnformatted(Loc.T(L.About.LinkHint));
         if (ImGui.IsMouseClicked(ImGuiMouseButton.Left)) OpenUrl(url);
         else if (ImGui.IsMouseClicked(ImGuiMouseButton.Right)) ImGui.SetClipboardText(url);
     }
@@ -621,10 +543,9 @@ public sealed class AboutWindow : Window, IDisposable
     private static void DrawFooter()
     {
         var s = ImGuiHelpers.GlobalScale;
-        HairlineRule();
-        Styling.VSpace(5);
+        Paint.Divider(4f);
 
-        var madeBy = $"Made by {Author}";
+        var madeBy = Loc.T(L.About.MadeBy, Author);
         var glyph = FontAwesomeIcon.Code.ToIconString();
         var twinkle = Styling.Pulse(2600.0);
         Vector2 glyphSize;
@@ -635,7 +556,7 @@ public sealed class AboutWindow : Window, IDisposable
         Styling.CenterNextItem(total);
 
         using (ImRaii.PushFont(UiBuilder.IconFont))
-        using (ImRaii.PushColor(ImGuiCol.Text, Vector4.Lerp(Styling.AccentBlue, Lighten(Styling.AccentBlueSoft, 0.3f), twinkle)))
+        using (ImRaii.PushColor(ImGuiCol.Text, Vector4.Lerp(Styling.AccentBlue, Styling.Lighten(Styling.AccentBlueSoft, 0.3f), twinkle)))
             ImGui.TextUnformatted(glyph);
         ImGui.SameLine(0, gap);
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
@@ -646,11 +567,13 @@ public sealed class AboutWindow : Window, IDisposable
     {
         var s = ImGuiHelpers.GlobalScale;
         var iconStr = icon.ToIconString();
-        var labelUp = label.ToUpperInvariant();
+        var labelUp = TextDraw.Upper(label);
         Vector2 iconSize;
         using (ImRaii.PushFont(UiBuilder.IconFont))
             iconSize = ImGui.CalcTextSize(iconStr);
-        var labelSize = ImGui.CalcTextSize(labelUp);
+        Vector2 labelSize;
+        using (Fonts.PushCaption())
+            labelSize = ImGui.CalcTextSize(labelUp);
 
         var iconGap = 8f * s;
         var sidePad = 12f * s;
@@ -663,14 +586,9 @@ public sealed class AboutWindow : Window, IDisposable
         var contentStartX = startScreen.X + MathF.Max(0f, (avail - contentW) * 0.5f);
         var lineY = startScreen.Y + iconSize.Y * 0.5f;
 
-        ImGui.SetCursorScreenPos(new Vector2(contentStartX, startScreen.Y));
-        using (ImRaii.PushFont(UiBuilder.IconFont))
-        using (ImRaii.PushColor(ImGuiCol.Text, accent))
-            ImGui.TextUnformatted(iconStr);
+        TextDraw.Icon(icon, new Vector2(contentStartX, startScreen.Y), accent);
         var labelX = contentStartX + iconSize.X + iconGap;
-        ImGui.SetCursorScreenPos(new Vector2(labelX, startScreen.Y + (iconSize.Y - labelSize.Y) * 0.5f));
-        using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
-            ImGui.TextUnformatted(labelUp);
+        TextDraw.SmallCaps(label, new Vector2(labelX, startScreen.Y + (iconSize.Y - labelSize.Y) * 0.5f), Styling.TextDim);
 
         RuleLine(leftX, contentStartX - sidePad, lineY, accent, brightAtStart: false);
         RuleLine(labelX + labelSize.X + sidePad, rightX, lineY, accent, brightAtStart: true);
@@ -700,10 +618,9 @@ public sealed class AboutWindow : Window, IDisposable
         }
     }
 
-    private static void ShimmerCentered(string text, Vector4 baseColor, Vector4 shimmerColor,
-        float fontScale, double periodMs, float bandFrac)
+    private static void ShimmerCentered(string text, Vector4 baseColor, Vector4 shimmerColor, double periodMs, float bandFrac)
     {
-        ImGui.SetWindowFontScale(fontScale);
+        using var font = Fonts.PushTitle();
         var size = ImGui.CalcTextSize(text);
         var avail = ImGui.GetContentRegionAvail().X;
         if (avail > size.X)
@@ -736,8 +653,6 @@ public sealed class AboutWindow : Window, IDisposable
         using (ImRaii.PushColor(ImGuiCol.Text, shimmerColor))
             ImGui.TextUnformatted(text);
         dl.PopClipRect();
-
-        ImGui.SetWindowFontScale(1f);
     }
 
     private static void CenteredPill(string text, Vector4 textColor, Vector4 borderColor, Vector4 bgColor)
@@ -764,20 +679,6 @@ public sealed class AboutWindow : Window, IDisposable
         ImGui.Dummy(new Vector2(w, h));
     }
 
-    private static void HairlineRule()
-    {
-        var dl = ImGui.GetWindowDrawList();
-        var p = ImGui.GetCursorScreenPos();
-        var w = ImGui.GetContentRegionAvail().X;
-        dl.AddLine(p, p + new Vector2(w, 0), ImGui.GetColorU32(Styling.Hairline), 1f);
-        ImGui.Dummy(new Vector2(w, 1f));
-    }
-
-    private static float Wave(double periodMs)
-        => MathF.Sin((float)(Environment.TickCount % periodMs / periodMs) * MathF.PI * 2f);
-
-    private static float Smooth01(float x) => x * x * (3f - 2f * x);
-
     private static float Heartbeat(double periodMs)
     {
         var p = Styling.Phase(periodMs);
@@ -790,9 +691,6 @@ public sealed class AboutWindow : Window, IDisposable
         if (d < -1f || d > 1f) return 0f;
         return 0.5f * (1f + MathF.Cos(d * MathF.PI));
     }
-
-    private static Vector4 Lighten(Vector4 c, float t)
-        => Vector4.Lerp(c, new Vector4(1f, 1f, 1f, 1f), t) with { W = c.W };
 
     private static void OpenUrl(string url)
         => UrlActions.OpenInBrowser(url, ex =>

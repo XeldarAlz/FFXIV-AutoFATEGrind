@@ -1,3 +1,4 @@
+using AutoFateGrind.Core.Localization;
 using AutoFateGrind.Windows.Components;
 
 namespace AutoFateGrind.Windows.Sections.Config;
@@ -6,22 +7,33 @@ internal static class GeneralSettings
 {
     public static void Draw(Configuration cfg)
     {
+        DrawLanguageGroup(cfg);
         DrawWindowGroup(cfg);
         DrawBehaviorGroup(cfg);
     }
 
+    private static void DrawLanguageGroup(Configuration cfg)
+    {
+        using var group = SettingsGroup.Begin(Loc.T(L.Settings.Language));
+
+        SettingsRow.Draw(Loc.T(L.Settings.Language),
+            Loc.T(L.Settings.LanguageHelp),
+            SettingsControls.RowComboWidth,
+            () => SettingsControls.DrawLanguageCombo(cfg));
+    }
+
     private static void DrawWindowGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin("Window");
+        using var group = SettingsGroup.Begin(Loc.T(L.Settings.GeneralWindow));
 
-        SettingsRow.Draw("Open on login",
-            "Pop the main window automatically the next time you log in.",
+        SettingsRow.Draw(Loc.T(L.Settings.OpenOnLogin),
+            Loc.T(L.Settings.OpenOnLoginHelp),
             SettingsControls.ToggleWidth,
             () => SettingsControls.DrawToggle(cfg, () => cfg.AutoShowOnLogin, v => cfg.AutoShowOnLogin = v, "##gen_autoshow"),
             SettingsRow.ToggleHeight);
 
-        SettingsRow.Draw("Live FATE tracker popout",
-            "Show the live FATE tracker as a small overlay window so you can keep it visible while the main window is closed.",
+        SettingsRow.Draw(Loc.T(L.Settings.LivePopout),
+            Loc.T(L.Settings.LivePopoutHelp),
             SettingsControls.ToggleWidth,
             () => SettingsControls.DrawToggle(cfg, () => cfg.ShowLivePopout, v =>
             {
@@ -33,22 +45,22 @@ internal static class GeneralSettings
 
     private static void DrawBehaviorGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin("Behavior");
+        using var group = SettingsGroup.Begin(Loc.T(L.Settings.GeneralBehavior));
 
-        SettingsRow.Draw("Swap zones when empty",
-            "When the current zone runs out of eligible FATEs, jump to the next zone in your priority order.",
+        SettingsRow.Draw(Loc.T(L.Settings.SwapZones),
+            Loc.T(L.Settings.SwapZonesHelp),
             SettingsControls.ToggleWidth,
             () => SettingsControls.DrawToggle(cfg, () => cfg.SwapZonesWhenEmpty, v => cfg.SwapZonesWhenEmpty = v, "##gen_swap"),
             SettingsRow.ToggleHeight);
 
-        SettingsRow.Draw("Auto-pause in content",
-            "Pause the run while you are inside a duty, trial, raid, or any other instanced content, then resume it once you are back outside. Your zones, goal, and session stats are kept, and paused time does not count toward a time-based goal.",
+        SettingsRow.Draw(Loc.T(L.Settings.AutoPause),
+            Loc.T(L.Settings.AutoPauseHelp),
             SettingsControls.ToggleWidth,
             () => SettingsControls.DrawToggle(cfg, () => cfg.AutoPauseInContent, v => cfg.AutoPauseInContent = v, "##gen_autopause"),
             SettingsRow.ToggleHeight);
 
-        SettingsRow.Draw("Auto-resume on fault",
-            "If the grind hits an unrecoverable error and stops, automatically restart it (up to 3 times in 5 minutes) instead of ending the run. Leave off if you want faults to surface.",
+        SettingsRow.Draw(Loc.T(L.Settings.AutoResume),
+            Loc.T(L.Settings.AutoResumeHelp),
             SettingsControls.ToggleWidth,
             () => SettingsControls.DrawToggle(cfg, () => cfg.AutoResumeOnFault, v => cfg.AutoResumeOnFault = v, "##gen_autoresume"),
             SettingsRow.ToggleHeight);

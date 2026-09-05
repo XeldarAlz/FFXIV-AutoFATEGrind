@@ -1,71 +1,73 @@
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility;
-using Dalamud.Interface.Utility.Raii;
 using System.Numerics;
 
 namespace AutoFateGrind.Windows.Components;
 
-// Full-width hero CTA shared by the idle START and running STOP buttons: a glyph + bold title on the left
-// and a right-aligned sublabel. When disabled it dims and swaps in a lock glyph + the blocking reason.
 internal static class HeroButton
 {
+    private const float Rounding = 14f;
+    private const float PadX = 20f;
+
     public static bool Draw(FontAwesomeIcon icon, string title, string? sublabel, Vector4 accent, bool enabled, string? disabledReason = null, float width = 0f)
     {
         var scale = ImGuiHelpers.GlobalScale;
         var height = Layout.HeroButtonHeight * scale;
         if (width <= 0f) width = ImGui.GetContentRegionAvail().X;
+        var size = new Vector2(width, height);
         var origin = ImGui.GetCursorScreenPos();
-        var end = origin + new Vector2(width, height);
+
+        ImGui.PushID((nint)(int)icon);
+        var hit = Hit.Area("##hero", size, enabled);
+        var hover = Motion.Hover(Motion.Key("##hero"), hit.Hovered);
+        var press = Motion.Approach(Motion.Key("##hero", 1), hit.Held ? 1f : 0f, 30f);
+        ImGui.PopID();
+
+        var lift = enabled ? (hover * 2f - press * 2f) * scale : 0f;
+        var min = origin - new Vector2(0f, lift);
+        var max = min + size;
+        var rounding = Rounding * scale;
         var dl = ImGui.GetWindowDrawList();
-        var hovered = enabled && ImGui.IsMouseHoveringRect(origin, end);
 
-        var accentSoft = Vector4.Lerp(accent, Vector4.One, 0.35f);
-        var bg = enabled
-            ? Vector4.Lerp(Styling.CardBg, accent, hovered ? 0.80f : 0.58f)
-            : Styling.CardBgSoft;
-        var border = enabled ? (hovered ? accentSoft : accent) : Styling.BorderDim;
+        if (enabled)
+        {
+            var pulse = 0.5f + 0.5f * Styling.Pulse(Styling.PulseBreath);
+            Paint.Glow(dl, min, max, rounding, accent, 0.35f + 0.35f * pulse + hover * 0.6f);
+            Paint.Shadow(dl, min, max, rounding, 8f * scale, 0.5f);
+            var top = Vector4.Lerp(Styling.Lighten(accent, 0.18f), Styling.Lighten(accent, 0.30f), hover);
+            var bottom = Vector4.Lerp(Styling.Darken(accent, 0.14f), accent, hover);
+            Paint.Gradient(dl, min, max, top, bottom, rounding);
+            Paint.TopLight(dl, min, max, rounding, 0.28f);
+            Paint.Stroke(dl, min, max, Styling.WithAlpha(Styling.Lighten(accent, 0.5f), 0.55f + hover * 0.3f), rounding);
+        }
+        else
+        {
+            Paint.Fill(dl, min, max, Styling.WithAlpha(Styling.Surface1, 0.8f), rounding);
+            Paint.Stroke(dl, min, max, Styling.WithAlpha(Styling.BorderDim, 0.7f), rounding);
+        }
 
-        dl.AddRectFilled(origin, end, ImGui.GetColorU32(bg), 8f);
-        dl.AddRect(origin, end, ImGui.GetColorU32(border), 8f, ImDrawFlags.None, enabled ? 1.6f : 1f);
+        var padX = PadX * scale;
+        var midY = min.Y + height * 0.5f;
+        var glyph = enabled ? icon : FontAwesomeIcon.Lock;
+        var textColor = enabled ? Styling.TextStrong : Styling.TextMuted;
 
-        var padX = 18f * scale;
-        var midY = origin.Y + height * 0.5f;
-        var glyph = (enabled ? icon : FontAwesomeIcon.Lock).ToIconString();
+        var iconSize = TextDraw.IconSize(glyph);
+        TextDraw.Icon(glyph, new Vector2(min.X + padX, midY - iconSize.Y * 0.5f), textColor);
+        using (Fonts.PushHeadline())
+        {
+            var titleSize = TextDraw.Measure(title);
+            TextDraw.At(title, new Vector2(min.X + padX + iconSize.X + 12f * scale, midY - titleSize.Y * 0.5f), textColor);
+        }
 
-        Vector2 iconSize;
-        using (ImRaii.PushFont(UiBuilder.IconFont))
-            iconSize = ImGui.CalcTextSize(glyph);
-        ImGui.SetCursorScreenPos(new Vector2(origin.X + padX, midY - iconSize.Y * 0.5f));
-        using (ImRaii.PushFont(UiBuilder.IconFont))
-        using (ImRaii.PushColor(ImGuiCol.Text, enabled ? accentSoft : Styling.TextMuted))
-            ImGui.TextUnformatted(glyph);
-
-        ImGui.SetWindowFontScale(1.2f);
-        var titleSize = ImGui.CalcTextSize(title);
-        ImGui.SetCursorScreenPos(new Vector2(origin.X + padX + iconSize.X + 12f * scale, midY - titleSize.Y * 0.5f));
-        using (ImRaii.PushColor(ImGuiCol.Text, enabled ? Styling.TextStrong : Styling.TextMuted))
-            ImGui.TextUnformatted(title);
-        ImGui.SetWindowFontScale(1f);
-
-        var sub = enabled ? sublabel : (disabledReason ?? sublabel);
+        var sub = enabled ? sublabel : disabledReason ?? sublabel;
         if (!string.IsNullOrEmpty(sub))
         {
-            var subSize = ImGui.CalcTextSize(sub);
-            ImGui.SetCursorScreenPos(new Vector2(end.X - padX - subSize.X, midY - subSize.Y * 0.5f));
-            using (ImRaii.PushColor(ImGuiCol.Text, enabled ? Styling.WithAlpha(Styling.TextStrong, 0.7f) : Styling.TextDim))
-                ImGui.TextUnformatted(sub);
+            var subSize = TextDraw.Measure(sub);
+            TextDraw.At(sub, new Vector2(max.X - padX - subSize.X, midY - subSize.Y * 0.5f),
+                enabled ? Styling.WithAlpha(Styling.TextStrong, 0.8f) : Styling.TextDim);
         }
 
-        ImGui.SetCursorScreenPos(origin);
-        ImGui.Dummy(new Vector2(width, height));
-
-        if (!enabled) return false;
-        if (hovered)
-        {
-            ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
-            if (ImGui.IsMouseClicked(ImGuiMouseButton.Left)) return true;
-        }
-        return false;
+        return hit.Clicked;
     }
 }

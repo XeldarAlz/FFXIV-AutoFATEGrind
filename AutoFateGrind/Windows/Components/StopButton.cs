@@ -1,11 +1,10 @@
+using AutoFateGrind.Core.Localization;
 using Dalamud.Interface;
 
 namespace AutoFateGrind.Windows.Components;
 
-// Running-flow hero: stop glyph + STOP + a right-aligned sublabel ("running · 18:42"). Mirrors StartButton
-// so the idle and running views read as one family — same shape, rose accent, always enabled.
 internal static class StopButton
 {
     public static bool Draw(string? sublabel, float width = 0f)
-        => HeroButton.Draw(FontAwesomeIcon.Stop, "STOP", sublabel, Styling.AccentRose, true, null, width);
+        => HeroButton.Draw(FontAwesomeIcon.Stop, Loc.T(L.Grind.Stop), sublabel, Styling.AccentRose, true, null, width);
 }

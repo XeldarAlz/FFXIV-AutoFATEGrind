@@ -1,30 +1,29 @@
+using AutoFateGrind.Core.Localization;
 using AutoFateGrind.Core.Modes;
 using AutoFateGrind.Core.Tasks;
 using AutoFateGrind.Core.Trading;
 
 namespace AutoFateGrind.Windows.Sections;
 
-// Resolves the active stop-condition into the goal ring's display: a 0..1 fraction (null = no finish line),
-// the big/small center text, and a short remaining phrase shared by the hero card and the ELAPSED stat tile.
 internal static class GoalProgress
 {
     public readonly record struct Info(float? Fraction, string CenterBig, string CenterSmall, string Remaining, bool Endless);
 
-    public static Info Resolve(Configuration cfg, AutoFateSession? s)
+    public static Info Resolve(Configuration cfg, AutoFateSession? session)
     {
-        var completed = s?.CompletedCount ?? 0;
+        var completed = session?.CompletedCount ?? 0;
 
         switch (cfg.ActiveMode.Id)
         {
             case MaxGemstonesMode.ModeId:
             {
-                var have = s?.GemstoneCurrent ?? GemstoneCatalog.CurrentWalletCount();
+                var have = session?.GemstoneCurrent ?? GemstoneCatalog.CurrentWalletCount();
                 var target = Math.Max(1, cfg.TargetGemstoneCount);
                 var left = Math.Max(0, target - have);
                 return new Info(
                     Math.Clamp(have / (float)target, 0f, 1f),
-                    have.ToString(), $"/ {target}",
-                    left > 0 ? $"{left} gems to go" : "target reached", false);
+                    have.ToString(Loc.Culture), Loc.T(L.Run.GoalOf, target),
+                    left > 0 ? Loc.T(L.Run.GemsToGo, left) : Loc.T(L.Run.TargetReached), false);
             }
             case RunCountMode.ModeId:
             {
@@ -32,26 +31,26 @@ internal static class GoalProgress
                 var left = Math.Max(0, target - completed);
                 return new Info(
                     Math.Clamp(completed / (float)target, 0f, 1f),
-                    completed.ToString(), $"/ {target}",
-                    left > 0 ? $"{left} FATEs left" : "target reached", false);
+                    completed.ToString(Loc.Culture), Loc.T(L.Run.GoalOf, target),
+                    left > 0 ? Loc.T(L.Run.FatesLeft, left) : Loc.T(L.Run.TargetReached), false);
             }
             case TimeBoxedMode.ModeId:
             {
-                var targetMin = Math.Max(1, cfg.TargetMinutes);
-                var elapsed = s?.Elapsed ?? TimeSpan.Zero;
-                var remaining = TimeSpan.FromMinutes(targetMin) - elapsed;
-                var rem = remaining > TimeSpan.Zero
+                var targetMinutes = Math.Max(1, cfg.TargetMinutes);
+                var elapsed = session?.Elapsed ?? TimeSpan.Zero;
+                var remaining = TimeSpan.FromMinutes(targetMinutes) - elapsed;
+                var remainingText = remaining > TimeSpan.Zero
                     ? remaining.TotalHours >= 1
-                        ? $"{(int)remaining.TotalHours}h {remaining.Minutes:D2}m left"
-                        : $"{remaining.Minutes}m {remaining.Seconds:D2}s left"
-                    : "time reached";
+                        ? Loc.T(L.Run.HoursLeft, (int)remaining.TotalHours, remaining.Minutes)
+                        : Loc.T(L.Run.MinutesLeft, remaining.Minutes, remaining.Seconds)
+                    : Loc.T(L.Run.TimeReached);
                 return new Info(
-                    Math.Clamp((float)(elapsed.TotalMinutes / targetMin), 0f, 1f),
-                    $"{(int)elapsed.TotalMinutes}m", $"/ {targetMin}m",
-                    rem, false);
+                    Math.Clamp((float)(elapsed.TotalMinutes / targetMinutes), 0f, 1f),
+                    Loc.T(L.Run.GoalMinutes, (int)elapsed.TotalMinutes), Loc.T(L.Run.GoalOfMinutes, targetMinutes),
+                    remainingText, false);
             }
             default:
-                return new Info(null, completed.ToString(), "done", "until you stop", true);
+                return new Info(null, completed.ToString(Loc.Culture), Loc.T(L.Run.Done), Loc.T(L.Run.UntilYouStop), true);
         }
     }
 }

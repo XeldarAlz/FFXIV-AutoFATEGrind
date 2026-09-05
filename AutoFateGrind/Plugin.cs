@@ -1,9 +1,11 @@
 using AutoFateGrind.Core;
 using AutoFateGrind.Core.Debug;
 using AutoFateGrind.Core.Game.Watchers;
+using AutoFateGrind.Core.Localization;
 using AutoFateGrind.Core.Stats;
 using AutoFateGrind.Core.Tasks;
 using AutoFateGrind.Windows;
+using AutoFateGrind.Windows.Shell;
 using clib;
 using Dalamud.Game.Command;
 using Dalamud.IoC;
@@ -11,6 +13,9 @@ using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using ECommons;
+using ECommons.DalamudServices;
+using System.Globalization;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace AutoFateGrind;
@@ -32,11 +37,9 @@ public sealed class Plugin : IDalamudPlugin
     private readonly PartyInviteWatcher partyInviteWatcher;
     private readonly DutyWatcher dutyWatcher;
 
-    private readonly MainWindow mainWindow;
-    private readonly ConfigWindow configWindow;
-    private readonly AboutWindow aboutWindow;
-    private readonly DependenciesWindow dependenciesWindow;
-    private readonly RunHistoryWindow runHistoryWindow;
+    private readonly AppWindow appWindow;
+    private readonly CommandInfo primaryCommand;
+    private readonly CommandInfo aliasCommand;
     internal LiveFateWindow LiveFateWindow { get; }
 
     private readonly EventHandler<UnobservedTaskExceptionEventArgs> unobservedTaskHandler;
@@ -60,28 +63,18 @@ public sealed class Plugin : IDalamudPlugin
         partyInviteWatcher = new PartyInviteWatcher();
         dutyWatcher = new DutyWatcher();
 
-        mainWindow = new MainWindow(this);
-        configWindow = new ConfigWindow(this);
-        aboutWindow = new AboutWindow();
-        dependenciesWindow = new DependenciesWindow();
-        runHistoryWindow = new RunHistoryWindow();
+        InitializeLocalization();
+        Fonts.Initialize(PluginInterface.UiBuilder, PluginDirectory);
+        appWindow = new AppWindow(this);
         LiveFateWindow = new LiveFateWindow(this) { IsOpen = Configuration.ShowLivePopout };
 
-        WindowSystem.AddWindow(mainWindow);
-        WindowSystem.AddWindow(configWindow);
-        WindowSystem.AddWindow(aboutWindow);
-        WindowSystem.AddWindow(dependenciesWindow);
-        WindowSystem.AddWindow(runHistoryWindow);
+        WindowSystem.AddWindow(appWindow);
         WindowSystem.AddWindow(LiveFateWindow);
 
-        CommandManager.AddHandler(AfgConstants.PrimaryCommand, new CommandInfo(OnCommand)
-        {
-            HelpMessage = "Toggle the Auto FATE Grind window. /afg config | stats | deps | about | pause (pause or resume the run) | target (dump current target's BaseId)."
-        });
-        CommandManager.AddHandler(AfgConstants.AliasCommand, new CommandInfo(OnCommand)
-        {
-            HelpMessage = "Alias for /afg."
-        });
+        primaryCommand = new CommandInfo(OnCommand) { HelpMessage = Loc.T(L.Plugin.CommandHelp) };
+        aliasCommand = new CommandInfo(OnCommand) { HelpMessage = Loc.T(L.Plugin.CommandHelpAlias) };
+        CommandManager.AddHandler(AfgConstants.PrimaryCommand, primaryCommand);
+        CommandManager.AddHandler(AfgConstants.AliasCommand, aliasCommand);
 
         PluginInterface.UiBuilder.Draw += WindowSystem.Draw;
         PluginInterface.UiBuilder.OpenConfigUi += ToggleConfigUi;
@@ -111,12 +104,9 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.OpenMainUi -= ToggleMainUi;
 
         WindowSystem.RemoveAllWindows();
-        mainWindow.Dispose();
-        configWindow.Dispose();
-        aboutWindow.Dispose();
-        dependenciesWindow.Dispose();
-        runHistoryWindow.Dispose();
+        appWindow.Dispose();
         LiveFateWindow.Dispose();
+        Fonts.Dispose();
 
         CommandManager.RemoveHandler(AfgConstants.PrimaryCommand);
         CommandManager.RemoveHandler(AfgConstants.AliasCommand);
@@ -148,9 +138,45 @@ public sealed class Plugin : IDalamudPlugin
             ToggleMainUi();
     }
 
-    public void ToggleMainUi() => mainWindow.Toggle();
-    public void ToggleConfigUi() => configWindow.Toggle();
-    public void ToggleAboutUi() => aboutWindow.Toggle();
-    public void ToggleDependenciesUi() => dependenciesWindow.Toggle();
-    public void ToggleHistoryUi() => runHistoryWindow.Toggle();
+    public void OnLanguageChanged()
+    {
+        primaryCommand.HelpMessage = Loc.T(L.Plugin.CommandHelp);
+        aliasCommand.HelpMessage = Loc.T(L.Plugin.CommandHelpAlias);
+    }
+
+    private static string PluginDirectory => PluginInterface.AssemblyLocation.DirectoryName ?? string.Empty;
+
+    private static void InitializeLocalization()
+    {
+        var directory = Path.Combine(PluginDirectory, "Localization");
+        if (string.IsNullOrEmpty(Cfg.Language))
+        {
+            Cfg.Language = DetectLanguage();
+            Cfg.Save();
+        }
+
+        Loc.Initialize(Cfg.Language, directory);
+    }
+
+    private static string DetectLanguage()
+    {
+        var dalamudLanguage = PluginInterface.UiLanguage;
+        if (Languages.IsKnown(dalamudLanguage)) return Languages.Resolve(dalamudLanguage).Code;
+
+        switch (Svc.ClientState.ClientLanguage)
+        {
+            case Dalamud.Game.ClientLanguage.German: return Languages.German.Code;
+            case Dalamud.Game.ClientLanguage.French: return Languages.French.Code;
+            case Dalamud.Game.ClientLanguage.Japanese: return Languages.Japanese.Code;
+        }
+
+        var osLanguage = CultureInfo.InstalledUICulture.TwoLetterISOLanguageName;
+        return Languages.IsKnown(osLanguage) ? Languages.Resolve(osLanguage).Code : Languages.English.Code;
+    }
+
+    public void ToggleMainUi() => appWindow.Toggle();
+    public void ToggleConfigUi() => appWindow.TogglePage(AppWindow.Page.Settings);
+    public void ToggleAboutUi() => appWindow.TogglePage(AppWindow.Page.About);
+    public void ToggleDependenciesUi() => appWindow.TogglePage(AppWindow.Page.Plugins);
+    public void ToggleHistoryUi() => appWindow.TogglePage(AppWindow.Page.History);
 }
