@@ -97,7 +97,7 @@ internal static class ClassSettings
 
         classPickerSelection = Math.Clamp(classPickerSelection, 0, gearsets.Count - 1);
 
-        SettingsControls.DrawPlainCombo("##cls_picker", ref classPickerSelection, labels, 360f);
+        SettingsControls.DrawSearchableCombo("##cls_picker", labels, ref classPickerSelection, 360f);
 
         var picked = gearsets[classPickerSelection];
         var duplicate = alreadyQueued.Contains(picked.UserIndex);

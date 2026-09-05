@@ -17,6 +17,7 @@
   "common.dragAdjustHint": "Arraste para ajustar · Ctrl+clique para digitar",
   "common.preview": "Testar",
   "common.test": "Teste",
+  "common.noMatches": "Nada corresponde a “{0}”.",
   "shell.nav.grind": "Farm",
   "shell.nav.settings": "Configurações",
   "shell.nav.history": "Histórico",

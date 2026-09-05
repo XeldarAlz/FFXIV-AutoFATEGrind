@@ -17,6 +17,7 @@
   "common.dragAdjustHint": "拖动调整 · Ctrl+点击输入",
   "common.preview": "试听",
   "common.test": "测试",
+  "common.noMatches": "没有匹配“{0}”的项。",
   "shell.nav.grind": "刷取",
   "shell.nav.settings": "设置",
   "shell.nav.history": "历史",

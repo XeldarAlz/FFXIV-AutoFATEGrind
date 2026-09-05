@@ -22,6 +22,7 @@ internal static class L
         public static readonly LocString DragAdjustHint = new("common.dragAdjustHint", "Drag to adjust · Ctrl+click to type");
         public static readonly LocString Preview = new("common.preview", "Preview");
         public static readonly LocString Test = new("common.test", "Test");
+        public static readonly LocString NoMatches = new("common.noMatches", "Nothing matches “{0}”.");
     }
 
     internal static class Shell

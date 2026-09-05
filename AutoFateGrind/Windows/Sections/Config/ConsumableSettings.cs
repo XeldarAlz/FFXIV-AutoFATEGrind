@@ -82,7 +82,7 @@ internal static class ConsumableSettings
         }).ToArray();
 
         consumablePickerSelection = Math.Clamp(consumablePickerSelection, 0, catalog.Length - 1);
-        SettingsControls.DrawPlainCombo("##con_picker", ref consumablePickerSelection, labels, 340f);
+        SettingsControls.DrawSearchableCombo("##con_picker", labels, ref consumablePickerSelection, 340f);
 
         var picked = catalog[consumablePickerSelection];
         var duplicate = queued.Contains(picked.ItemId);

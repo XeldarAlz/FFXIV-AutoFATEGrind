@@ -17,6 +17,7 @@
   "common.dragAdjustHint": "Ziehen zum Anpassen · Strg+Klick zum Eingeben",
   "common.preview": "Vorschau",
   "common.test": "Test",
+  "common.noMatches": "Nichts passt zu „{0}“.",
   "shell.nav.grind": "Grind",
   "shell.nav.settings": "Einstellungen",
   "shell.nav.history": "Verlauf",

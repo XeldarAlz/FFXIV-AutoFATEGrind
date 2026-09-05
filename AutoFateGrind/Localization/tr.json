@@ -17,6 +17,7 @@
   "common.dragAdjustHint": "Ayarlamak için sürükle · yazmak için Ctrl+tık",
   "common.preview": "Dene",
   "common.test": "Test",
+  "common.noMatches": "“{0}” ile eşleşen bir şey yok.",
   "shell.nav.grind": "Farm",
   "shell.nav.settings": "Ayarlar",
   "shell.nav.history": "Geçmiş",

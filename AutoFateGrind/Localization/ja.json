@@ -17,6 +17,7 @@
   "common.dragAdjustHint": "ドラッグで調整 · Ctrl+クリックで入力",
   "common.preview": "試聴",
   "common.test": "テスト",
+  "common.noMatches": "「{0}」に一致するものはありません。",
   "shell.nav.grind": "周回",
   "shell.nav.settings": "設定",
   "shell.nav.history": "履歴",

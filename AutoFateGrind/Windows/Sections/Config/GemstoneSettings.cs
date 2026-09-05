@@ -90,7 +90,7 @@ internal static class GemstoneSettings
                     selectedIndex = 0;
                 }
 
-                if (SettingsControls.DrawSearchableCombo("##tr_item", sortedLabels![selectedIndex], sortedLabels, ref selectedIndex, 380f))
+                if (SettingsControls.DrawSearchableCombo("##tr_item", sortedLabels!, ref selectedIndex, 380f))
                 {
                     cfg.TargetTradeItemId = sortedItems[selectedIndex].ItemId;
                     cfg.SaveDebounced();

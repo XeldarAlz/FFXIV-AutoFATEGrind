@@ -17,6 +17,7 @@
   "common.dragAdjustHint": "Drag to adjust · Ctrl+click to type",
   "common.preview": "Preview",
   "common.test": "Test",
+  "common.noMatches": "Nothing matches “{0}”.",
   "shell.nav.grind": "Grind",
   "shell.nav.settings": "Settings",
   "shell.nav.history": "History",

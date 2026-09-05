@@ -82,8 +82,7 @@ internal static class FilterSettings
 
         blacklistAddSelection = Math.Clamp(blacklistAddSelection, 0, catalog.Length - 1);
         var labels = FateCatalog.Labels;
-        SettingsControls.DrawSearchableCombo("##bl_pick", labels[blacklistAddSelection], labels,
-            ref blacklistAddSelection, 380f);
+        SettingsControls.DrawSearchableCombo("##bl_pick", labels, ref blacklistAddSelection, 380f);
 
         ImGui.SameLine();
         using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentMint))

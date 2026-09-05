@@ -17,10 +17,7 @@ internal static class SettingsControls
     private const float RangeDashSlot = 14f;
     private const float RangeDragSpeed = 0.25f;
 
-    private const float SearchComboMaxHeight = 360f;
-    private const int SearchComboFilterMaxLength = 64;
-
-    private static readonly Dictionary<string, string> searchComboFilters = new();
+    private static readonly string[] languageLabels = BuildLanguageLabels();
 
     public static float RangeInlineWidth()
         => RangeDragWidth * 2f + RangeDashSlot;
@@ -51,28 +48,33 @@ internal static class SettingsControls
     }
 
     public static bool DrawPlainCombo(string id, ref int index, string[] labels, float width)
-    {
-        ImGui.SetNextItemWidth(width * ImGuiHelpers.GlobalScale);
-        using (PushFrameColors())
-        {
-            return ImGui.Combo(id, ref index, labels, labels.Length);
-        }
-    }
+        => Dropdown.Draw(id, labels, ref index, width);
 
     public static void DrawLanguageCombo(Configuration cfg, float width = RowComboWidth)
     {
-        ImGui.SetNextItemWidth(width * ImGuiHelpers.GlobalScale);
-        using var frameColors = PushFrameColors();
-        using var combo = ImRaii.Combo("##afg_language", Loc.Current.NativeName);
-        if (!combo) return;
-
         var languages = Languages.All;
+        var selected = 0;
         for (var index = 0; index < languages.Length; index++)
         {
-            var language = languages[index];
-            var selected = ReferenceEquals(language, Loc.Current);
-            if (ImGui.Selectable(language.NativeName, selected) && !selected) ApplyLanguage(cfg, language.Code);
+            if (ReferenceEquals(languages[index], Loc.Current)) selected = index;
         }
+
+        if (Dropdown.Draw("##afg_language", languageLabels, ref selected, width))
+        {
+            ApplyLanguage(cfg, languages[selected].Code);
+        }
+    }
+
+    private static string[] BuildLanguageLabels()
+    {
+        var languages = Languages.All;
+        var labels = new string[languages.Length];
+        for (var index = 0; index < languages.Length; index++)
+        {
+            labels[index] = languages[index].NativeName;
+        }
+
+        return labels;
     }
 
     private static void ApplyLanguage(Configuration cfg, string code)
@@ -84,54 +86,9 @@ internal static class SettingsControls
         Plugin.Instance.OnLanguageChanged();
     }
 
-    public static bool DrawSearchableCombo(string id, string preview, string[] labels, ref int selectedIndex,
+    public static bool DrawSearchableCombo(string id, string[] labels, ref int selectedIndex,
         float width, string? hint = null)
-    {
-        var scale = ImGuiHelpers.GlobalScale;
-        ImGui.SetNextItemWidth(width * scale);
-        ImGui.SetNextWindowSizeConstraints(
-            new Vector2(width * scale, 0f),
-            new Vector2(width * scale, SearchComboMaxHeight * scale));
-
-        using var frameColors = PushFrameColors();
-        using var combo = ImRaii.Combo(id, preview);
-        if (!combo)
-        {
-            return false;
-        }
-
-        if (!searchComboFilters.TryGetValue(id, out var filter))
-        {
-            filter = string.Empty;
-        }
-
-        if (ImGui.IsWindowAppearing())
-        {
-            filter = string.Empty;
-            ImGui.SetKeyboardFocusHere(0);
-        }
-
-        ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X);
-        ImGui.InputTextWithHint($"{id}_search", hint ?? Loc.T(L.Settings.SearchHint), ref filter, SearchComboFilterMaxLength);
-        searchComboFilters[id] = filter;
-
-        var changed = false;
-        for (var labelIndex = 0; labelIndex < labels.Length; labelIndex++)
-        {
-            if (filter.Length > 0 && labels[labelIndex].IndexOf(filter, StringComparison.OrdinalIgnoreCase) < 0)
-            {
-                continue;
-            }
-
-            if (ImGui.Selectable(labels[labelIndex], labelIndex == selectedIndex))
-            {
-                selectedIndex = labelIndex;
-                changed = true;
-            }
-        }
-
-        return changed;
-    }
+        => Dropdown.Draw(id, labels, ref selectedIndex, width, width, true, hint);
 
     public static void DrawRangeInline(Configuration cfg, string minId, string maxId,
         Func<int> getMin, Action<int> setMin, Func<int> getMax, Action<int> setMax,
@@ -192,60 +149,39 @@ internal static class SettingsControls
     {
         public readonly record struct Choice(LocString Name, LocString Detail);
 
-        private const float PopupWidth = 320f;
-        private const float ItemPaddingX = 6f;
-        private const float ItemPaddingY = 5f;
-        private const float NameDetailGap = 2f;
+        private const float PanelWidth = 320f;
+
+        private static string[] names = [];
+        private static string[] details = [];
 
         public static void DrawCombo(string id, Choice[] options, int selected, Action<int> onSelect,
             float width = RowComboWidth)
         {
-            var scale = ImGuiHelpers.GlobalScale;
-            ImGui.SetNextItemWidth(width * scale);
-            ImGui.SetNextWindowSizeConstraints(new Vector2(PopupWidth * scale, 0f), new Vector2(PopupWidth * scale, 600f * scale));
+            Resolve(options);
 
-            using var frameColors = PushFrameColors();
-            using var combo = ImRaii.Combo(id, Loc.T(options[selected].Name));
-            if (!combo)
+            var picked = selected;
+            if (Dropdown.DrawDetailed(id, names.AsSpan(0, options.Length), details.AsSpan(0, options.Length),
+                ref picked, width, PanelWidth))
             {
-                return;
-            }
-
-            for (var optionIndex = 0; optionIndex < options.Length; optionIndex++)
-            {
-                if (DrawItem(id, options[optionIndex], optionIndex, optionIndex == selected))
-                {
-                    onSelect(optionIndex);
-                }
+                onSelect(picked);
             }
         }
 
-        private static bool DrawItem(string comboId, Choice option, int optionIndex, bool selected)
+        // The catalog hands back cached strings, so refilling shared buffers keeps the per frame
+        // translation of a choice list allocation free.
+        private static void Resolve(Choice[] options)
         {
-            var scale = ImGuiHelpers.GlobalScale;
-            var paddingX = ItemPaddingX * scale;
-            var paddingY = ItemPaddingY * scale;
-            var nameDetailGap = NameDetailGap * scale;
-            var lineHeight = ImGui.GetTextLineHeight();
-            var wrapWidth = ImGui.GetContentRegionAvail().X - paddingX * 2f;
-            var name = Loc.T(option.Name);
-            var detail = Loc.T(option.Detail);
+            if (names.Length < options.Length)
+            {
+                names = new string[options.Length];
+                details = new string[options.Length];
+            }
 
-            var detailSize = ImGui.CalcTextSize(detail, false, wrapWidth);
-            var itemHeight = paddingY * 2f + lineHeight + nameDetailGap + detailSize.Y;
-
-            var itemOrigin = ImGui.GetCursorScreenPos();
-            var clicked = ImGui.Selectable($"##{comboId}_opt{optionIndex}", selected,
-                ImGuiSelectableFlags.None, new Vector2(0f, itemHeight));
-
-            var drawList = ImGui.GetWindowDrawList();
-            var nameColor = selected ? Styling.AccentVioletSoft : Styling.TextStrong;
-            drawList.AddText(itemOrigin + new Vector2(paddingX, paddingY), ImGui.GetColorU32(nameColor), name);
-            drawList.AddText(ImGui.GetFont(), ImGui.GetFontSize(),
-                itemOrigin + new Vector2(paddingX, paddingY + lineHeight + nameDetailGap),
-                ImGui.GetColorU32(Styling.TextMuted), detail, wrapWidth);
-
-            return clicked;
+            for (var index = 0; index < options.Length; index++)
+            {
+                names[index] = Loc.T(options[index].Name);
+                details[index] = Loc.T(options[index].Detail);
+            }
         }
     }
 }

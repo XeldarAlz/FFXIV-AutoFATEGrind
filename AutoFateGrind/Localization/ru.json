@@ -17,6 +17,7 @@
   "common.dragAdjustHint": "Тяните для настройки · Ctrl+клик для ввода",
   "common.preview": "Прослушать",
   "common.test": "Проверка",
+  "common.noMatches": "Ничего не подходит под «{0}».",
   "shell.nav.grind": "Фарм",
   "shell.nav.settings": "Настройки",
   "shell.nav.history": "История",
