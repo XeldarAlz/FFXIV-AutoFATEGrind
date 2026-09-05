@@ -79,6 +79,9 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.Draw += WindowSystem.Draw;
         PluginInterface.UiBuilder.OpenConfigUi += ToggleConfigUi;
         PluginInterface.UiBuilder.OpenMainUi += ToggleMainUi;
+
+        Svc.ClientState.Login += OnLogin;
+        if (Svc.ClientState.IsLoggedIn) OnLogin();
     }
 
     // vnavmesh/BossMod run their obstacle-map and pathfind IPC on fire-and-forget Tasks we never get a
@@ -102,6 +105,7 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.Draw -= WindowSystem.Draw;
         PluginInterface.UiBuilder.OpenConfigUi -= ToggleConfigUi;
         PluginInterface.UiBuilder.OpenMainUi -= ToggleMainUi;
+        Svc.ClientState.Login -= OnLogin;
 
         WindowSystem.RemoveAllWindows();
         appWindow.Dispose();
@@ -172,6 +176,12 @@ public sealed class Plugin : IDalamudPlugin
 
         var osLanguage = CultureInfo.InstalledUICulture.TwoLetterISOLanguageName;
         return Languages.IsKnown(osLanguage) ? Languages.Resolve(osLanguage).Code : Languages.English.Code;
+    }
+
+    private void OnLogin()
+    {
+        if (!Configuration.AutoShowOnLogin) return;
+        appWindow.Show(AppWindow.Page.Grind);
     }
 
     public void ToggleMainUi() => appWindow.Toggle();
