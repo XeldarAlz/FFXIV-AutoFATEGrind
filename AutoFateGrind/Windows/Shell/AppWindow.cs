@@ -16,11 +16,22 @@ public sealed class AppWindow : Window, IDisposable
     private const float CollapseMs = 280f;
     private const float GripSize = 12f;
     private const float GripInset = 4f;
+    private const float MinimumBodyHeight = 260f;
     private const ImGuiWindowFlags BaseFlags =
         ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse | ImGuiWindowFlags.NoCollapse;
 
     private static readonly Vector2 DefaultSize = new(1040, 780);
-    private static readonly Vector2 MinimumSize = new(HeaderBar.MinimumWidth, Layout.HeaderHeight);
+    private static readonly Vector2 Unbounded = new(float.MaxValue, float.MaxValue);
+    private static readonly WindowSizeConstraints CompactConstraints = new()
+    {
+        MinimumSize = new Vector2(HeaderBar.MinimumWidth, Layout.HeaderHeight),
+        MaximumSize = Unbounded,
+    };
+    private static readonly WindowSizeConstraints ExpandedConstraints = new()
+    {
+        MinimumSize = new Vector2(HeaderBar.MinimumWidth, Layout.HeaderHeight + Layout.DockHeight + MinimumBodyHeight),
+        MaximumSize = Unbounded,
+    };
 
     private readonly Plugin plugin;
     private readonly GrindPage grindPage = new();
@@ -38,7 +49,6 @@ public sealed class AppWindow : Window, IDisposable
     private float collapseFrom;
     private long collapseTick;
     private bool sizeDriven;
-    private bool settlePending;
     private Vector2 expandedSize = DefaultSize;
     private IDisposable? chrome;
     private IDisposable? bodyFont;
@@ -48,11 +58,7 @@ public sealed class AppWindow : Window, IDisposable
         this.plugin = plugin;
         Size = DefaultSize;
         SizeCondition = ImGuiCond.FirstUseEver;
-        SizeConstraints = new WindowSizeConstraints
-        {
-            MinimumSize = MinimumSize,
-            MaximumSize = new Vector2(float.MaxValue, float.MaxValue),
-        };
+        SizeConstraints = ExpandedConstraints;
     }
 
     public Page Current => page;
@@ -95,23 +101,23 @@ public sealed class AppWindow : Window, IDisposable
         chrome = Styling.PushChrome(Vector2.Zero);
         AdvanceCollapse();
 
+        var wasSizeDriven = sizeDriven;
         sizeDriven = compact || collapse > 0f;
+        Flags = sizeDriven ? BaseFlags | ImGuiWindowFlags.NoResize : BaseFlags;
+        SizeConstraints = sizeDriven ? CompactConstraints : ExpandedConstraints;
+
         if (sizeDriven)
         {
             var height = expandedSize.Y + (Layout.HeaderHeight - expandedSize.Y) * collapse;
             Size = new Vector2(expandedSize.X, height);
             SizeCondition = ImGuiCond.Always;
-            Flags = BaseFlags | ImGuiWindowFlags.NoResize;
-            settlePending = !compact;
             return;
         }
 
-        if (settlePending)
+        if (wasSizeDriven)
         {
             Size = expandedSize;
             SizeCondition = ImGuiCond.Always;
-            Flags = BaseFlags;
-            settlePending = false;
             return;
         }
 
@@ -164,7 +170,7 @@ public sealed class AppWindow : Window, IDisposable
             return;
         }
 
-        if (!sizeDriven && !settlePending) expandedSize = windowSize / scale;
+        if (!sizeDriven) expandedSize = windowSize / scale;
 
         Ambient.Draw(dl, windowPos, windowPos + windowSize);
         HeaderBar.Draw(this, plugin, windowPos, windowSize.X, headerHeight, windowRounding, compact: false);
