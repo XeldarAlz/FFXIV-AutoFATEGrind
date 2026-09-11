@@ -35,6 +35,7 @@ public sealed class Configuration : IPluginConfiguration
     public int TargetMinutes { get; set; } = 60;
 
     public string CombatPresetName { get; set; } = Core.AfgConstants.BundledCombatPresetName;
+    public int BundledCombatPresetRevision { get; set; } = 0;
 
     public int MinTimeRemainingSec { get; set; } = 120;
     public int MaxProgressPct { get; set; } = 90;

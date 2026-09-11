@@ -280,11 +280,23 @@ public sealed partial class AutoFate
         if (presetEnsured) return;
         if (preset != DefaultCombatPreset.Name) { presetEnsured = true; return; }
 
-        if (BossModIPC.Instance.GetPreset(preset) is null)
+        var cfg = Plugin.Cfg;
+        var missing = BossModIPC.Instance.GetPreset(preset) is null;
+        var stale = cfg.BundledCombatPresetRevision < DefaultCombatPreset.Revision;
+        if (missing || stale)
         {
-            Diag($"Default preset '{preset}' missing from BossMod, creating it.");
-            if (!BossModIPC.Instance.CreatePreset(DefaultCombatPreset.GetSerialized(), overwrite: false))
+            Diag(missing
+                ? $"Default preset '{preset}' missing from BossMod, creating it."
+                : $"Default preset '{preset}' is at revision {cfg.BundledCombatPresetRevision}, bundled is {DefaultCombatPreset.Revision}; overwriting it.");
+            if (BossModIPC.Instance.CreatePreset(DefaultCombatPreset.GetSerialized(), overwrite: true))
+            {
+                cfg.BundledCombatPresetRevision = DefaultCombatPreset.Revision;
+                cfg.Save();
+            }
+            else
+            {
                 Diag($"BossMod.Presets.Create returned false for '{preset}'.");
+            }
         }
         presetEnsured = true;
     }
