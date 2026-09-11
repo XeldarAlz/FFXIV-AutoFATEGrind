@@ -67,6 +67,16 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private const float RetargetNearArrivalLockMeters = 20f;
     private const int   TeleportWatchdogMs = 60_000;
     private const int   ActivateMoveWatchdogMs = 60_000;
+    private const int   ActivateApproachWatchdogMs = 20_000;
+    private const float ActivateApproachToleranceMeters = 2f;
+    private const int   NpcInteractAttempts = 3;
+    private const int   InteractReadyTimeoutMs = 10_000;
+    private const int   TargetSettleTimeoutMs = 500;
+    private const int   DialogOpenTimeoutMs = 2_500;
+    private const int   NpcDialogTimeoutMs = 30_000;
+    private const int   DialogClosedGraceMs = 2_000;
+    private const int   InteractRetryDelayMs = 1_000;
+    private const int   DialogDismissTimeoutMs = 3_000;
     private const int   NavmeshReadyWaitMs = 60_000;
     private const int   HeartbeatMs = 30_000;
     private const int   MaxConsecutiveStateErrors = 20;

@@ -180,61 +180,6 @@ public sealed partial class AutoFate
         return true;
     }
 
-    private async Task ActivateFate(PublicEvent fate)
-    {
-        Status = $"Activating {fate.Name}";
-        Diag($"FATE {fate.Id} in Preparation, walking to MotivationNpc {fate.MotivationNpcId:X}");
-
-        var npcDeadline = Environment.TickCount64 + NpcSpawnTimeoutMs;
-        while (Environment.TickCount64 < npcDeadline)
-        {
-            if (CancelToken.IsCancellationRequested) return;
-            // Re-resolve each frame: clib's getters NRE if the FATE despawns during the NPC-spawn wait.
-            if (PublicEvent.GetFateById(fate.Id) is not { } live) return;
-            fate = live;
-            if (fate.State == FateState.Running) return;
-            if (fate.MotivationNpc?.IsTargetable == true) break;
-            await NextFrame(30);
-        }
-
-        if (PublicEvent.GetFateById(fate.Id) is not { } refreshed) return;
-        fate = refreshed;
-        if (fate.State == FateState.Running) return;
-        var npc = fate.MotivationNpc;
-        if (npc is null || !npc.IsTargetable)
-        {
-            Diag($"NPC for FATE {fate.Id} never spawned within {NpcSpawnTimeoutMs/1000}s; blacklisting for session");
-            sessionStuckFateIds.Add(fate.Id);
-            return;
-        }
-
-        try
-        {
-            var activateLabel = $"Activating {fate.Name}";
-            var npcPos = npc.Position;
-            await WalkWithRetries(
-                () => new MoveOp(o => o.Move(zone.TerritoryId, npcPos,
-                    MovementConfig.InteractRange,
-                    allowTeleportIfFaster: false,
-                    stopCondition: () => { Status = activateLabel; return fate.State == FateState.Running; },
-                    allowAethernetWithinTerritory: false)),
-                ActivateMoveWatchdogMs, $"activate-move-{fate.Id}",
-                () => fate.State == FateState.Running || WithinReach(npcPos, InteractRangeMeters));
-
-            if (fate.State == FateState.Running) return;
-            if (Svc.Condition[ConditionFlag.Mounted]) await DismountViaOp($"dismount-activate-{fate.Id}");
-
-            var interact = new MoveOp(o => o.Interact(npc,
-                waitUntil: () => fate.State == FateState.Running,
-                skip: UiSkipOptions.Talk | UiSkipOptions.YesNo));
-            await RunCancellable(interact, NpcSpawnTimeoutMs, $"activate-interact-{fate.Id}");
-        }
-        catch (Exception ex)
-        {
-            Diag($"ActivateFate caught: {ex.Message}");
-        }
-    }
-
     // BossMod navigates around terrain only when an obstacle map is active; regenerate if we engaged
     // without one (death-teleport return, follow-up, or a FATE that popped on us).
     private async Task EnsureObstacleMapForEngage(PublicEvent fate)

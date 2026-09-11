@@ -2,12 +2,8 @@ using AutoFateGrind.Core.Game.Ops;
 using AutoFateGrind.Core.Game.Player;
 using clib.TaskSystem;
 using Dalamud.Game.ClientState.Conditions;
-using ECommons;
 using ECommons.DalamudServices;
-using ECommons.Throttlers;
-using ECommons.UIHelpers.AddonMasterImplementations;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
-using FFXIVClientStructs.FFXIV.Component.GUI;
 using System.Numerics;
 using System.Threading.Tasks;
 
@@ -98,7 +94,7 @@ public sealed class AutoReturnToInn : AutoCommon
             }
 
             // A dialog is up → drive it (SelectString -> Yes -> Talk). Throttled so we don't spam callbacks.
-            if (DriveInnDialogs()) { await DelayMs(DialogPollMs); continue; }
+            if (NpcInteraction.DriveDialog()) { await DelayMs(DialogPollMs); continue; }
 
             var npc = RepairOps.FindObjectByBaseId(inn.InnkeeperDataId);
             if (npc is null) { await DelayMs(DialogPollMs); continue; }
@@ -115,43 +111,11 @@ public sealed class AutoReturnToInn : AutoCommon
                 continue;
             }
 
-            var interact = new MoveOp(o => o.Interact(npc, waitUntil: AnyInnDialogOpen, skip: UiSkipOptions.Talk));
+            var interact = new MoveOp(o => o.Interact(npc, waitUntil: NpcInteraction.DialogAddonOpen, skip: UiSkipOptions.Talk));
             await RunCancellable(interact, InteractWatchdogMs, "inn-interact");
             if (interact.Fault is { } fault) Diag($"Innkeeper interaction failed: {fault.Message}; retrying");
             await DelayMs(InteractRetryMs);
         }
         Diag("Return to inn: timed out before entering the inn room.");
-    }
-
-    private static unsafe bool AnyInnDialogOpen()
-        => (GenericHelpers.TryGetAddonByName<AtkUnitBase>(AfgConstants.AddonNames.SelectString, out var selectString) && GenericHelpers.IsAddonReady(selectString))
-        || (GenericHelpers.TryGetAddonByName<AtkUnitBase>(AfgConstants.AddonNames.SelectYesno, out var yesno) && GenericHelpers.IsAddonReady(yesno))
-        || (GenericHelpers.TryGetAddonByName<AtkUnitBase>("Talk", out var talk) && GenericHelpers.IsAddonReady(talk));
-
-    // Returns true if a relevant dialog was present this tick, so the caller waits instead of re-interacting.
-    private static unsafe bool DriveInnDialogs()
-    {
-        if (GenericHelpers.TryGetAddonByName<AtkUnitBase>(AfgConstants.AddonNames.SelectString, out var ss) && GenericHelpers.IsAddonReady(ss))
-        {
-            if (EzThrottler.Throttle("AFG.InnSelectString", 600))
-            {
-                var m = new AddonMaster.SelectString((nint)ss);
-                if (m.EntryCount > 0) m.Entries[0].Select();   // first entry = retire to your private chambers
-            }
-            return true;
-        }
-        if (GenericHelpers.TryGetAddonByName<AtkUnitBase>(AfgConstants.AddonNames.SelectYesno, out var yn) && GenericHelpers.IsAddonReady(yn))
-        {
-            if (EzThrottler.Throttle("AFG.InnSelectYesno", 600))
-                new AddonMaster.SelectYesno((nint)yn).Yes();
-            return true;
-        }
-        if (GenericHelpers.TryGetAddonByName<AtkUnitBase>("Talk", out var tk) && GenericHelpers.IsAddonReady(tk))
-        {
-            if (EzThrottler.Throttle("AFG.InnTalk", 400))
-                new AddonMaster.Talk((nint)tk).Click();
-            return true;
-        }
-        return false;
     }
 }

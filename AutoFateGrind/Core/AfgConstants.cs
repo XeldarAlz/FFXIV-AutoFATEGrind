@@ -33,6 +33,9 @@ internal static class AfgConstants
         public const string ShopClickYesno = "AFG.ClickSelectYesno";
         public const string ShopBuyCurrency = "AFG.BuyFromCurrencyShop";
         public const string FoodUse = "AFG.Food.Use";
+        public const string NpcTalk = "AFG.Npc.Talk";
+        public const string NpcSelectYesno = "AFG.Npc.SelectYesno";
+        public const string NpcSelectString = "AFG.Npc.SelectString";
     }
 
     public const int SaveThrottleMs = 500;
@@ -43,6 +46,7 @@ internal static class AfgConstants
         public const string SelectYesno = "SelectYesno";
         public const string SelectIconString = "SelectIconString";
         public const string SelectString = "SelectString";
+        public const string Talk = "Talk";
         public const string Shop = "Shop";
         public const string ShopExchangeCurrency = "ShopExchangeCurrency";
         public const string Repair = "Repair";
