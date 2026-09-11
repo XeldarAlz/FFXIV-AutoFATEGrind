@@ -7,41 +7,69 @@ using CSGameObject = FFXIVClientStructs.FFXIV.Client.Game.Object.GameObject;
 
 namespace AutoFateGrind.Core.Game.Fates;
 
+internal readonly record struct FateMobSurvey(
+    int LiveCount,
+    Vector3 NearestPosition,
+    float NearestHitboxRadius,
+    float NearestDistanceToHitbox,
+    float NearestVerticalDelta)
+{
+    public bool Any => LiveCount > 0;
+
+    public static readonly FateMobSurvey Empty = new(0, default, 0f, float.MaxValue, 0f);
+}
+
 internal static unsafe class FateMobScanner
 {
-    // BossMod drops FATE mobs further than this from the player vertically (priority -2), so a mob past
-    // it is never something the rotation will approach; measuring reach against it only invents stalls.
-    private const float MaxVerticalDeltaMeters = 12f;
-
-    public static bool TryFindNearestMob(uint fateId, Vector3 from, out Vector3 position, out float hitboxRadius, out float distanceToHitbox)
+    public static FateMobSurvey Survey(uint fateId, Vector3 from)
     {
-        position = default;
-        hitboxRadius = 0f;
-        distanceToHitbox = float.MaxValue;
+        var liveCount = 0;
+        var nearestPosition = default(Vector3);
+        var nearestHitbox = 0f;
+        var nearestDistance = float.MaxValue;
+        var nearestVerticalDelta = 0f;
 
         var objects = Svc.Objects;
-        for (var index = 0; index < objects.Length; index++)
+        for (var objectIndex = 0; objectIndex < objects.Length; objectIndex++)
         {
-            if (objects[index] is not IBattleNpc npc) continue;
-            if (!IsLiveMobOfFate(npc, fateId)) continue;
-            if (MathF.Abs(npc.Position.Y - from.Y) > MaxVerticalDeltaMeters) continue;
+            if (objects[objectIndex] is not IBattleNpc npc)
+            {
+                continue;
+            }
+            if (!IsLiveMobOfFate(npc, fateId))
+            {
+                continue;
+            }
 
+            liveCount++;
             var candidate = DistanceToHitbox(from, npc);
-            if (candidate >= distanceToHitbox) continue;
+            if (candidate >= nearestDistance)
+            {
+                continue;
+            }
 
-            distanceToHitbox = candidate;
-            hitboxRadius = npc.HitboxRadius;
-            position = npc.Position;
+            nearestDistance = candidate;
+            nearestHitbox = npc.HitboxRadius;
+            nearestPosition = npc.Position;
+            nearestVerticalDelta = npc.Position.Y - from.Y;
         }
 
-        return distanceToHitbox < float.MaxValue;
+        return liveCount == 0
+            ? FateMobSurvey.Empty
+            : new FateMobSurvey(liveCount, nearestPosition, nearestHitbox, nearestDistance, nearestVerticalDelta);
     }
 
     public static bool TryGetTargetedMob(uint fateId, Vector3 from, out float distanceToHitbox)
     {
         distanceToHitbox = float.MaxValue;
-        if (Svc.Targets.Target is not IBattleNpc npc) return false;
-        if (!IsLiveMobOfFate(npc, fateId)) return false;
+        if (Svc.Targets.Target is not IBattleNpc npc)
+        {
+            return false;
+        }
+        if (!IsLiveMobOfFate(npc, fateId))
+        {
+            return false;
+        }
 
         distanceToHitbox = DistanceToHitbox(from, npc);
         return true;
@@ -49,11 +77,20 @@ internal static unsafe class FateMobScanner
 
     private static bool IsLiveMobOfFate(IBattleNpc npc, uint fateId)
     {
-        if (!npc.IsTargetable) return false;
-        if (npc.CurrentHp == 0) return false;
+        if (!npc.IsTargetable)
+        {
+            return false;
+        }
+        if (npc.CurrentHp == 0)
+        {
+            return false;
+        }
 
         var native = (CSGameObject*)npc.Address;
-        if (native->FateId != fateId) return false;
+        if (native->FateId != fateId)
+        {
+            return false;
+        }
         return native->BattleNpcSubKind == BattleNpcSubKind.Combatant;
     }
 

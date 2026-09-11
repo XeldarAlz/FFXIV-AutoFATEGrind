@@ -47,14 +47,20 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     // Reach and tolerances are measured from the mob's hitbox edge, not its centre.
     private const float EngageMeleeReachMeters  = 4f;
     private const float EngageRangedReachMeters = 25f;
-    private const float EngageApproachProgressMeters = 2f;
-    private const int   EngageReachStallMs = 10_000;
-    private const int   EngageRepositionWatchdogMs = 25_000;
+    // Idle = the character has not displaced while nothing in reach is being fought; BossMod never moves
+    // toward a mob outside its FATE-circle pathfind map, so AFG walks in with vnav after this long.
+    private const int   EngageIdleStallMs = 8_000;
+    private const int   EngageRepositionWatchdogMs = 40_000;
     private const float EngageMeleeApproachToleranceMeters  = 2.5f;
     private const float EngageRangedApproachToleranceMeters = 15f;
     private const int   MaxEngageRepositions = 3;
+    // With no live FATE mob loaded, walk to the ring centre from further out than this to load the rest.
+    private const float EngageCentreSeekMinMeters = 20f;
+    private const float EngageCentreSeekToleranceMeters = 10f;
     private const int   EngageCombatStallMs = 30_000;
     private const int   MaxCombatStallBounces = 3;
+    // Bails (60s stall or bounces exhausted) per FATE before it is abandoned instead of re-entered forever.
+    private const int   MaxEngageStallStrikes = 2;
     // Cap on fighting off a mob that aggroed mid-travel, so an unkillable add can't park the run.
     private const int   CombatClearTimeoutMs = 30_000;
     private const int   RaiseWaitMs = 30_000;
@@ -102,6 +108,8 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private long  waitForExpiryStartedAtMs;
     private long  zoneIdleSinceMs;
     private uint? abandonedFateId;
+    private uint? engageStallFateId;
+    private int   engageStallStrikes;
 
     private static readonly Random rng = new();
     private bool presetEnsured;

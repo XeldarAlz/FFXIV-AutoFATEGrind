@@ -158,7 +158,7 @@ public sealed partial class AutoFate
         // Only an entry that fought the fate while Running may book the completion — guards against
         // a re-entry during the lingering 100% frame double-counting.
         var sawRunning = false;
-        var reach = new EngageReachTracker(EngageReachMeters());
+        var idle = new EngageIdleTracker(EngageReachMeters());
 
         try
         {
@@ -182,21 +182,23 @@ public sealed partial class AutoFate
                 else if (Environment.TickCount64 - lastProgressAtMs > EngageStallTimeoutMs
                       && Environment.TickCount64 - lastInCombatAtMs > EngageOutOfCombatGraceMs)
                 {
-                    Diag($"EngageFate stalled: no progress in {EngageStallTimeoutMs/1000}s and out of combat {EngageOutOfCombatGraceMs/1000}s on FATE {fateId}; bailing");
+                    Diag($"EngageFate stalled: no progress in {EngageStallTimeoutMs/1000}s and out of combat {EngageOutOfCombatGraceMs/1000}s on FATE {fateId}; bailing ({DescribeEngageSituation(fateId, idle.Meters)})");
+                    RegisterEngageStall(fateId, fate.Name);
                     break;
                 }
                 else if (Environment.TickCount64 - lastProgressAtMs > EngageCombatStallMs
                       && Environment.TickCount64 - lastBounceAtMs > EngageCombatStallMs
-                      && !(Svc.Condition[ConditionFlag.InCombat] && HasTargetInReach(fateId, reach.Meters)))
+                      && !(Svc.Condition[ConditionFlag.InCombat] && HasTargetInReach(fateId, idle.Meters)))
                 {
                     lastBounceAtMs = Environment.TickCount64;
                     combatStallBounces++;
                     if (combatStallBounces > MaxCombatStallBounces)
                     {
-                        Diag($"FATE {fateId} still not progressing after {MaxCombatStallBounces} preset bounces; re-entering engagement from scratch");
+                        Diag($"FATE {fateId} still not progressing after {MaxCombatStallBounces} preset bounces ({DescribeEngageSituation(fateId, idle.Meters)})");
+                        RegisterEngageStall(fateId, fate.Name);
                         break;
                     }
-                    Diag($"No progress in {EngageCombatStallMs/1000}s on FATE {fateId} (combat={Svc.Condition[ConditionFlag.InCombat]}); bouncing combat preset ({combatStallBounces}/{MaxCombatStallBounces})");
+                    Diag($"No progress in {EngageCombatStallMs/1000}s on FATE {fateId}; bouncing combat preset ({combatStallBounces}/{MaxCombatStallBounces}; {DescribeEngageSituation(fateId, idle.Meters)})");
                     await BounceCombatPreset(preset);
                 }
 
@@ -219,7 +221,7 @@ public sealed partial class AutoFate
                     collectTextAdvanceArmed = true;
                 }
 
-                if (await TickEngagementWatchdog(fateId, fate, reach)) break;
+                if (await TickEngagementWatchdog(fateId, fate, idle)) break;
 
                 await NextFrame(30);
             }
@@ -234,6 +236,7 @@ public sealed partial class AutoFate
         var ended = sawRunning && (PublicEvent.GetFateById(fateId) is null || finalProgress >= 100);
         if (ended)
         {
+            ClearEngageStall(fateId);
             session.CompletedCount++;
             session.FatesSinceLastBreak++;
             zone.CompletedThisRun++;
@@ -298,39 +301,57 @@ public sealed partial class AutoFate
         AssertPresetActive(preset);
     }
 
-    private async Task<bool> TickEngagementWatchdog(uint fateId, PublicEvent fate, EngageReachTracker reach)
+    private async Task<bool> TickEngagementWatchdog(uint fateId, PublicEvent fate, EngageIdleTracker idle)
     {
-        if (fate.Rule == PublicEvent.FateRule.Collect) return false;
-        if (Svc.Condition[ConditionFlag.Mounted]) return false;
-        if (StuckDetector.IsPositionFrozenLegit()) return false;
-        if (Svc.Objects.LocalPlayer is not { } player) return false;
-
-        if (HasTargetInReach(fateId, reach.Meters))
+        if (fate.Rule == PublicEvent.FateRule.Collect)
         {
-            reach.MarkInReach();
+            return false;
+        }
+        if (Svc.Condition[ConditionFlag.Mounted])
+        {
+            return false;
+        }
+        if (StuckDetector.IsPositionFrozenLegit())
+        {
+            return false;
+        }
+        if (Svc.Objects.LocalPlayer is not { } player)
+        {
             return false;
         }
 
-        if (!FateMobScanner.TryFindNearestMob(fateId, player.Position, out var mobPos, out var mobHitbox, out var mobDistance))
+        if (Svc.Condition[ConditionFlag.InCombat] && HasTargetInReach(fateId, idle.Meters))
         {
-            reach.Restart();
+            idle.MarkInReach();
             return false;
         }
 
-        if (!reach.Stalled(mobDistance)) return false;
+        if (!idle.Stalled(player.Position))
+        {
+            return false;
+        }
 
         var fateName = fate.Name;
-
-        if (reach.Repositions >= MaxEngageRepositions)
+        var survey = FateMobScanner.Survey(fateId, player.Position);
+        if (!survey.Any)
         {
-            Diag($"FATE {fateId} ({fateName}) unreachable: still {mobDistance:F0}m from the nearest mob's hitbox after {MaxEngageRepositions} repositions; abandoning and blacklisting for this session");
-            abandonedFateId = fateId;
-            sessionStuckFateIds.Add(fateId);
+            if (await SeekFateCentre(fateId, fateName, fate.Position, player.Position))
+            {
+                Status = $"Engaging {fateName}";
+            }
+            idle.Restart();
+            return false;
+        }
+
+        if (idle.Repositions >= MaxEngageRepositions)
+        {
+            Diag($"FATE {fateId} ({fateName}) unreachable: still {survey.NearestDistanceToHitbox:F0}m from the nearest mob's hitbox after {MaxEngageRepositions} repositions; abandoning and blacklisting for this session ({DescribeEngageSituation(fateId, idle.Meters)})");
+            AbandonFate(fateId);
             return true;
         }
 
-        await RepositionToFateMob(fateId, fateName, mobPos, mobHitbox, mobDistance, reach);
-        reach.Restart();
+        await RepositionToFateMob(fateId, fateName, survey, idle);
+        idle.Restart();
         Status = $"Engaging {fateName}";
         return false;
     }
@@ -340,43 +361,149 @@ public sealed partial class AutoFate
         && FateMobScanner.TryGetTargetedMob(fateId, player.Position, out var distance)
         && distance <= reachMeters;
 
-    private async Task RepositionToFateMob(uint fateId, string fateName, Vector3 mobPos, float mobHitbox, float mobDistance, EngageReachTracker reach)
+    private async Task RepositionToFateMob(uint fateId, string fateName, FateMobSurvey survey, EngageIdleTracker idle)
     {
-        reach.CountReposition();
+        idle.CountReposition();
         Status = $"Closing on {fateName}";
-        Diag($"Engagement stalled on FATE {fateId} ({fateName}): nearest mob {mobDistance:F0}m from its hitbox (reach {reach.Meters:F0}m) with no approach in {EngageReachStallMs / 1000}s; walking in with vnav (attempt {reach.Repositions}/{MaxEngageRepositions})");
+        Diag($"Engagement idle on FATE {fateId} ({fateName}) for {EngageIdleStallMs / 1000}s with nothing in reach; walking to the nearest mob with vnav (attempt {idle.Repositions}/{MaxEngageRepositions}; {DescribeEngageSituation(fateId, idle.Meters)})");
 
-        var dest = mobPos.OnMesh();
-        var tolerance = mobHitbox + (reach.Meters <= EngageMeleeReachMeters
+        var dest = survey.NearestPosition.OnMesh();
+        var tolerance = survey.NearestHitboxRadius + (idle.Meters <= EngageMeleeReachMeters
             ? EngageMeleeApproachToleranceMeters
             : EngageRangedApproachToleranceMeters);
-        // On foot only: clib's Mount() has no in-combat guard and spins until the idle abort.
         var config = MovementConfig.Default.WithTolerance(tolerance);
-        var reachMeters = reach.Meters;
+        var reachMeters = idle.Meters;
 
         bool InRangeOrGone()
         {
-            if (PublicEvent.GetFateById(fateId) is not { State: FateState.Running }) return true;
-            if (Svc.Objects.LocalPlayer is not { } moving) return true;
-            return FateMobScanner.TryFindNearestMob(fateId, moving.Position, out _, out _, out var live)
-                && live <= reachMeters;
+            if (PublicEvent.GetFateById(fateId) is not { State: FateState.Running })
+            {
+                return true;
+            }
+            if (Svc.Objects.LocalPlayer is not { } moving)
+            {
+                return true;
+            }
+            var live = FateMobScanner.Survey(fateId, moving.Position);
+            return live.Any && live.NearestDistanceToHitbox <= reachMeters;
         }
 
+        await WalkWithBossModParked(dest, config, InRangeOrGone, $"engage-reposition-{fateId}");
+    }
+
+    private async Task<bool> SeekFateCentre(uint fateId, string fateName, Vector3 centre, Vector3 from)
+    {
+        var distance = Vector3.Distance(from, centre);
+        if (distance <= EngageCentreSeekMinMeters)
+        {
+            return false;
+        }
+
+        Status = $"Searching {fateName}";
+        Diag($"No live mob of FATE {fateId} ({fateName}) is loaded; walking to the ring centre {distance:F0}m away to load the rest");
+
+        var dest = centre.OnMesh();
+        var config = MovementConfig.Default.WithTolerance(EngageCentreSeekToleranceMeters);
+
+        bool MobSeenOrGone()
+        {
+            if (PublicEvent.GetFateById(fateId) is not { State: FateState.Running })
+            {
+                return true;
+            }
+            if (Svc.Objects.LocalPlayer is not { } moving)
+            {
+                return true;
+            }
+            return FateMobScanner.Survey(fateId, moving.Position).Any;
+        }
+
+        await WalkWithBossModParked(dest, config, MobSeenOrGone, $"engage-seek-centre-{fateId}");
+        return true;
+    }
+
+    // On foot only: clib's Mount() has no in-combat guard and spins until the idle abort.
+    private async Task WalkWithBossModParked(Vector3 dest, MovementConfig config, Func<bool> stopCondition, string label)
+    {
         var preset = Plugin.Cfg.CombatPresetName;
         var parked = ParkBossModMovement(preset);
         try
         {
-            var op = new MoveOp(o => o.MoveInZone(dest, config, InRangeOrGone));
-            await RunCancellable(op, EngageRepositionWatchdogMs, $"engage-reposition-{fateId}",
-                StuckDetector.MoveStallAbort($"engage-reposition-{fateId}"));
+            var op = new MoveOp(o => o.MoveInZone(dest, config, stopCondition));
+            await RunCancellable(op, EngageRepositionWatchdogMs, label, StuckDetector.MoveStallAbort(label));
 
             if (op.Fault is { } fault)
-                Diag($"Reposition for FATE {fateId} faulted: {fault.Message}");
+            {
+                Diag($"{label} faulted: {fault.Message}");
+            }
         }
         finally
         {
-            if (parked) ResumeBossModMovement(preset);
+            if (parked)
+            {
+                ResumeBossModMovement(preset);
+            }
         }
+    }
+
+    private void RegisterEngageStall(uint fateId, string fateName)
+    {
+        if (engageStallFateId != fateId)
+        {
+            engageStallFateId = fateId;
+            engageStallStrikes = 0;
+        }
+
+        engageStallStrikes++;
+        if (engageStallStrikes < MaxEngageStallStrikes)
+        {
+            Diag($"FATE {fateId} ({fateName}) engagement bail {engageStallStrikes}/{MaxEngageStallStrikes}; re-entering engagement from scratch");
+            return;
+        }
+
+        Diag($"FATE {fateId} ({fateName}) made no progress through {engageStallStrikes} engagement attempts; abandoning and blacklisting for this session");
+        AbandonFate(fateId);
+    }
+
+    private void ClearEngageStall(uint fateId)
+    {
+        if (engageStallFateId != fateId)
+        {
+            return;
+        }
+        engageStallFateId = null;
+        engageStallStrikes = 0;
+    }
+
+    private void AbandonFate(uint fateId)
+    {
+        abandonedFateId = fateId;
+        sessionStuckFateIds.Add(fateId);
+        ClearEngageStall(fateId);
+    }
+
+    private static unsafe string DescribeEngageSituation(uint fateId, float reachMeters)
+    {
+        if (Svc.Objects.LocalPlayer is not { } player)
+        {
+            return "player=none";
+        }
+
+        var position = player.Position;
+        var survey = FateMobScanner.Survey(fateId, position);
+        var target = Svc.Targets.Target;
+        var targetDescription = target is null
+            ? "none"
+            : FateMobScanner.TryGetTargetedMob(fateId, position, out var targetDistance)
+                ? $"{target.Name}@{targetDistance:F0}m"
+                : $"{target.Name}(not this FATE)";
+        var nearest = survey.Any
+            ? $"{survey.NearestDistanceToHitbox:F0}m dY={survey.NearestVerticalDelta:F0}"
+            : "none";
+        var manager = CSFateManager.Instance();
+        var synced = manager is not null && manager->SyncedFateId == fateId;
+
+        return $"pos=({position.X:F0},{position.Y:F0},{position.Z:F0}) combat={Svc.Condition[ConditionFlag.InCombat]} target={targetDescription} liveMobs={survey.LiveCount} nearest={nearest} reach={reachMeters:F0}m synced={synced} preset={BossModIPC.Instance.GetActive() ?? "none"}";
     }
 
     private const string NormalMovementModule = "BossMod.Autorotation.MiscAI.NormalMovement";
@@ -404,34 +531,26 @@ public sealed partial class AutoFate
         BossModIPC.Instance.ClearActive();
     }
 
-    private sealed class EngageReachTracker(float reachMeters)
+    private sealed class EngageIdleTracker(float reachMeters)
     {
-        private float anchorDistance = float.MaxValue;
-        private long stalledSinceMs = Environment.TickCount64;
+        private Vector3 anchor;
+        private bool anchored;
+        private long idleSinceMs;
 
         public float Meters { get; } = reachMeters;
         public int Repositions { get; private set; }
 
-        public bool Stalled(float nearestDistance)
+        public bool Stalled(Vector3 position)
         {
             var now = Environment.TickCount64;
-
-            if (nearestDistance <= Meters)
+            if (!anchored || Vector3.Distance(anchor, position) > StuckDetector.StuckMoveThresholdMeters)
             {
-                MarkInReach();
+                anchored = true;
+                anchor = position;
+                idleSinceMs = now;
                 return false;
             }
-
-            if (nearestDistance + EngageApproachProgressMeters < anchorDistance)
-            {
-                anchorDistance = nearestDistance;
-                stalledSinceMs = now;
-                return false;
-            }
-
-            if (nearestDistance > anchorDistance) anchorDistance = nearestDistance;
-
-            return now - stalledSinceMs >= EngageReachStallMs;
+            return now - idleSinceMs >= EngageIdleStallMs;
         }
 
         public void CountReposition() => Repositions++;
@@ -442,11 +561,7 @@ public sealed partial class AutoFate
             Restart();
         }
 
-        public void Restart()
-        {
-            anchorDistance = float.MaxValue;
-            stalledSinceMs = Environment.TickCount64;
-        }
+        public void Restart() => anchored = false;
     }
 
     private async Task SettleGemstoneReward()
