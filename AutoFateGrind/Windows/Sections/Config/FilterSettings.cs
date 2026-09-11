@@ -36,6 +36,31 @@ internal static class FilterSettings
             SettingsControls.RowSliderWidth,
             () => SettingsControls.DrawIntSlider(cfg, "##filt_maxprog",
                 () => cfg.MaxProgressPct, v => cfg.MaxProgressPct = v, 50, 99, "%d%%"));
+
+        SettingsRow.Draw(Loc.T(L.Settings.LevelRange),
+            Loc.T(L.Settings.LevelRangeHelp),
+            SettingsControls.ToggleWidth,
+            () => SettingsControls.DrawToggle(cfg, () => cfg.LevelRangeFilterEnabled, v => cfg.LevelRangeFilterEnabled = v, "##filt_lvl_on"),
+            SettingsRow.ToggleHeight);
+
+        using var body = Motion.PushSwitch("##filt_lvl_body", cfg.LevelRangeFilterEnabled);
+        if (!cfg.LevelRangeFilterEnabled)
+        {
+            SettingsRow.Note(Loc.T(L.Settings.LevelRangeOff));
+            return;
+        }
+
+        SettingsRow.Draw(Loc.T(L.Settings.LevelBelow),
+            Loc.T(L.Settings.LevelBelowHelp),
+            SettingsControls.RowSliderWidth,
+            () => SettingsControls.DrawIntSlider(cfg, "##filt_lvl_below",
+                () => cfg.MaxLevelBelow, v => cfg.MaxLevelBelow = v, 0, 100, Loc.T(L.Settings.LevelFormat)));
+
+        SettingsRow.Draw(Loc.T(L.Settings.LevelAbove),
+            Loc.T(L.Settings.LevelAboveHelp),
+            SettingsControls.RowSliderWidth,
+            () => SettingsControls.DrawIntSlider(cfg, "##filt_lvl_above",
+                () => cfg.MaxLevelAbove, v => cfg.MaxLevelAbove = v, 0, 100, Loc.T(L.Settings.LevelFormat)));
     }
 
     private static void DrawSkipTypesGroup(Configuration cfg)

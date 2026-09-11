@@ -48,7 +48,24 @@ internal static class FateScanner
         if (!awaitsNpcStart && f.TimeRemaining < cfg.MinTimeRemainingSec) return false;
         if (f.Progress > cfg.MaxProgressPct) return false;
         if (!f.IsOnMap) return false;
+        if (cfg.LevelRangeFilterEnabled && !IsWithinLevelRange(f, cfg))
+        {
+            return false;
+        }
         return true;
+    }
+
+    // Player level comes from PlayerState rather than the (possibly synced) FATE level so the range is
+    // always measured against the character's real level, matching what will actually take damage.
+    private static bool IsWithinLevelRange(PublicEvent f, Configuration cfg)
+    {
+        var playerLevel = Svc.PlayerState.Level;
+        if (playerLevel <= 0 || f.Level <= 0)
+        {
+            return true;
+        }
+
+        return f.Level >= playerLevel - cfg.MaxLevelBelow && f.Level <= playerLevel + cfg.MaxLevelAbove;
     }
 
     public static IOrderedEnumerable<PublicEvent> ApplySort(
