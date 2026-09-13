@@ -19,7 +19,7 @@ public sealed partial class AutoFate
         var fateId = fate.Id;
         var fateName = fate.Name;
         Status = $"Activating {fateName}";
-        Diag($"FATE {fateId} ({fateName}) in Preparation, walking to MotivationNpc {fate.MotivationNpcId:X}");
+        Diag($"FATE {fateId} ({fateName}) in Preparation, heading to MotivationNpc {fate.MotivationNpcId:X}");
 
         try
         {
@@ -113,12 +113,33 @@ public sealed partial class AutoFate
         var label = $"Activating {fateName}";
         await WalkWithRetries(
             () => new MoveOp(o => o.Move(zone.TerritoryId, npcPos,
-                MovementConfig.InteractRange,
+                StarterNpcMovementConfig(npcPos),
                 allowTeleportIfFaster: false,
                 stopCondition: () => { Status = label; return !AwaitingNpcStart(fateId); },
                 allowAethernetWithinTerritory: false)),
             ActivateMoveWatchdogMs, $"activate-move-{fateId}",
             () => !AwaitingNpcStart(fateId) || WithinReach(npcPos, InteractRangeMeters));
+    }
+
+    // clib only asks vnavmesh for a flying route when the config carries Fly; without it a freshly summoned
+    // mount is ridden along the ground mesh, which dead-ends across Dawntrail zones and leaves the rest of
+    // the trip on foot. clib's Mount() has no combat guard, so an unmounted character in combat still walks.
+    private static MovementConfig StarterNpcMovementConfig(Vector3 npcPos)
+    {
+        var flying = MovementConfig.Everything.WithTolerance(InteractRangeMeters);
+        if (Svc.Condition[ConditionFlag.Mounted])
+        {
+            return flying;
+        }
+        if (Svc.Condition[ConditionFlag.InCombat])
+        {
+            return MovementConfig.InteractRange;
+        }
+        if (Svc.Objects.LocalPlayer is { } player && Vector3.Distance(player.Position, npcPos) < ActivateMountMinMeters)
+        {
+            return MovementConfig.InteractRange;
+        }
+        return flying;
     }
 
     private async Task<bool> PrepareToTalk(uint fateId)
