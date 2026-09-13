@@ -35,6 +35,7 @@ Lists every FATE zone from A Realm Reborn through Dawntrail in one window. Tick 
 - **Zone picker**: pick any FATE zones from ARR through DT, with live active-FATE counts.
 - **Four grind modes**: farm to a Gemstone target, run N FATEs, run for a set time, or go endless.
 - **FATE filters & priority**: skip by type, time left, or progress, and reorder how the next FATE is chosen.
+- **Collect hand-ins**: turns in FATE items in small batches (default 5) and waits in the ring until the reward lands before moving on.
 - **Live FATE tracker**: shown inline, or as a separate HUD overlay.
 - **Class queue**: cycle gearsets in order with per-class level caps.
 - **Auto-trade**: spends Bicolor Gemstones at the trader once you hit your threshold.

@@ -10,6 +10,7 @@ internal static class GeneralSettings
         DrawLanguageGroup(cfg);
         DrawWindowGroup(cfg);
         DrawBehaviorGroup(cfg);
+        DrawCollectGroup(cfg);
     }
 
     private static void DrawLanguageGroup(Configuration cfg)
@@ -64,5 +65,32 @@ internal static class GeneralSettings
             SettingsControls.ToggleWidth,
             () => SettingsControls.DrawToggle(cfg, () => cfg.AutoResumeOnFault, v => cfg.AutoResumeOnFault = v, "##gen_autoresume"),
             SettingsRow.ToggleHeight);
+    }
+
+    private const int CollectHandInBatchMin = 1;
+    // Nine keeps AFG's trip ahead of BossMod's fixed 10-item hand-in, so the two never race for the NPC.
+    private const int CollectHandInBatchMax = 9;
+
+    private static void DrawCollectGroup(Configuration cfg)
+    {
+        using var group = SettingsGroup.Begin(Loc.T(L.Settings.GeneralCollect));
+
+        SettingsRow.Draw(Loc.T(L.Settings.CollectHandIn),
+            Loc.T(L.Settings.CollectHandInHelp),
+            SettingsControls.ToggleWidth,
+            () => SettingsControls.DrawToggle(cfg, () => cfg.CollectHandInEnabled, v => cfg.CollectHandInEnabled = v, "##gen_collect_handin"),
+            SettingsRow.ToggleHeight);
+
+        if (!cfg.CollectHandInEnabled)
+        {
+            return;
+        }
+
+        SettingsRow.Draw(Loc.T(L.Settings.CollectHandInBatch),
+            Loc.T(L.Settings.CollectHandInBatchHelp),
+            SettingsControls.RowSliderWidth,
+            () => SettingsControls.DrawIntSlider(cfg, "##gen_collect_batch",
+                () => cfg.CollectHandInBatch, v => cfg.CollectHandInBatch = v,
+                CollectHandInBatchMin, CollectHandInBatchMax, Loc.T(L.Settings.CollectHandInBatchFormat)));
     }
 }

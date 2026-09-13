@@ -1,6 +1,7 @@
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.Types;
 using ECommons;
+using ECommons.Automation;
 using ECommons.DalamudServices;
 using ECommons.GameFunctions;
 using ECommons.Throttlers;
@@ -97,7 +98,68 @@ internal static unsafe class NpcInteraction
     public static bool DialogAddonOpen()
         => AddonReady(AfgConstants.AddonNames.Talk, out _)
         || AddonReady(AfgConstants.AddonNames.SelectYesno, out _)
-        || AddonReady(AfgConstants.AddonNames.SelectString, out _);
+        || AddonReady(AfgConstants.AddonNames.SelectString, out _)
+        || RequestDialogOpen();
+
+    public static bool RequestDialogOpen()
+        => AddonReady(AfgConstants.AddonNames.Request, out _);
+
+    // Slot 0 of the request window and the icon-menu entry that moves the held stack into it; the same
+    // callback pair TextAdvance fires, so the two never disagree on how the window gets filled.
+    private const int RequestFirstSlot = 0;
+    private const int RequestOpenSlotMenuEvent = 2;
+    private const int RequestMenuHandOverEntry = 1021003;
+
+    // Hands over a filled request; with fillOurselves it also fills the slot when nothing else has.
+    public static bool DriveRequestDialog(bool fillOurselves)
+    {
+        if (!AddonReady(AfgConstants.AddonNames.Request, out var request))
+        {
+            return false;
+        }
+
+        var master = new AddonMaster.Request(request);
+        if (master.IsHandOverEnabled)
+        {
+            if (EzThrottler.Throttle(AfgConstants.ThrottleKeys.RequestHandOver, AfgConstants.AddonInteractThrottleMs))
+            {
+                master.HandOver();
+            }
+            return true;
+        }
+        if (!fillOurselves)
+        {
+            return true;
+        }
+
+        if (AddonReady(AfgConstants.AddonNames.ContextIconMenu, out var menu) && menu->IsVisible)
+        {
+            if (EzThrottler.Throttle(AfgConstants.ThrottleKeys.RequestFillPick, AfgConstants.AddonInteractThrottleMs))
+            {
+                Callback.Fire(menu, false, 0, 0, RequestMenuHandOverEntry, 0, 0);
+            }
+            return true;
+        }
+
+        if (EzThrottler.Throttle(AfgConstants.ThrottleKeys.RequestFillOpen, AfgConstants.AddonInteractThrottleMs))
+        {
+            Callback.Fire(request, false, RequestOpenSlotMenuEvent, RequestFirstSlot, 0, 0);
+        }
+        return true;
+    }
+
+    public static bool CancelRequestDialog()
+    {
+        if (!AddonReady(AfgConstants.AddonNames.Request, out var request))
+        {
+            return false;
+        }
+        if (EzThrottler.Throttle(AfgConstants.ThrottleKeys.RequestHandOver, AfgConstants.AddonInteractThrottleMs))
+        {
+            new AddonMaster.Request(request).Cancel();
+        }
+        return true;
+    }
 
     public static bool DriveDialog()
     {

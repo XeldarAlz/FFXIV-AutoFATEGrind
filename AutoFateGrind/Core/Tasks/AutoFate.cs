@@ -208,6 +208,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
             {
                 Diag($"State {lastObservedState} -> {state}");
                 if (state != GrindState.WrongZone) consecutiveZoneTeleportFailures = 0;
+                if (lastObservedState == GrindState.WaitingForExpiry) BossModIPC.Instance.ClearActive();
                 lastObservedState = state;
                 lastStateChangedAtMs = Environment.TickCount64;
             }
@@ -366,19 +367,24 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
 
         // Only a Running CurrentFate means "fight it". A completed fate lingers non-Running for a
         // frame; routing that to Engaging (which returns instantly) would spin and freeze the game.
-        if (PublicEvent.CurrentFate is { State: FateState.Running } current && abandonedFateId != current.Id)
+        var current = PublicEvent.CurrentFate;
+        if (current is { Rule: PublicEvent.FateRule.Collect, Progress: >= 100, Id: var finishedId }
+         && abandonedFateId != finishedId
+         && current.State is not (FateState.Ended or FateState.Failed))
         {
-            // Hold a completed Collect until out of combat so a stray mob can't trap us mid-deactivation.
-            if (current is { Rule: PublicEvent.FateRule.Collect, Progress: >= 100, Id: var cid })
+            // The row lingers as a hand-in window before the reward lands (issue #64). A Running row under
+            // attack goes to Engaging, which holds with the rotation up; everything else waits here.
+            if (waitForExpiryFateId != finishedId)
             {
-                if (waitForExpiryFateId != cid)
-                {
-                    waitForExpiryFateId = cid;
-                    waitForExpiryStartedAtMs = Environment.TickCount64;
-                }
-                if (!Svc.Condition[ConditionFlag.InCombat])
-                    return GrindState.WaitingForExpiry;
+                waitForExpiryFateId = finishedId;
+                waitForExpiryStartedAtMs = Environment.TickCount64;
             }
+            if (current.State != FateState.Running || !Svc.Condition[ConditionFlag.InCombat])
+                return GrindState.WaitingForExpiry;
+        }
+
+        if (current is { State: FateState.Running } && abandonedFateId != current.Id)
+        {
             if (current.Progress >= 100)
                 StartFollowUpWatch(current.Id);
             else if (followUpFateId == current.Id)
@@ -520,6 +526,13 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private async Task TickExpiryWait()
     {
         Status = "Waiting for Collect rewards";
+        // Stray mobs still hit us inside the ring; keep the rotation up while they do (cleared on state exit).
+        if (Svc.Condition[ConditionFlag.InCombat])
+        {
+            var preset = Plugin.Cfg.CombatPresetName;
+            EnsureCombatPreset(preset);
+            AssertPresetActive(preset);
+        }
         await NextFrame(60);
     }
 

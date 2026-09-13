@@ -50,7 +50,7 @@ public sealed partial class AutoFate
                     continue;
                 }
 
-                if (!await OpenStarterDialog(fateId, starter, attempt))
+                if (!await OpenNpcDialog(fateId, starter, attempt, () => !AwaitingNpcStart(fateId), "activate"))
                 {
                     continue;
                 }
@@ -140,15 +140,16 @@ public sealed partial class AutoFate
         return false;
     }
 
-    private async Task<bool> OpenStarterDialog(uint fateId, IGameObject npc, int attempt)
+    // Shared by FATE activation and Collect hand-ins; abandon() reports the reason to talk has gone away.
+    private async Task<bool> OpenNpcDialog(uint fateId, IGameObject npc, int attempt, Func<bool> abandon, string scope)
     {
         if (!npc.IsInInteractRange())
         {
             var npcPos = npc.Position;
-            var scope = $"activate-approach-{fateId}";
+            var approachScope = $"{scope}-approach-{fateId}";
             var approach = new MoveOp(o => o.MoveInZone(npcPos, MovementConfig.InteractRange.WithTolerance(ActivateApproachToleranceMeters),
-                () => npc.IsInInteractRange() || !AwaitingNpcStart(fateId)));
-            await RunCancellable(approach, ActivateApproachWatchdogMs, scope, StuckDetector.MoveStallAbort(scope));
+                () => npc.IsInInteractRange() || abandon()));
+            await RunCancellable(approach, ActivateApproachWatchdogMs, approachScope, StuckDetector.MoveStallAbort(approachScope));
             if (!npc.IsInInteractRange())
             {
                 Diag($"Could not get within interact range of the NPC for FATE {fateId} (attempt {attempt}/{NpcInteractAttempts})");
@@ -157,7 +158,7 @@ public sealed partial class AutoFate
         }
 
         NpcInteraction.Target(npc);
-        await WaitUntilTimed(() => NpcInteraction.IsTargeted(npc), TargetSettleTimeoutMs, $"activate-target-{fateId}", checkFrames: 1);
+        await WaitUntilTimed(() => NpcInteraction.IsTargeted(npc), TargetSettleTimeoutMs, $"{scope}-target-{fateId}", checkFrames: 1);
 
         var result = NpcInteraction.Interact(npc);
         if (result == 0)
@@ -167,8 +168,8 @@ public sealed partial class AutoFate
             return false;
         }
 
-        var opened = await WaitUntilTimed(() => NpcInteraction.DialogOpen() || !AwaitingNpcStart(fateId),
-            DialogOpenTimeoutMs, $"activate-dialog-{fateId}", checkFrames: 2);
+        var opened = await WaitUntilTimed(() => NpcInteraction.DialogOpen() || abandon(),
+            DialogOpenTimeoutMs, $"{scope}-dialog-{fateId}", checkFrames: 2);
         if (opened)
         {
             Trace($"NPC dialog for FATE {fateId} opened (interaction result {result}, attempt {attempt})");
@@ -231,7 +232,10 @@ public sealed partial class AutoFate
             {
                 return;
             }
-            NpcInteraction.DriveDialog();
+            if (!NpcInteraction.DriveDialog())
+            {
+                NpcInteraction.CancelRequestDialog();
+            }
             await NextFrame(2);
         }
     }

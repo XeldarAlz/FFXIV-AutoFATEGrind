@@ -48,6 +48,10 @@ public sealed class Configuration : IPluginConfiguration
 
     public bool AutoPauseInContent { get; set; } = true;
 
+    // Off leaves Collect turn-ins to BossMod's FATE helper, which only hands in at 10 items.
+    public bool CollectHandInEnabled { get; set; } = true;
+    public int CollectHandInBatch { get; set; } = 5;
+
     public HashSet<uint> BlacklistedFateIds { get; set; } = [1831, 1832, 1914, 1915];
 
     // Per-FateType blacklist (augments BlacklistedFateIds); key is (int)FateType for stability.

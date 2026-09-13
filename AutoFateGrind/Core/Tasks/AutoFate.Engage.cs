@@ -147,18 +147,22 @@ public sealed partial class AutoFate
         // freed FateContext* can't NRE (same hazard as the engage loop below, which re-resolves each tick).
         if (PublicEvent.GetFateById(fateId) is not { } live) return ExitReason.Continue;
         fate = live;
-        Status = $"Engaging {fate.Name}";
+        var fateName = fate.Name;
+        var isCollect = fate.Rule == PublicEvent.FateRule.Collect;
+        var spawn = new FateSpawnKey(fateId, fate.StartTimeEpoch);
+        Status = $"Engaging {fateName}";
 
         var lastProgress = fate.Progress;
         var lastProgressAtMs = Environment.TickCount64;
         var lastInCombatAtMs = Environment.TickCount64;
         var lastBounceAtMs = Environment.TickCount64;
         var combatStallBounces = 0;
-        var collectTextAdvanceArmed = false;
-        // Only an entry that fought the fate while Running may book the completion — guards against
-        // a re-entry during the lingering 100% frame double-counting.
+        // Only an entry that fought the fate while Running may book the completion; the spawn key below
+        // guards a re-entry into a Collect FATE's lingering 100% window from double-counting.
         var sawRunning = false;
         var idle = new EngageIdleTracker(EngageReachMeters());
+
+        if (isCollect) BeginCollectFate(spawn, fateName);
 
         try
         {
@@ -169,6 +173,9 @@ public sealed partial class AutoFate
                 if (IsPlayerKO()) break;
                 fate = refreshed;
                 sawRunning = true;
+
+                // A Collect FATE at 100% is won; its row lingers as the hand-in window (held below), not a stall.
+                if (isCollect && fate.Progress >= 100) break;
 
                 if (Svc.Condition[ConditionFlag.InCombat])
                     lastInCombatAtMs = Environment.TickCount64;
@@ -215,27 +222,37 @@ public sealed partial class AutoFate
 
                 SyncToFate(fateId);
 
-                if (fate.Rule == PublicEvent.FateRule.Collect && !collectTextAdvanceArmed)
+                if (isCollect)
                 {
-                    EnableTextAdvanceForCollect();
-                    collectTextAdvanceArmed = true;
+                    // A hand-in trip is progress in its own right; give the stall clocks a fresh window after one.
+                    if (await MaybeHandInCollectItems(fateId, fateName, preset))
+                    {
+                        lastProgressAtMs = Environment.TickCount64;
+                        lastInCombatAtMs = Environment.TickCount64;
+                    }
                 }
-
-                if (await TickEngagementWatchdog(fateId, fate, idle)) break;
+                else if (await TickEngagementWatchdog(fateId, fate, idle))
+                {
+                    break;
+                }
 
                 await NextFrame(30);
             }
+
+            if (isCollect && sawRunning && PublicEvent.GetFateById(fateId) is { Progress: >= 100 })
+                await HoldForCollectRewards(fateId, fateName, preset);
         }
         finally
         {
             BossModIPC.Instance.ClearActive();
-            if (collectTextAdvanceArmed) DisableTextAdvance();
+            if (isCollect) DisableTextAdvance();
         }
 
         var finalProgress = PublicEvent.GetFateById(fateId)?.Progress ?? lastProgress;
         var ended = sawRunning && (PublicEvent.GetFateById(fateId) is null || finalProgress >= 100);
-        if (ended)
+        if (ended && lastCompletedSpawn != spawn)
         {
+            lastCompletedSpawn = spawn;
             ClearEngageStall(fateId);
             session.CompletedCount++;
             session.FatesSinceLastBreak++;

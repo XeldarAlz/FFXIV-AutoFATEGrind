@@ -368,6 +368,12 @@ internal static class L
         public static readonly LocString AutoPauseHelp = new("settings.general.autoPauseHelp", "Pause the run while you are inside a duty, trial, raid, or any other instanced content, then resume it once you are back outside. Your zones, goal, and session stats are kept, and paused time does not count toward a time-based goal.");
         public static readonly LocString AutoResume = new("settings.general.autoResume", "Auto-resume on fault");
         public static readonly LocString AutoResumeHelp = new("settings.general.autoResumeHelp", "If the grind hits an unrecoverable error and stops, automatically restart it (up to 3 times in 5 minutes) instead of ending the run. Leave off if you want faults to surface.");
+        public static readonly LocString GeneralCollect = new("settings.general.collect", "Collect FATEs");
+        public static readonly LocString CollectHandIn = new("settings.general.collectHandIn", "Hand in items yourself");
+        public static readonly LocString CollectHandInHelp = new("settings.general.collectHandInHelp", "AFG walks to the hand-in NPC as soon as you hold a batch, and turns in any leftovers once the FATE hits 100%. Off leaves turn-ins to BossMod's FATE helper, which only hands in at 10 items.");
+        public static readonly LocString CollectHandInBatch = new("settings.general.collectHandInBatch", "Hand in every");
+        public static readonly LocString CollectHandInBatchHelp = new("settings.general.collectHandInBatchHelp", "How many items to collect before each trip to the NPC. Smaller batches waste fewer items when other players finish the FATE first; larger ones mean fewer trips.");
+        public static readonly LocString CollectHandInBatchFormat = new("settings.general.collectHandInBatchFormat", "%d items");
 
         public static readonly LocString FiltersEligibility = new("settings.filters.eligibility", "Eligibility");
         public static readonly LocString MinTime = new("settings.filters.minTime", "Minimum time remaining");
