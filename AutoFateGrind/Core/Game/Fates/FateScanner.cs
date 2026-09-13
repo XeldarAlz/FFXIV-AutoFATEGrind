@@ -50,7 +50,24 @@ internal static class FateScanner
         // A Collect FATE stays Running at 100% as its hand-in window; nothing can be contributed to it anymore.
         if (f.Progress >= 100) return false;
         if (!f.IsOnMap) return false;
+        if (cfg.LevelRangeFilterEnabled && !IsWithinLevelRange(f, cfg))
+        {
+            return false;
+        }
         return true;
+    }
+
+    // Player level comes from PlayerState rather than the (possibly synced) FATE level so the range is
+    // always measured against the character's real level, matching what will actually take damage.
+    private static bool IsWithinLevelRange(PublicEvent f, Configuration cfg)
+    {
+        var playerLevel = Svc.PlayerState.Level;
+        if (playerLevel <= 0 || f.Level <= 0)
+        {
+            return true;
+        }
+
+        return f.Level >= playerLevel - cfg.MaxLevelBelow && f.Level <= playerLevel + cfg.MaxLevelAbove;
     }
 
     public static IOrderedEnumerable<PublicEvent> ApplySort(
