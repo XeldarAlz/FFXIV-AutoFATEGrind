@@ -40,6 +40,13 @@ public sealed class Configuration : IPluginConfiguration
     public int MinTimeRemainingSec { get; set; } = 120;
     public int MaxProgressPct { get; set; } = 90;
 
+    // Restricts eligible FATEs to a level band around the character's current level. Off by default;
+    // both bounds default to 5 (a modest band on either side) once enabled. The sliders go up to 100
+    // so either side can be widened to "no bound" for a max-level character in a low-level zone.
+    public bool LevelRangeFilterEnabled { get; set; } = false;
+    public int MaxLevelBelow { get; set; } = 5;
+    public int MaxLevelAbove { get; set; } = 5;
+
     public bool SwapZonesWhenEmpty { get; set; } = true;
     public bool ShowLivePopout { get; set; } = false;
 

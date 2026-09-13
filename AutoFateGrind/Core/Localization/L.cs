@@ -381,6 +381,14 @@ internal static class L
         public static readonly LocString MinTimeFormat = new("settings.filters.minTimeFormat", "%d s");
         public static readonly LocString MaxProgress = new("settings.filters.maxProgress", "Maximum progress");
         public static readonly LocString MaxProgressHelp = new("settings.filters.maxProgressHelp", "Skip FATEs already past this percent. Keeps you off near-finished FATEs others are clearing.");
+        public static readonly LocString LevelRange = new("settings.filters.levelRange", "Restrict by level");
+        public static readonly LocString LevelRangeHelp = new("settings.filters.levelRangeHelp", "Only target FATEs within a level range of your current level. Useful in zones that mix low- and high-level FATEs (e.g. Lv 10-15 and Lv 40-45 in the same area) so the grinder doesn't drag you into one that can kill you.");
+        public static readonly LocString LevelRangeOff = new("settings.filters.levelRangeOff", "All FATE levels in your selected zones are eligible.");
+        public static readonly LocString LevelBelow = new("settings.filters.levelBelow", "Levels below you");
+        public static readonly LocString LevelBelowHelp = new("settings.filters.levelBelowHelp", "Skip FATEs more than this many levels below your current level.");
+        public static readonly LocString LevelAbove = new("settings.filters.levelAbove", "Levels above you");
+        public static readonly LocString LevelAboveHelp = new("settings.filters.levelAboveHelp", "Skip FATEs more than this many levels above your current level. Set to 0 to never fight FATEs above your own level.");
+        public static readonly LocString LevelFormat = new("settings.filters.levelFormat", "%d lvl");
         public static readonly LocString FiltersTypes = new("settings.filters.types", "FATE types");
         public static readonly LocString SkipTypes = new("settings.filters.skipTypes", "Skip FATE types");
         public static readonly LocString SkipTypesHelp = new("settings.filters.skipTypesHelp", "Toggle on a type to skip every FATE of that kind. Useful if you don't enjoy escorts or collect hand-ins.");
