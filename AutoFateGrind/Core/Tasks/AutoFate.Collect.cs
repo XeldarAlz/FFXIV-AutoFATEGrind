@@ -28,16 +28,21 @@ public sealed partial class AutoFate
     private const int HandInNpcMissingBackoffMs = 3_000;
     private const int HandInRequestFillGraceMs = 2_000;
     private const int MaxHandInFailuresPerFate = 3;
-    // A finished Collect FATE keeps its row (the hand-in window) open for about a minute before the reward
-    // lands; leaving the ring earlier forfeits it (issue #64). The FATE timer sizes the hold, bounded both ways.
-    private const int CollectRewardHoldMinMs = 90_000;
-    private const int CollectRewardHoldMaxMs = 240_000;
-    private const int CollectRewardHoldSlackMs = 15_000;
+    // A finished Collect FATE keeps its row (the hand-in window) open for about a minute and pays out when it
+    // clears. Leaving the ring is fine; leaving the zone forfeits the reward (issue #64). The FATE timer sizes
+    // how long the zone is held for it, bounded both ways.
+    private const int CollectRewardWatchMinMs = 90_000;
+    private const int CollectRewardWatchMaxMs = 240_000;
+    private const int CollectRewardWatchSlackMs = 15_000;
 
     private readonly record struct FateSpawnKey(uint FateId, int StartEpoch);
 
     private FateSpawnKey lastCompletedSpawn;
     private FateSpawnKey handInSpawn;
+    private FateSpawnKey pendingRewardSpawn;
+    private string pendingRewardName = "";
+    private long pendingRewardSinceMs;
+    private long pendingRewardDeadlineMs;
     private bool afgHandInOwner;
     private int  handInFailures;
     private long handInNextAttemptMs;
@@ -322,57 +327,112 @@ public sealed partial class AutoFate
         return handedIn;
     }
 
-    private async Task HoldForCollectRewards(uint fateId, string fateName, string preset)
+    private bool CollectRewardPending => pendingRewardSpawn != default;
+
+    private async Task WrapUpCollectFate(uint fateId, string fateName, string preset)
     {
-        if (PublicEvent.GetFateById(fateId) is not { } finished)
+        await HandInLeftovers(fateId, fateName, preset);
+        if (PublicEvent.GetFateById(fateId) is { } live && live.State is not (FateState.Ended or FateState.Failed))
+        {
+            TrackCollectReward(live);
+        }
+    }
+
+    private void TrackCollectReward(PublicEvent live)
+    {
+        var spawn = new FateSpawnKey(live.Id, live.StartTimeEpoch);
+        if (pendingRewardSpawn == spawn)
         {
             return;
         }
-        var startedAtMs = Environment.TickCount64;
-        var timerMs = (long)(Math.Max(0f, finished.TimeRemaining) * 1000f);
-        var holdMs = Math.Clamp(timerMs + CollectRewardHoldSlackMs, CollectRewardHoldMinMs, CollectRewardHoldMaxMs);
-        var deadline = startedAtMs + holdMs;
-        Diag($"Collect FATE {fateId} ({fateName}) reached 100%; holding in the ring for its reward (FATE timer {timerMs / 1000}s, hold cap {holdMs / 1000}s)");
+        var fateName = live.Name;
+        var now = Environment.TickCount64;
+        var timerMs = (long)(Math.Max(0f, live.TimeRemaining) * 1000f);
+        var watchMs = Math.Clamp(timerMs + CollectRewardWatchSlackMs, CollectRewardWatchMinMs, CollectRewardWatchMaxMs);
+        pendingRewardSpawn = spawn;
+        pendingRewardName = fateName;
+        pendingRewardSinceMs = now;
+        pendingRewardDeadlineMs = now + watchMs;
+        Diag($"Collect FATE {live.Id} ({fateName}) is at 100% with {FateItems.HandedInCount(live)} item(s) handed in; moving on inside {zone.Name} and collecting the reward when its row clears (FATE timer {timerMs / 1000}s, zone held for up to {watchMs / 1000}s)");
+    }
 
-        var leftoversTried = false;
-        while (!CancelToken.IsCancellationRequested)
+    private void RefreshPendingCollectReward()
+    {
+        if (!CollectRewardPending)
         {
-            var now = Environment.TickCount64;
-            var live = PublicEvent.GetFateById(fateId);
-            if (live is null)
-            {
-                Diag($"Collect FATE {fateId} row cleared {(now - startedAtMs) / 1000}s into the hold; reward delivered, moving on");
-                return;
-            }
-            if (live.State is FateState.Ended or FateState.Failed)
-            {
-                Diag($"Collect FATE {fateId} is {live.State} {(now - startedAtMs) / 1000}s into the hold; moving on");
-                return;
-            }
-            if (IsPlayerKO() || Svc.ClientState.TerritoryType != zone.TerritoryId)
-            {
-                return;
-            }
-            if (now >= deadline)
-            {
-                Diag($"Collect reward hold for FATE {fateId} hit its {holdMs / 1000}s cap with the row still up; moving on");
-                return;
-            }
+            return;
+        }
+        var fateId = pendingRewardSpawn.FateId;
+        var waitedSec = (Environment.TickCount64 - pendingRewardSinceMs) / 1000;
+        var live = PublicEvent.GetFateById(fateId);
+        var outcome = live is null ? "row cleared"
+            : live.StartTimeEpoch != pendingRewardSpawn.StartEpoch ? "respawned"
+            : live.State is FateState.Ended or FateState.Failed ? live.State.ToString()
+            : null;
+        if (outcome is not null)
+        {
+            session.UpdateGemstones();
+            session.UpdateExp();
+            Diag($"Collect FATE {fateId} ({pendingRewardName}) {outcome} {waitedSec}s after leaving it; reward settled (wallet {session.GemstoneCurrent}g)");
+            ClearPendingCollectReward();
+            return;
+        }
+        if (Svc.ClientState.TerritoryType != zone.TerritoryId)
+        {
+            Diag($"Left {zone.Name} with Collect FATE {fateId} ({pendingRewardName}) still open; its reward is forfeit");
+            ClearPendingCollectReward();
+            return;
+        }
+        if (Environment.TickCount64 >= pendingRewardDeadlineMs)
+        {
+            Diag($"Collect FATE {fateId} ({pendingRewardName}) row still up {waitedSec}s after leaving it; no longer holding {zone.Name} for it");
+            ClearPendingCollectReward();
+        }
+    }
 
-            Status = $"Waiting for {fateName} rewards ({(deadline - now) / 1000 + 1}s)";
-            if (Svc.Condition[ConditionFlag.Mounted])
-            {
-                BossModIPC.Instance.ClearActive();
-                await DismountViaOp($"dismount-hold-{fateId}");
-            }
+    private void ClearPendingCollectReward()
+    {
+        pendingRewardSpawn = default;
+        pendingRewardName = "";
+    }
+
+    private async Task TickCollectRewardWait()
+    {
+        var remainingSec = Math.Max(0L, pendingRewardDeadlineMs - Environment.TickCount64) / 1000 + 1;
+        Status = $"Waiting for {pendingRewardName} rewards ({remainingSec}s)";
+        // Stray mobs may still be on us; keep the rotation up while they are (cleared on state exit).
+        if (Svc.Condition[ConditionFlag.InCombat])
+        {
+            var preset = Plugin.Cfg.CombatPresetName;
+            EnsureCombatPreset(preset);
             AssertPresetActive(preset);
+        }
+        await NextFrame(60);
+    }
 
-            if (!leftoversTried)
+    // Hand-offs teleport out of the zone; wherever the character stands in it, the reward still lands when the row clears.
+    private async Task HoldForCollectReward()
+    {
+        if (!CollectRewardPending)
+        {
+            return;
+        }
+        Diag($"Hand-off queued while Collect FATE {pendingRewardSpawn.FateId} ({pendingRewardName}) still owes its reward; holding in {zone.Name} until it lands");
+        try
+        {
+            while (!CancelToken.IsCancellationRequested && !IsPlayerKO())
             {
-                leftoversTried = true;
-                await HandInLeftovers(fateId, fateName, preset);
+                RefreshPendingCollectReward();
+                if (!CollectRewardPending)
+                {
+                    return;
+                }
+                await TickCollectRewardWait();
             }
-            await NextFrame(30);
+        }
+        finally
+        {
+            BossModIPC.Instance.ClearActive();
         }
     }
 }

@@ -1,5 +1,7 @@
+using clib.Utils;
 using ECommons.DalamudServices;
 using FFXIVClientStructs.FFXIV.Client.Game;
+using FFXIVClientStructs.FFXIV.Client.Game.Fate;
 
 namespace AutoFateGrind.Core.Game.Fates;
 
@@ -19,6 +21,15 @@ internal static unsafe class FateItems
         var itemId = row?.EventItem.RowId ?? 0u;
         turnInItemByFateId[fateId] = itemId;
         return itemId;
+    }
+
+    public static int HandedInCount(PublicEvent fate)
+    {
+        if (fate.FateType != FateType.Normal || fate.Address == 0)
+        {
+            return 0;
+        }
+        return ((FateContext*)fate.Address)->HandInCount;
     }
 
     public static int HeldCount(uint eventItemId)

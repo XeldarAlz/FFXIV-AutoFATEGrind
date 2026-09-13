@@ -41,7 +41,6 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private const int   MoveProgressLogMs = 15_000;
     private const int   FollowUpWatchMs = AfgConstants.FollowUpWaitMs;
     private const int   NpcSpawnTimeoutMs = 30_000;
-    private const int   CollectExpiryTimeoutMs = 90_000;
     private const int   EngageStallTimeoutMs = 60_000;
     private const int   EngageOutOfCombatGraceMs = 30_000;
     // Reach and tolerances are measured from the mob's hitbox edge, not its centre.
@@ -75,6 +74,8 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private const int   ActivateMoveWatchdogMs = 60_000;
     private const int   ActivateApproachWatchdogMs = 20_000;
     private const float ActivateApproachToleranceMeters = 2f;
+    // Below this, summoning and dismissing a mount costs more time than the walk.
+    private const float ActivateMountMinMeters = 30f;
     private const int   NpcInteractAttempts = 3;
     private const int   InteractReadyTimeoutMs = 10_000;
     private const int   TargetSettleTimeoutMs = 500;
@@ -104,8 +105,6 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private uint? returnToFateId;          // FATE we died in; honor even if normal eligibility fails.
     private uint? followUpFateId;
     private long  followUpWatchUntilMs;
-    private uint? waitForExpiryFateId;
-    private long  waitForExpiryStartedAtMs;
     private long  zoneIdleSinceMs;
     private uint? abandonedFateId;
     private uint? engageStallFateId;
@@ -131,7 +130,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
         AllDone,              // Stop condition met; return cleanly.
         Unconscious,          // Player KO'd, run revive.
         WaitingForFollowUp,   // Just finished a chain parent; hold briefly for sequel.
-        WaitingForExpiry,     // Collect FATE complete; hold zone until row clears for rewards.
+        WaitingForCollectReward, // Nothing left to pick here, but a finished Collect FATE still owes its reward.
         BetweenFates,         // Have a target FATE; move (or activate prep NPC) and arrive.
         Engaging,             // CurrentFate is set; fight until it ends or we KO.
         WaitingForFates,      // No eligible FATE; idle-scan with optional zone swap.
@@ -208,7 +207,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
             {
                 Diag($"State {lastObservedState} -> {state}");
                 if (state != GrindState.WrongZone) consecutiveZoneTeleportFailures = 0;
-                if (lastObservedState == GrindState.WaitingForExpiry) BossModIPC.Instance.ClearActive();
+                if (lastObservedState == GrindState.WaitingForCollectReward) BossModIPC.Instance.ClearActive();
                 lastObservedState = state;
                 lastStateChangedAtMs = Environment.TickCount64;
             }
@@ -247,8 +246,8 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
                     await TickFollowUpWait();
                     break;
 
-                case GrindState.WaitingForExpiry:
-                    await TickExpiryWait();
+                case GrindState.WaitingForCollectReward:
+                    await TickCollectRewardWait();
                     break;
 
                 case GrindState.BetweenFates:
@@ -302,9 +301,9 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
         var nav = NavmeshIPC.Instance;
         var navStr = $"run={nav.IsRunning()} busy={nav.IsBusy()}";
         Diag($"HEARTBEAT state={state} ({inState}s) terr={Svc.ClientState.TerritoryType} zone={zone.Name} pos={posStr} fate={fateStr} {navStr} cond={ConditionTag()} " +
-             $"done={session.CompletedCount} ret={returnToFateId?.ToString() ?? "-"} followUp={followUpFateId?.ToString() ?? "-"} stuckBL={sessionStuckFateIds.Count}");
+             $"done={session.CompletedCount} ret={returnToFateId?.ToString() ?? "-"} followUp={followUpFateId?.ToString() ?? "-"} collectReward={(CollectRewardPending ? pendingRewardSpawn.FateId.ToString() : "-")} stuckBL={sessionStuckFateIds.Count}");
 
-        if (state is not GrindState.Engaging and not GrindState.WaitingForFates && inState >= 180)
+        if (state is not GrindState.Engaging and not GrindState.WaitingForFates and not GrindState.WaitingForCollectReward && inState >= 180)
             Diag($"STALL WARNING: state {state} held {inState}s — see prior heartbeats for context.");
     }
 
@@ -337,16 +336,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
 
     private GrindState ComputeState()
     {
-        if (waitForExpiryFateId is { } wid)
-        {
-            if (PublicEvent.GetFateById(wid) is null
-             || Environment.TickCount64 - waitForExpiryStartedAtMs > CollectExpiryTimeoutMs)
-            {
-                if (Environment.TickCount64 - waitForExpiryStartedAtMs > CollectExpiryTimeoutMs)
-                    Diag($"Collect expiry watch timed out for {wid}");
-                waitForExpiryFateId = null;
-            }
-        }
+        RefreshPendingCollectReward();
 
         if (abandonedFateId is { } abandonedId && PublicEvent.GetFateById(abandonedId) is null)
             abandonedFateId = null;
@@ -368,22 +358,15 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
         // Only a Running CurrentFate means "fight it". A completed fate lingers non-Running for a
         // frame; routing that to Engaging (which returns instantly) would spin and freeze the game.
         var current = PublicEvent.CurrentFate;
-        if (current is { Rule: PublicEvent.FateRule.Collect, Progress: >= 100, Id: var finishedId }
-         && abandonedFateId != finishedId
+        if (current is { Rule: PublicEvent.FateRule.Collect, Progress: >= 100 }
+         && abandonedFateId != current.Id
          && current.State is not (FateState.Ended or FateState.Failed))
         {
-            // The row lingers as a hand-in window before the reward lands (issue #64). A Running row under
-            // attack goes to Engaging, which holds with the rotation up; everything else waits here.
-            if (waitForExpiryFateId != finishedId)
-            {
-                waitForExpiryFateId = finishedId;
-                waitForExpiryStartedAtMs = Environment.TickCount64;
-            }
-            if (current.State != FateState.Running || !Svc.Condition[ConditionFlag.InCombat])
-                return GrindState.WaitingForExpiry;
+            // The row lingers as a hand-in window and pays out when it clears (issue #64). Nothing is left to
+            // fight in it, so the reward is tracked and the grind moves on to the next FATE in the zone.
+            TrackCollectReward(current);
         }
-
-        if (current is { State: FateState.Running } && abandonedFateId != current.Id)
+        else if (current is { State: FateState.Running } && abandonedFateId != current.Id)
         {
             if (current.Progress >= 100)
                 StartFollowUpWatch(current.Id);
@@ -391,9 +374,6 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
                 followUpFateId = null;
             return GrindState.Engaging;
         }
-
-        if (waitForExpiryFateId is not null)
-            return GrindState.WaitingForExpiry;
 
         if (ShouldWaitForFollowUp())
             return GrindState.WaitingForFollowUp;
@@ -410,6 +390,10 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
 
         if (FateScanner.PickNext(Plugin.Cfg, player.Position, sessionStuckFateIds, returnToFateId) is not null)
             return GrindState.BetweenFates;
+
+        // Leaving the zone forfeits a pending Collect reward; wait for it here instead of starting the swap clock.
+        if (CollectRewardPending)
+            return GrindState.WaitingForCollectReward;
 
         if (zoneIdleSinceMs == 0)
             zoneIdleSinceMs = Environment.TickCount64;
@@ -521,19 +505,6 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
         var remaining = Math.Max(0L, followUpWatchUntilMs - Environment.TickCount64);
         Status = $"Watching for follow-up FATE ({remaining / 1000 + 1}s)";
         await NextFrame(100);
-    }
-
-    private async Task TickExpiryWait()
-    {
-        Status = "Waiting for Collect rewards";
-        // Stray mobs still hit us inside the ring; keep the rotation up while they do (cleared on state exit).
-        if (Svc.Condition[ConditionFlag.InCombat])
-        {
-            var preset = Plugin.Cfg.CombatPresetName;
-            EnsureCombatPreset(preset);
-            AssertPresetActive(preset);
-        }
-        await NextFrame(60);
     }
 
 }

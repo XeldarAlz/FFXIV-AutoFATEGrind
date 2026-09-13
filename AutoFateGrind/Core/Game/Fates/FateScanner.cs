@@ -47,6 +47,8 @@ internal static class FateScanner
         if (cfg.SkippedFateRules.Contains((int)f.Rule)) return false;
         if (!awaitsNpcStart && f.TimeRemaining < cfg.MinTimeRemainingSec) return false;
         if (f.Progress > cfg.MaxProgressPct) return false;
+        // A Collect FATE stays Running at 100% as its hand-in window; nothing can be contributed to it anymore.
+        if (f.Progress >= 100) return false;
         if (!f.IsOnMap) return false;
         return true;
     }

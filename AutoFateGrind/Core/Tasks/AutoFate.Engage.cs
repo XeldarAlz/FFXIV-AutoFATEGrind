@@ -174,7 +174,7 @@ public sealed partial class AutoFate
                 fate = refreshed;
                 sawRunning = true;
 
-                // A Collect FATE at 100% is won; its row lingers as the hand-in window (held below), not a stall.
+                // A Collect FATE at 100% is won; its row lingers as the hand-in window (leftovers go in below), not a stall.
                 if (isCollect && fate.Progress >= 100) break;
 
                 if (Svc.Condition[ConditionFlag.InCombat])
@@ -240,7 +240,7 @@ public sealed partial class AutoFate
             }
 
             if (isCollect && sawRunning && PublicEvent.GetFateById(fateId) is { Progress: >= 100 })
-                await HoldForCollectRewards(fateId, fateName, preset);
+                await WrapUpCollectFate(fateId, fateName, preset);
         }
         finally
         {
@@ -257,7 +257,8 @@ public sealed partial class AutoFate
             session.CompletedCount++;
             session.FatesSinceLastBreak++;
             zone.CompletedThisRun++;
-            await SettleGemstoneReward();
+            // A Collect reward only lands once the row clears, so there is nothing to settle at 100% yet.
+            if (isCollect) session.UpdateGemstones(); else await SettleGemstoneReward();
             session.UpdateExp();
             Diag($"FATE {fateId} done (session total: {session.CompletedCount}, wallet {session.GemstoneCurrent}g)");
             StartFollowUpWatch(fateId);
@@ -266,6 +267,7 @@ public sealed partial class AutoFate
 
             if (QueueHandoffIfDue())
             {
+                await HoldForCollectReward();
                 await ClearBlockingCombat();
                 return ExitReason.Quit;
             }

@@ -184,6 +184,12 @@ public sealed partial class AutoFate
         var flightFromHere = Vector3.Distance(player.Position, fatePos);
         var flightFromAetheryte = Vector3.Distance(aetheryte.Position, fatePos);
         if (flightFromHere - flightFromAetheryte < TeleportShortcutMinSavingMeters) return;
+        RefreshPendingCollectReward();
+        if (CollectRewardPending)
+        {
+            Diag($"Skipping the teleport shortcut to {aetheryte.Name} for FATE {fateId} ({fateName}): a same-zone teleport reloads the zone while Collect FATE {pendingRewardSpawn.FateId} ({pendingRewardName}) still owes its reward; flying instead");
+            return;
+        }
 
         Status = $"Teleporting to {aetheryte.Name}";
         Diag($"Teleport shortcut for FATE {fateId} ({fateName}): {aetheryte.Name} leaves {flightFromAetheryte:F0}m to fly vs {flightFromHere:F0}m from here");
