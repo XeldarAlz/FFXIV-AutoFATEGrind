@@ -148,10 +148,7 @@ public sealed partial class AutoFate
         {
             await ClearBlockingCombat();
         }
-        if (Svc.Condition[ConditionFlag.Mounted])
-        {
-            await DismountViaOp($"dismount-activate-{fateId}");
-        }
+        await SafeDismount($"dismount-activate-{fateId}");
         if (await WaitUntilTimed(NpcInteraction.PlayerReady, InteractReadyTimeoutMs, $"activate-ready-{fateId}", checkFrames: 2))
         {
             return true;

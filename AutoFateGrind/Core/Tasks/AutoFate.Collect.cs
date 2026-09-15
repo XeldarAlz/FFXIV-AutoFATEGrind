@@ -81,10 +81,11 @@ public sealed partial class AutoFate
         return npc is { IsTargetable: true } ? npc : null;
     }
 
-    // Returns true when a trip was attempted so the caller can restart its stall clocks.
+    // Returns true when a trip was attempted so the caller can restart its stall clocks. A trip waits for a gap
+    // between pulls: chasers would follow it to the NPC, whose dialog refuses to open in combat.
     private async Task<bool> MaybeHandInCollectItems(uint fateId, string fateName, string preset)
     {
-        if (!afgHandInOwner || Environment.TickCount64 < handInNextAttemptMs)
+        if (!afgHandInOwner || Environment.TickCount64 < handInNextAttemptMs || Svc.Condition[ConditionFlag.InCombat])
         {
             return false;
         }
@@ -174,7 +175,11 @@ public sealed partial class AutoFate
                 {
                     continue;
                 }
-                if (!await ReadyToHandIn(fateId, preset))
+                if (Svc.Condition[ConditionFlag.InCombat] && !await FightFreeAtHandInNpc(fateId, preset, parkedMovement))
+                {
+                    return false;
+                }
+                if (!await ReadyToHandIn(fateId))
                 {
                     continue;
                 }
@@ -225,18 +230,9 @@ public sealed partial class AutoFate
         return false;
     }
 
-    // NPC events refuse to open in combat, and with targeting parked nothing fights back; hand the rotation
-    // its targets again and stay put until the chasers are dead.
-    private async Task<bool> ReadyToHandIn(uint fateId, string preset)
+    private async Task<bool> ReadyToHandIn(uint fateId)
     {
-        if (Svc.Condition[ConditionFlag.InCombat])
-        {
-            await FightFreeAtHandInNpc(fateId, preset);
-        }
-        if (Svc.Condition[ConditionFlag.Mounted])
-        {
-            await DismountViaOp($"dismount-handin-{fateId}");
-        }
+        await SafeDismount($"dismount-handin-{fateId}");
         if (await WaitUntilTimed(NpcInteraction.PlayerReady, InteractReadyTimeoutMs, $"handin-ready-{fateId}", checkFrames: 2))
         {
             return true;
@@ -245,10 +241,16 @@ public sealed partial class AutoFate
         return false;
     }
 
-    private async Task FightFreeAtHandInNpc(uint fateId, string preset)
+    // NPC events refuse to open in combat. BossMod gets its targeting and its movement back so it can step around
+    // stairs and walls to reach the chasers; a fight that outlasts the window ends the trip.
+    private async Task<bool> FightFreeAtHandInNpc(uint fateId, string preset, bool movementParked)
     {
         Status = "Clearing aggro before handing in";
         BossModIPC.Instance.ClearTransientStrategy(preset, AutoTargetModule, AutoTargetGeneralTrack);
+        if (movementParked)
+        {
+            ResumeBossModMovement(preset);
+        }
         var deadline = Environment.TickCount64 + HandInCombatClearMs;
         try
         {
@@ -256,20 +258,25 @@ public sealed partial class AutoFate
             {
                 if (CancelToken.IsCancellationRequested || IsPlayerKO() || !FateAlive(fateId))
                 {
-                    return;
+                    return false;
                 }
                 if (!Svc.Condition[ConditionFlag.InCombat])
                 {
-                    return;
+                    return true;
                 }
                 AssertPresetActive(preset);
                 await NextFrame(30);
             }
-            Diag($"Still in combat at the hand-in NPC after {HandInCombatClearMs / 1000}s; retrying the hand-in later");
+            Diag($"Still in combat at the hand-in NPC for FATE {fateId} after {HandInCombatClearMs / 1000}s; ending this trip and leaving the fight to BossMod");
+            return false;
         }
         finally
         {
             BossModIPC.Instance.AddTransientStrategy(preset, AutoTargetModule, AutoTargetGeneralTrack, AutoTargetPassiveOption);
+            if (movementParked)
+            {
+                ParkBossModMovement(preset);
+            }
         }
     }
 

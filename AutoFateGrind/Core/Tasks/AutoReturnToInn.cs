@@ -13,7 +13,6 @@ public sealed class AutoReturnToInn : AutoCommon
 {
     private const int   TeleportWatchdogMs        = 60_000;
     private const int   WalkWatchdogMs            = 120_000;
-    private const int   DismountWatchdogMs        = 30_000;
     private const int   NavmeshReadyWaitMs        = 60_000;
     private const int   EnterInnTimeoutMs         = 60_000;
     private const int   ApproachWatchdogMs        = 25_000;
@@ -66,8 +65,7 @@ public sealed class AutoReturnToInn : AutoCommon
         await WaitForNavmeshReady(NavmeshReadyWaitMs);
         if (CancelToken.IsCancellationRequested) return;
 
-        if (Svc.Condition[ConditionFlag.Mounted])
-            await RunCancellable(new MoveOp(o => o.DismountNow()), DismountWatchdogMs, "inn-dismount");
+        await SafeDismount("inn-dismount");
 
         Status = "Walking to the innkeeper";
         var walk = new MoveOp(o => o.Move(inn.CityTerritory, inn.InnkeeperPos,

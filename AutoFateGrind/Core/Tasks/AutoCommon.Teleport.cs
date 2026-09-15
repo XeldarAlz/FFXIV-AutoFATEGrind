@@ -13,11 +13,15 @@ namespace AutoFateGrind.Core.Tasks;
 public abstract partial class AutoCommon
 {
     private const int TeleportCombatClearMs = 30_000;
-    private const int DismountForTeleportMs = 30_000;
     private const int UnstickMoveMs = 20_000;
     private const int ZoneLoadSettleMs = 5_000;
     private const int ReturnHomePollMs = 250;
     private const int TeleportRetryBackoffMs = 2_000;
+
+    internal readonly record struct TeleportOutcome(bool Completed, Exception? Fault)
+    {
+        public bool Succeeded => Completed && Fault is null;
+    }
 
     // Compact condition snapshot for diagnostics — surfaces exactly which state blocks a teleport cast.
     internal static string ConditionTag()
@@ -37,19 +41,14 @@ public abstract partial class AutoCommon
         return tags.Count == 0 ? "grounded" : string.Join(",", tags);
     }
 
-    // Teleport can only cast from solid ground: flying, diving, or swimming all leave clib spinning on a
-    // cast that never starts (the 2026-05-30 wedges). Off the ground in any of those states => the char
-    // is somewhere clib's own dismount can't recover from.
-    private static bool NotOnSolidGround()
-        => Svc.Condition[ConditionFlag.InFlight]
-        || Svc.Condition[ConditionFlag.Diving]
+    // Swimming or diving may block the cast; the 2026-05-30 creek wedge left clib spinning on one that never started.
+    private static bool InWater()
+        => Svc.Condition[ConditionFlag.Diving]
         || Svc.Condition[ConditionFlag.Swimming];
 
-    // Pre-teleport gate for every teleport entry path. (1) stop any lingering vnav movement (BeingMoved
-    // blocks the cast); (2) wait for combat/cast to clear; (3) if off the ground (air/water), walk to the
-    // nearest reachable mesh point to land/surface — clib's Teleport never casts otherwise and just spins;
-    // (4) dismount. The 2026-05-30 wedges (a flying mount over no landing; a water FATE leaving the char in
-    // the creek) both come down to "can't cast Teleport from here" with no recovery.
+    // Pre-teleport gate for every teleport entry path: stop vnav (BeingMoved blocks the cast), wait for combat/cast to
+    // clear, and leave the water. A mount stays on, in the air too: landing first stranded characters on wall edges and
+    // hilltops (issue #66), so RunTeleport lands only when a mounted cast does not go through.
     internal async Task PrepareForTeleport(string scope)
     {
         NavmeshIPC.Instance.Stop();
@@ -64,19 +63,12 @@ public abstract partial class AutoCommon
         }
         if (CancelToken.IsCancellationRequested) return;
 
-        if (NotOnSolidGround()) await GroundForTeleport(scope);
-        if (CancelToken.IsCancellationRequested) return;
-
-        if (Svc.Condition[ConditionFlag.Mounted])
-        {
-            Diag($"{scope}: dismounting before teleport ({ConditionTag()})");
-            await RunCancellable(new MoveOp(o => o.DismountNow()), DismountForTeleportMs, $"{scope}-dismount");
-        }
+        if (InWater()) await LeaveWaterForTeleport(scope);
     }
 
-    // Walk (clib will fly/swim) to the nearest standable mesh point so a teleport can cast. Surfaces from
-    // water and lands from flight; allowTeleportIfFaster:false keeps it from re-entering the broken teleport.
-    private async Task GroundForTeleport(string scope)
+    // Walk (clib will swim/fly) to the nearest reachable mesh point so a teleport can cast;
+    // allowTeleportIfFaster:false keeps it from re-entering the broken teleport.
+    private async Task LeaveWaterForTeleport(string scope)
     {
         var here = Svc.Objects.LocalPlayer?.Position;
         if (here is not { } pos) return;
@@ -84,17 +76,43 @@ public abstract partial class AutoCommon
         var safe = NavmeshIPC.Instance.NearestPointReachable(pos, 30f, 30f);
         if (safe is not { } dest)
         {
-            Warn($"{scope}: off solid ground ({ConditionTag()}) with no reachable mesh point to relocate to; teleport may fail");
+            Warn($"{scope}: in the water ({ConditionTag()}) with no reachable mesh point to climb out at; teleport may fail");
             return;
         }
         if (Vector3.Distance(pos, dest) < 2f) return;
 
-        Status = "Returning to solid ground before teleport";
-        Diag($"{scope}: off solid ground ({ConditionTag()}); relocating ~{Vector3.Distance(pos, dest):F0}m to a reachable point before teleport");
+        Status = "Leaving the water before teleport";
+        Diag($"{scope}: in the water ({ConditionTag()}); moving ~{Vector3.Distance(pos, dest):F0}m to a reachable point before teleport");
         var territory = Svc.ClientState.TerritoryType;
         var move = new MoveOp(o => o.Move(territory, dest, MovementConfig.Everything.WithTolerance(3f),
             allowTeleportIfFaster: false, stopCondition: null, allowAethernetWithinTerritory: false));
-        await RunCancellable(move, UnstickMoveMs, $"{scope}-ground", StuckDetector.MoveStallAbort($"{scope}-ground"));
+        await RunCancellable(move, UnstickMoveMs, $"{scope}-water", StuckDetector.MoveStallAbort($"{scope}-water"));
+    }
+
+    // Casts from wherever the character is, mounted or in the air. A mounted cast that is refused or never starts gets
+    // one more try after a proper landing and dismount, so a mount can never be what blocks a teleport.
+    internal async Task<TeleportOutcome> RunTeleport(uint territoryId, Vector3 destination, bool allowSameZoneTeleport, int timeoutMs, string scope)
+    {
+        var outcome = await RunTeleportOnce(territoryId, destination, allowSameZoneTeleport, timeoutMs, scope);
+        if (outcome.Succeeded || CancelToken.IsCancellationRequested || !Svc.Condition[ConditionFlag.Mounted])
+        {
+            return outcome;
+        }
+
+        Diag($"{scope}: teleport did not go through while mounted ({ConditionTag()}); dismounting and casting once more");
+        if (!await SafeDismount($"{scope}-dismount"))
+        {
+            return outcome;
+        }
+        return await RunTeleportOnce(territoryId, destination, allowSameZoneTeleport, timeoutMs, $"{scope}-dismounted");
+    }
+
+    // The idle-stall guard catches a teleport that was accepted but never started casting in ~8s, not the full watchdog.
+    private async Task<TeleportOutcome> RunTeleportOnce(uint territoryId, Vector3 destination, bool allowSameZoneTeleport, int timeoutMs, string scope)
+    {
+        var operation = new MoveOp(move => move.Teleport(territoryId, destination, allowSameZoneTeleport));
+        var completed = await RunCancellable(operation, timeoutMs, scope, StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs));
+        return new TeleportOutcome(completed, operation.Fault);
     }
 
     private const int  ReturnHomeWaitMs    = 30_000;
@@ -124,7 +142,7 @@ public abstract partial class AutoCommon
                 && !Svc.Condition[ConditionFlag.BetweenAreas]
                 && !Svc.Condition[ConditionFlag.BetweenAreas51])
             {
-                CastReturn();
+                UseGeneralAction(ReturnGeneralActionId);
                 nextCastAt = Environment.TickCount64 + ReturnHomeReissueMs;
             }
             await DelayMs(ReturnHomePollMs);
@@ -134,11 +152,11 @@ public abstract partial class AutoCommon
         return false;
     }
 
-    private static unsafe void CastReturn()
+    private static unsafe void UseGeneralAction(uint generalActionId)
     {
-        var am = ActionManager.Instance();
-        if (am is null) return;
-        am->UseAction(ActionType.GeneralAction, ReturnGeneralActionId);
+        var actionManager = ActionManager.Instance();
+        if (actionManager is null) return;
+        actionManager->UseAction(ActionType.GeneralAction, generalActionId);
     }
 
     private const int MaxTeleportFaults = 2;
@@ -182,14 +200,13 @@ public abstract partial class AutoCommon
 
             if (Svc.ClientState.TerritoryType != hopTerritoryId)
             {
-                var op = new MoveOp(o => o.Teleport(hopTerritoryId, hopDest, allowSameZoneTeleport: false));
-                var completed = await RunCancellable(op, perAttemptTimeoutMs, scope, StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs));
-                if (op.Fault is { } fault)
+                var outcome = await RunTeleport(hopTerritoryId, hopDest, allowSameZoneTeleport: false, perAttemptTimeoutMs, scope);
+                if (outcome.Fault is { } fault)
                 {
                     faults++;
                     Diag($"{scope} teleport faulted ({faults}/{MaxTeleportFaults}): {fault.Message}");
                 }
-                else if (!completed)
+                else if (!outcome.Completed)
                 {
                     stalls++;
                 }

@@ -16,7 +16,6 @@ public sealed class AutoRepair : AutoCommon
     private const int RepairAddonWaitMs    = 10_000;
     private const int YesnoWaitMs          = 5_000;
     private const int RepairCompleteWaitMs = 30_000;
-    private const int DismountWatchdogMs   = 30_000;
     // Margin above the user threshold that counts self-repair as a success (else fall through to the NPC mender).
     private const float SelfRepairSuccessMarginPct = 5f;
     private const float RepairCompleteConditionPct = 95f;
@@ -65,8 +64,7 @@ public sealed class AutoRepair : AutoCommon
 
     private async Task<bool> TrySelfRepair()
     {
-        if (Svc.Condition[ConditionFlag.Mounted])
-            await RunCancellable(new MoveOp(o => o.DismountNow()), DismountWatchdogMs, "repair-dismount");
+        await SafeDismount("repair-dismount");
 
         Status = "Opening Repair";
         Diag("Triggering Repair general action");
@@ -115,8 +113,7 @@ public sealed class AutoRepair : AutoCommon
                 MoveWatchdogMs, "repair-walk", () => WithinReach(menderPos, WalkToleranceMeters));
         });
 
-        if (Svc.Condition[ConditionFlag.Mounted])
-            await RunCancellable(new MoveOp(o => o.DismountNow()), DismountWatchdogMs, "repair-dismount-mender");
+        await SafeDismount("repair-dismount-mender");
 
         var npc = RepairOps.FindObjectByBaseId(m.DataId);
         ErrorIf(npc is null, $"Could not find {m.Name} (BaseId {m.DataId}) near {m.Position}.");

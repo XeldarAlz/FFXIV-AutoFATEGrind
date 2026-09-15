@@ -37,7 +37,6 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     // Slack on top of the in-move deadline so clib's own graceful 60s exit wins over the hard cancel
     // when it is following a path; the hard cancel only catches a wedge in a non-polling phase.
     private const int   MoveOpUnwindSlackMs = 10_000;
-    private const int   DismountWatchdogMs = 30_000;
     private const int   MoveProgressLogMs = 15_000;
     private const int   FollowUpWatchMs = AfgConstants.FollowUpWaitMs;
     private const int   NpcSpawnTimeoutMs = 30_000;
@@ -478,8 +477,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
         if (!FoodOps.AnyNeeded(cfg)) return;
 
         // Eating requires being grounded; dismount first if we're on a mount (e.g. Start pressed mounted).
-        if (Svc.Condition[ConditionFlag.Mounted])
-            await DismountViaOp("dismount-consume");
+        await SafeDismount("dismount-consume");
         if (Svc.Condition[ConditionFlag.Mounted] || Svc.Condition[ConditionFlag.InCombat]) return;
 
         var minSeconds = Math.Max(0, cfg.AutoConsumeMinMinutes) * 60f;

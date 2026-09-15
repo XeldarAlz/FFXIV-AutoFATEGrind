@@ -22,7 +22,6 @@ public sealed class AutoHumanize(uint cityTerritoryId, int durationMs) : AutoCom
 
     private const int   TeleportWatchdogMs    = 60_000;
     private const int   WalkWatchdogMs        = 90_000;
-    private const int   DismountWatchdogMs    = 30_000;
     private const int   NavmeshReadyWaitMs    = 60_000;
     private const int   PlayerWaitPollMs      = 500;
     private const int   RouteQueryTimeoutMs   = 5_000;
@@ -79,8 +78,7 @@ public sealed class AutoHumanize(uint cityTerritoryId, int durationMs) : AutoCom
         await WaitForNavmeshReady(NavmeshReadyWaitMs);
         if (CancelToken.IsCancellationRequested) return;
 
-        if (Svc.Condition[ConditionFlag.Mounted])
-            await RunCancellable(new MoveOp(o => o.DismountNow()), DismountWatchdogMs, "humanize-dismount");
+        await SafeDismount("humanize-dismount");
 
         var deadline = Environment.TickCount64 + durationMs;
         var hops = 0;

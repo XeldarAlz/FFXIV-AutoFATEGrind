@@ -21,7 +21,9 @@ internal sealed class NavmeshIPC
     private readonly ICallGateSubscriber<float> navBuildProgress;
     private readonly ICallGateSubscriber<Vector3, Vector3, bool, Task<List<Vector3>>> navPathfind;
     private readonly ICallGateSubscriber<Vector3, float, float, Vector3?> nearestPointReachable;
+    private readonly ICallGateSubscriber<Vector3, bool, float, Vector3?> pointOnFloor;
     private readonly ICallGateSubscriber<object> pathStop;
+    private readonly ICallGateSubscriber<List<Vector3>, bool, object> pathMoveTo;
     private readonly ICallGateSubscriber<int> pathNumWaypoints;
     private readonly ICallGateSubscriber<List<Vector3>> pathListWaypoints;
 
@@ -35,8 +37,10 @@ internal sealed class NavmeshIPC
         navIsReady                  = Svc.PluginInterface.GetIpcSubscriber<bool>("vnavmesh.Nav.IsReady");
         navBuildProgress            = Svc.PluginInterface.GetIpcSubscriber<float>("vnavmesh.Nav.BuildProgress");
         navPathfind                 = Svc.PluginInterface.GetIpcSubscriber<Vector3, Vector3, bool, Task<List<Vector3>>>("vnavmesh.Nav.Pathfind");
-        nearestPointReachable       =Svc.PluginInterface.GetIpcSubscriber<Vector3, float, float, Vector3?>("vnavmesh.Query.Mesh.NearestPointReachable");
+        nearestPointReachable       = Svc.PluginInterface.GetIpcSubscriber<Vector3, float, float, Vector3?>("vnavmesh.Query.Mesh.NearestPointReachable");
+        pointOnFloor                = Svc.PluginInterface.GetIpcSubscriber<Vector3, bool, float, Vector3?>("vnavmesh.Query.Mesh.PointOnFloor");
         pathStop                    = Svc.PluginInterface.GetIpcSubscriber<object>("vnavmesh.Path.Stop");
+        pathMoveTo                  = Svc.PluginInterface.GetIpcSubscriber<List<Vector3>, bool, object>("vnavmesh.Path.MoveTo");
         pathNumWaypoints            = Svc.PluginInterface.GetIpcSubscriber<int>("vnavmesh.Path.NumWaypoints");
         pathListWaypoints           = Svc.PluginInterface.GetIpcSubscriber<List<Vector3>>("vnavmesh.Path.ListWaypoints");
     }
@@ -81,6 +85,13 @@ internal sealed class NavmeshIPC
             () => nearestPointReachable.InvokeFunc(position, halfExtentXZ, halfExtentY),
             (Vector3?)null, "[NavmeshIPC] NearestPointReachable failed");
 
+    // The highest mesh point below position within ±halfExtentXZ. vnavmesh names the flag allowUnlandable but
+    // applies it as its flood-fill reachability filter.
+    public Vector3? PointOnFloor(Vector3 position, bool allowUnreachable, float halfExtentXZ)
+        => IpcGate.Invoke(pointOnFloor.HasFunction,
+            () => pointOnFloor.InvokeFunc(position, allowUnreachable, halfExtentXZ),
+            (Vector3?)null, "[NavmeshIPC] PointOnFloor failed");
+
     // Waypoints left on the path vnav is following; WaypointsUnavailable when this vnavmesh has no such IPC.
     public int NumWaypoints()
         => IpcGate.Invoke(pathNumWaypoints.HasFunction, pathNumWaypoints.InvokeFunc, WaypointsUnavailable, "[NavmeshIPC] NumWaypoints failed");
@@ -92,6 +103,11 @@ internal sealed class NavmeshIPC
         return waypoints is { Count: > 0 } ? waypoints[0] : null;
     }
 
+    // vnavmesh registers Path.Stop and Path.MoveTo as actions, so HasFunction is always false for them.
     public void Stop()
-        => IpcGate.Run(pathStop.HasFunction, pathStop.InvokeAction, "[NavmeshIPC] Stop failed");
+        => IpcGate.Run(pathStop.HasAction, pathStop.InvokeAction, "[NavmeshIPC] Stop failed");
+
+    // Follows the waypoints as given, with no path search, so the caller has to know the way is clear.
+    public void MoveAlong(List<Vector3> waypoints, bool fly)
+        => IpcGate.Run(pathMoveTo.HasAction, () => pathMoveTo.InvokeAction(waypoints, fly), "[NavmeshIPC] Path.MoveTo failed");
 }

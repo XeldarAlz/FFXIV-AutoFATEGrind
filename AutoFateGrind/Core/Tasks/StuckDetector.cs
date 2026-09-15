@@ -16,6 +16,8 @@ internal static class StuckDetector
     // A vnav-driven move that closes on its current waypoint by less than the epsilon for this long is wedged.
     internal const int   NavWedgeTimeoutMs = 3_000;
     internal const float ProgressEpsilonMeters = 1.0f;
+    private const int AirborneFreezeMs = 2_000;
+    private const float AirborneFreezeMeters = 0.25f;
 
     // Stationary-but-legitimate states. Excludes Mounted (a mount snagged on terrain is a real freeze)
     // but includes Mounting (the summon holds the character still for ~1-2s).
@@ -67,6 +69,40 @@ internal static class StuckDetector
                 return false;
             }
             return now - idleSinceMs >= timeoutMs;
+        };
+    }
+
+    // The game's own descent after an air dismount is not vnav's, so the stall tracker never sees it; a position that
+    // stops changing while still airborne is the mount pressed against something it cannot land on.
+    internal static Func<bool> AirborneFreezeAbort(string label)
+    {
+        Vector3? anchor = null;
+        var frozenSinceMs = Environment.TickCount64;
+        return () =>
+        {
+            var now = Environment.TickCount64;
+            if (Svc.Objects.LocalPlayer is not { } player || !Svc.Condition[ConditionFlag.InFlight])
+            {
+                anchor = null;
+                frozenSinceMs = now;
+                return false;
+            }
+
+            var position = player.Position;
+            if (anchor is null || Vector3.Distance(anchor.Value, position) > AirborneFreezeMeters)
+            {
+                anchor = position;
+                frozenSinceMs = now;
+                return false;
+            }
+
+            if (now - frozenSinceMs < AirborneFreezeMs)
+            {
+                return false;
+            }
+
+            Svc.Log.Info($"{AfgConstants.LogPrefix} {label} froze in the air for {AirborneFreezeMs}ms at {position}; aborting the descent");
+            return true;
         };
     }
 }

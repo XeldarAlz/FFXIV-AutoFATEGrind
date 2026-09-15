@@ -212,7 +212,7 @@ public sealed partial class AutoFate
                 if (Svc.Condition[ConditionFlag.Mounted])
                 {
                     BossModIPC.Instance.ClearActive();
-                    await DismountViaOp($"dismount-engage-{fateId}");
+                    await SafeDismount($"dismount-engage-{fateId}");
                     AssertPresetActive(preset);
                 }
                 else

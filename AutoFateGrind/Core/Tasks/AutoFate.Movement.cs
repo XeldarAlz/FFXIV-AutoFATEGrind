@@ -163,14 +163,8 @@ public sealed partial class AutoFate
         }
 
         // Clean arrival. clib only dismounts when it lands inside tolerance; a flying mount routinely
-        // stops a few metres ABOVE the point (the Y gap), so it would otherwise enter the FATE still
-        // mounted. Dismount explicitly — clib's Dismount descends to a reachable point first when in
-        // flight — as its own cancellable op so a failed landing can't park the run.
-        if (Svc.Condition[ConditionFlag.Mounted])
-        {
-            var dismount = new MoveOp(o => o.DismountNow());
-            await RunCancellable(dismount, DismountWatchdogMs, $"dismount-{targetId}");
-        }
+        // stops a few metres ABOVE the point (the Y gap), so it would otherwise enter the FATE still mounted.
+        await SafeDismount($"dismount-{targetId}");
         return MoveStopReason.None;
     }
 
@@ -197,17 +191,10 @@ public sealed partial class AutoFate
         await PrepareForTeleport($"fate-approach-{fateId}");
         if (CancelToken.IsCancellationRequested) return;
 
-        var op = new MoveOp(o => o.Teleport(zone.TerritoryId, aetheryte.Position, allowSameZoneTeleport: true));
-        await RunCancellable(op, TeleportWatchdogMs, $"fate-approach-{fateId}", StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs));
-        if (op.Fault is { } fault)
+        var outcome = await RunTeleport(zone.TerritoryId, aetheryte.Position, allowSameZoneTeleport: true, TeleportWatchdogMs, $"fate-approach-{fateId}");
+        if (outcome.Fault is { } fault)
             Diag($"Teleport shortcut for FATE {fateId} faulted: {fault.Message}; flying from here instead");
     }
-
-    // Every clib movement primitive — including dismount in combat/engage — goes through a cancellable
-    // MoveOp so a wedged op (e.g. clib can't find a landing point in flight) can never park the parent
-    // loop. The parent never awaits a raw clib MoveTo/Teleport/Dismount directly.
-    private Task DismountViaOp(string label)
-        => RunCancellable(new MoveOp(o => o.DismountNow()), DismountWatchdogMs, label);
 
     private async Task<bool> TryTeleportToFate(PublicEvent fate)
     {
@@ -224,11 +211,10 @@ public sealed partial class AutoFate
         await PrepareForTeleport($"teleport-recovery-{fateId}");
         if (CancelToken.IsCancellationRequested) return false;
 
-        // Capture position AFTER any dismount so a flight descent isn't mistaken for teleport progress.
+        // Captured after PrepareForTeleport so climbing out of the water isn't mistaken for teleport progress.
         var before = Svc.Objects.LocalPlayer?.Position;
-        // Idle-stall guard catches a teleport that never starts casting in ~8s instead of the full watchdog.
-        var tp = new MoveOp(o => o.Teleport(zone.TerritoryId, aetheryte.Position, allowSameZoneTeleport: true));
-        if (!await RunCancellable(tp, TeleportWatchdogMs, $"teleport-recovery-{fateId}", StuckDetector.IdleStallAbort(StuckDetector.IdleStallTimeoutMs)))
+        var outcome = await RunTeleport(zone.TerritoryId, aetheryte.Position, allowSameZoneTeleport: true, TeleportWatchdogMs, $"teleport-recovery-{fateId}");
+        if (!outcome.Succeeded)
             return false;
 
         var after = Svc.Objects.LocalPlayer?.Position;
@@ -254,7 +240,7 @@ public sealed partial class AutoFate
 
         var preset = Plugin.Cfg.CombatPresetName;
         EnsureCombatPreset(preset);
-        if (Svc.Condition[ConditionFlag.Mounted]) await DismountViaOp("dismount-clearcombat");
+        await SafeDismount("dismount-clearcombat");
         AssertPresetActive(preset);
 
         var deadline = Environment.TickCount64 + CombatClearTimeoutMs;
@@ -267,7 +253,7 @@ public sealed partial class AutoFate
                 if (IsPlayerKO()) break;
                 // A real FATE may have started on top of us; let the state machine take over.
                 if (PublicEvent.CurrentFate is { State: FateState.Running }) break;
-                if (Svc.Condition[ConditionFlag.Mounted]) { BossModIPC.Instance.ClearActive(); await DismountViaOp("dismount-clearcombat"); }
+                if (Svc.Condition[ConditionFlag.Mounted]) { BossModIPC.Instance.ClearActive(); await SafeDismount("dismount-clearcombat"); }
                 AssertPresetActive(preset);
                 await NextFrame(30);
             }
