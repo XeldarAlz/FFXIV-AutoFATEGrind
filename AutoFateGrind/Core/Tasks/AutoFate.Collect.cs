@@ -347,7 +347,7 @@ public sealed partial class AutoFate
         }
         var fateName = live.Name;
         var now = Environment.TickCount64;
-        var timerMs = (long)(Math.Max(0f, live.TimeRemaining) * 1000f);
+        var timerMs = (long)(Math.Max(0f, FateClock.Remaining(live)) * 1000f);
         var watchMs = Math.Clamp(timerMs + CollectRewardWatchSlackMs, CollectRewardWatchMinMs, CollectRewardWatchMaxMs);
         pendingRewardSpawn = spawn;
         pendingRewardName = fateName;

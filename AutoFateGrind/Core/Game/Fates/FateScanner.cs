@@ -45,11 +45,11 @@ internal static class FateScanner
         if (FateBlacklist.Contains(cfg, f)) return false;
         if (sessionBlacklist is not null && sessionBlacklist.Contains(f.Id)) return false;
         if (cfg.SkippedFateRules.Contains((int)f.Rule)) return false;
-        if (!awaitsNpcStart && f.TimeRemaining < cfg.MinTimeRemainingSec) return false;
+        if (!awaitsNpcStart && FateClock.Remaining(f) < cfg.MinTimeRemainingSec) return false;
         if (f.Progress > cfg.MaxProgressPct) return false;
         // A Collect FATE stays Running at 100% as its hand-in window; nothing can be contributed to it anymore.
         if (f.Progress >= 100) return false;
-        if (!f.IsOnMap) return false;
+        if (!FateClock.IsOnMap(f)) return false;
         if (cfg.LevelRangeFilterEnabled && !IsWithinLevelRange(f, cfg))
         {
             return false;
@@ -106,14 +106,14 @@ internal static class FateScanner
         FateSortCriterion.Distance          => f => Vector3.DistanceSquared(f.Position, playerPos),
         // Urgent FATEs sort by actual remaining time; non-urgent ones tie at the threshold so later
         // criteria break the tie.
-        FateSortCriterion.TimeRemaining     => f => IsUrgent(f) ? f.TimeRemaining : UrgentTimeThresholdSec,
+        FateSortCriterion.TimeRemaining     => f => IsUrgent(f) ? FateClock.Remaining(f) : UrgentTimeThresholdSec,
         FateSortCriterion.Level             => f => f.Level,
         FateSortCriterion.Name              => f => f.Name ?? string.Empty,
         _                                   => _ => 0,
     };
 
     private static bool IsUrgent(PublicEvent f)
-        => !AwaitsNpcStart(f) && f.TimeRemaining is >= 0 and < UrgentTimeThresholdSec;
+        => !AwaitsNpcStart(f) && FateClock.Remaining(f) is >= 0 and < UrgentTimeThresholdSec;
 
     public static bool PlayerHasTwistOfFate()
     {

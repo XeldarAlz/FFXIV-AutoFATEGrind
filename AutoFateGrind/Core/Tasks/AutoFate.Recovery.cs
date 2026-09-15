@@ -1,4 +1,5 @@
 using AutoFateGrind.Core.External;
+using AutoFateGrind.Core.Game.Fates;
 using AutoFateGrind.Core.Ipc;
 using AutoFateGrind.Core.Modes;
 using AutoFateGrind.Core.Trading;
@@ -185,7 +186,7 @@ public sealed partial class AutoFate
     private async Task EnsureObstacleMapForEngage(PublicEvent fate)
     {
         if (!BossModIPC.Instance.IsAvailable) return;
-        if (!fate.IsOnMap) return;
+        if (!FateClock.IsOnMap(fate)) return;
         if (BossModIPC.Instance.HasTempObstacleMap()) return;
         await GenerateObstacleMap(fate);
     }

@@ -116,7 +116,7 @@ internal static class RunningPanel
 
             using (Fonts.PushCaption())
             {
-                TextDraw.At(Loc.T(L.Run.FateProgress, fate.Progress, Formatting.Time(fate.TimeRemaining)), new Vector2(columnX, y), Styling.TextDim);
+                TextDraw.At(Loc.T(L.Run.FateProgress, fate.Progress, Formatting.Time(FateClock.Remaining(fate))), new Vector2(columnX, y), Styling.TextDim);
                 TextDraw.Right(info.Remaining, columnRight, y, Styling.WithAlpha(accentSoft, 0.9f));
             }
         }
@@ -288,7 +288,7 @@ internal static class RunningPanel
         TextDraw.Icon(icon, new Vector2(origin.X + padX, topY + (ImGui.GetTextLineHeight() - iconSize.Y) * 0.5f), iconColor);
 
         var distance = (int)Math.Round(Vector3.Distance(playerPos, fate.Position));
-        var meta = Loc.T(L.Run.QueueMeta, fate.Progress, Formatting.Time(fate.TimeRemaining), distance);
+        var meta = Loc.T(L.Run.QueueMeta, fate.Progress, Formatting.Time(FateClock.Remaining(fate)), distance);
         Vector2 metaSize;
         using (Fonts.PushCaption())
         {

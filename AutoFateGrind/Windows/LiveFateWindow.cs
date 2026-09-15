@@ -147,7 +147,7 @@ public sealed class LiveFateWindow : Window, IDisposable
 
         using (Fonts.PushCaption())
         {
-            var meta = Loc.T(L.Run.FateProgress, fate.Progress, Formatting.Time(fate.TimeRemaining));
+            var meta = Loc.T(L.Run.FateProgress, fate.Progress, Formatting.Time(FateClock.Remaining(fate)));
             TextDraw.At(meta, new Vector2(origin.X, y), Styling.TextDim);
             y += TextDraw.Measure(meta).Y;
         }
@@ -227,7 +227,7 @@ public sealed class LiveFateWindow : Window, IDisposable
         Vector2 metaSize;
         using (Fonts.PushCaption())
         {
-            meta = Loc.T(L.Live.QueueMeta, fate.Progress, Formatting.Time(fate.TimeRemaining));
+            meta = Loc.T(L.Live.QueueMeta, fate.Progress, Formatting.Time(FateClock.Remaining(fate)));
             metaSize = TextDraw.Measure(meta);
             TextDraw.At(meta, new Vector2(origin.X + width - buttonSize - 8f * scale - metaSize.X, midY - metaSize.Y * 0.5f), Styling.TextDim);
         }

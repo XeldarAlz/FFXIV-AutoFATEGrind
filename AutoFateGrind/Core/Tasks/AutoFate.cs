@@ -154,6 +154,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
             "BossMod (or BossMod Reborn) not installed or not loaded.");
 
         Svc.Chat.Print($"[AFG] Starting {zone.Name}...");
+        Diag($"PC clock offset from the game server: {FateClock.LocalClockOffsetSeconds:+0;-0;0}s");
         lastStateChangedAtMs = Environment.TickCount64;
 
         try
