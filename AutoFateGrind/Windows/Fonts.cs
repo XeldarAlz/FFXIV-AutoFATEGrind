@@ -18,10 +18,13 @@ internal static class Fonts
     private const float IconDisplayPx = 34f;
 
     private const string LatinFontFile = "NotoSans-Medium-Latin.ttf";
-    private const int FirstNonAsciiCodepoint = 0x0080;
     private const int LatinBlocksEnd = 0x036F;
     private const int LatinAdditionalStart = 0x1E00;
     private const int LatinAdditionalEnd = 0x1EFF;
+
+    // Face indices inside Dalamud's NotoSansCJK-Regular.ttc collection.
+    private const int NotoCjkJapaneseFace = 0;
+    private const int NotoCjkSimplifiedChineseFace = 2;
 
     private static readonly ushort[] LatinBlocks =
     [
@@ -38,10 +41,13 @@ internal static class Fonts
 
     private static readonly NoOpScope noOp = new();
 
+    private static IUiBuilder? builder;
     private static IFontAtlas? atlas;
     private static byte[]? latinFont;
     private static ushort[] latinRanges = [0];
     private static ushort[] mergeRanges = [0];
+    private static int cjkFace = NotoCjkJapaneseFace;
+    private static int bakedGameTextVersion;
 
     private static IFontHandle? body;
     private static IFontHandle? title;
@@ -52,6 +58,7 @@ internal static class Fonts
 
     public static void Initialize(IUiBuilder uiBuilder, string pluginDirectory)
     {
+        builder = uiBuilder;
         atlas = uiBuilder.FontAtlas;
         latinFont = LoadLatinFont(Path.Combine(pluginDirectory, "Fonts", LatinFontFile));
         RefreshRanges();
@@ -62,6 +69,7 @@ internal static class Fonts
         caption = TextHandle(CaptionPx);
         iconLarge = atlas.NewDelegateFontHandle(e => e.OnPreBuild(tk => tk.AddFontAwesomeIconFont(new SafeFontConfig { SizePx = IconLargePx })));
         iconDisplay = atlas.NewDelegateFontHandle(e => e.OnPreBuild(tk => tk.AddFontAwesomeIconFont(new SafeFontConfig { SizePx = IconDisplayPx })));
+        uiBuilder.Draw += RebuildOnNewGameText;
 
         if (atlas.AutoRebuildMode == FontAtlasAutoRebuildMode.Disable)
         {
@@ -69,14 +77,15 @@ internal static class Fonts
         }
     }
 
-    public static void OnLanguageChanged()
-    {
-        RefreshRanges();
-        if (atlas is not null) _ = atlas.BuildFontsAsync();
-    }
+    public static void OnLanguageChanged() => Rebuild();
 
     public static void Dispose()
     {
+        if (builder is not null)
+        {
+            builder.Draw -= RebuildOnNewGameText;
+        }
+
         body?.Dispose();
         title?.Dispose();
         headline?.Dispose();
@@ -84,6 +93,7 @@ internal static class Fonts
         iconLarge?.Dispose();
         iconDisplay?.Dispose();
         body = title = headline = caption = iconLarge = iconDisplay = null;
+        builder = null;
         atlas = null;
         latinFont = null;
     }
@@ -140,32 +150,63 @@ internal static class Fonts
                 SizePx = sizePx,
                 GlyphRanges = mergeRanges,
                 MergeFont = primary,
+                FontNo = cjkFace,
             });
         }));
 
-    // The delegates above run again on every atlas rebuild, so refreshing these arrays and queueing a
-    // rebuild is all a language switch needs to bake the new script's glyphs. Every language's native
-    // name is always included so the language picker renders in any active language.
+    private static void RebuildOnNewGameText()
+    {
+        if (bakedGameTextVersion != GameTextGlyphs.Version)
+        {
+            Rebuild();
+        }
+    }
+
+    private static void Rebuild()
+    {
+        RefreshRanges();
+        if (atlas is not null)
+        {
+            _ = atlas.BuildFontsAsync();
+        }
+    }
+
+    // The delegates above run again on every atlas rebuild, so refreshing these arrays and queueing a rebuild
+    // is all a language switch or newly seen game text needs. Game text glyphs are baked in every language
+    // because they follow the client language, and every native name is baked for the language picker.
     private static void RefreshRanges()
     {
-        var latin = new bool[char.MaxValue + 1];
-        var merge = new bool[char.MaxValue + 1];
-        var extra = new bool[char.MaxValue + 1];
-        MarkRanges(latin, LatinBlocks);
-        MarkRanges(merge, SymbolBlocks);
-        MarkRanges(extra, Loc.Current.ExtraGlyphRanges);
-        MarkRanges(extra, Loc.CatalogGlyphRanges);
+        var latin = new bool[GlyphRanges.CodepointCount];
+        var merge = new bool[GlyphRanges.CodepointCount];
+        var extra = new bool[GlyphRanges.CodepointCount];
+        GlyphRanges.MarkRanges(latin, LatinBlocks);
+        GlyphRanges.MarkRanges(merge, SymbolBlocks);
+        GlyphRanges.MarkRanges(extra, Loc.Current.ExtraGlyphRanges);
+        GlyphRanges.MarkRanges(extra, Loc.CatalogGlyphRanges);
         MarkNativeNames(extra);
 
-        for (var codepoint = FirstNonAsciiCodepoint; codepoint <= char.MaxValue; codepoint++)
+        var gameText = GameTextGlyphs.Present;
+        for (var codepoint = GlyphRanges.FirstNonAsciiCodepoint; codepoint < GlyphRanges.CodepointCount; codepoint++)
         {
-            if (!extra[codepoint] || latin[codepoint]) continue;
-            if (IsLatinCodepoint(codepoint)) latin[codepoint] = true;
-            else merge[codepoint] = true;
+            if (latin[codepoint] || (!extra[codepoint] && !gameText[codepoint]))
+            {
+                continue;
+            }
+
+            if (IsLatinCodepoint(codepoint))
+            {
+                latin[codepoint] = true;
+            }
+            else
+            {
+                merge[codepoint] = true;
+            }
         }
 
-        latinRanges = ToRanges(latin);
-        mergeRanges = ToRanges(merge);
+        latinRanges = GlyphRanges.ToRanges(latin);
+        mergeRanges = GlyphRanges.ToRanges(merge);
+        cjkFace = ReferenceEquals(Loc.Current, Languages.Chinese) ? NotoCjkSimplifiedChineseFace : NotoCjkJapaneseFace;
+        bakedGameTextVersion = GameTextGlyphs.Version;
     }
 
     private static bool IsLatinCodepoint(int codepoint)
@@ -176,52 +217,8 @@ internal static class Fonts
         var languages = Languages.All;
         for (var languageIndex = 0; languageIndex < languages.Length; languageIndex++)
         {
-            var name = languages[languageIndex].NativeName;
-            for (var charIndex = 0; charIndex < name.Length; charIndex++)
-            {
-                var codepoint = name[charIndex];
-                if (codepoint < FirstNonAsciiCodepoint || char.IsSurrogate(codepoint)) continue;
-                extra[codepoint] = true;
-            }
+            GlyphRanges.MarkText(extra, languages[languageIndex].NativeName);
         }
-    }
-
-    private static void MarkRanges(bool[] target, ushort[]? ranges)
-    {
-        if (ranges is null) return;
-        for (var index = 0; index + 1 < ranges.Length; index += 2)
-        {
-            if (ranges[index] == 0) return;
-            for (int codepoint = ranges[index]; codepoint <= ranges[index + 1]; codepoint++) target[codepoint] = true;
-        }
-    }
-
-    private static ushort[] ToRanges(bool[] present)
-    {
-        var ranges = new List<ushort>();
-        var runStart = -1;
-        for (var codepoint = 1; codepoint <= char.MaxValue; codepoint++)
-        {
-            if (present[codepoint])
-            {
-                if (runStart < 0) runStart = codepoint;
-                continue;
-            }
-
-            if (runStart < 0) continue;
-            ranges.Add((ushort)runStart);
-            ranges.Add((ushort)(codepoint - 1));
-            runStart = -1;
-        }
-
-        if (runStart >= 0)
-        {
-            ranges.Add((ushort)runStart);
-            ranges.Add(char.MaxValue);
-        }
-
-        ranges.Add(0);
-        return [.. ranges];
     }
 
     private sealed class NoOpScope : IDisposable

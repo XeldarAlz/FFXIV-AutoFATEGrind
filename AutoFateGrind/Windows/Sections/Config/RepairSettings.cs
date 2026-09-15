@@ -106,6 +106,7 @@ internal static class RepairSettings
             else
             {
                 cfg.PreferredRepairNpc = captured;
+                GameTextGlyphs.Add(captured.Name);
                 cfg.SaveDebounced();
                 Svc.Chat.Print(Loc.T(L.Settings.NpcSetChat, captured.Name, captured.TerritoryId));
             }

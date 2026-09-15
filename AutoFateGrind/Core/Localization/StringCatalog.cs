@@ -6,8 +6,6 @@ namespace AutoFateGrind.Core.Localization;
 
 internal sealed class StringCatalog
 {
-    private const int FirstNonAsciiCodepoint = 0x0080;
-
     public static readonly StringCatalog Empty = new(new Dictionary<string, string>(0, StringComparer.Ordinal));
 
     private readonly Dictionary<string, string> entries;
@@ -59,38 +57,9 @@ internal sealed class StringCatalog
             return [0];
         }
 
-        var present = new bool[char.MaxValue + 1];
-        for (var index = 0; index < text.Length; index++)
-        {
-            var codepoint = text[index];
-            if (codepoint < FirstNonAsciiCodepoint || char.IsSurrogate(codepoint)) continue;
-            present[codepoint] = true;
-        }
-
-        var ranges = new List<ushort>();
-        var runStart = -1;
-        for (var codepoint = FirstNonAsciiCodepoint; codepoint <= char.MaxValue; codepoint++)
-        {
-            if (present[codepoint])
-            {
-                if (runStart < 0) runStart = codepoint;
-                continue;
-            }
-
-            if (runStart < 0) continue;
-            ranges.Add((ushort)runStart);
-            ranges.Add((ushort)(codepoint - 1));
-            runStart = -1;
-        }
-
-        if (runStart >= 0)
-        {
-            ranges.Add((ushort)runStart);
-            ranges.Add(char.MaxValue);
-        }
-
-        ranges.Add(0);
-        return [.. ranges];
+        var present = new bool[GlyphRanges.CodepointCount];
+        GlyphRanges.MarkText(present, text);
+        return GlyphRanges.ToRanges(present);
     }
 
     private static void Flatten(JObject node, string? prefix, Dictionary<string, string> target)

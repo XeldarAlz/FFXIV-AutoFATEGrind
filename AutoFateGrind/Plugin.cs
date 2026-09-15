@@ -64,6 +64,7 @@ public sealed class Plugin : IDalamudPlugin
         dutyWatcher = new DutyWatcher();
 
         InitializeLocalization();
+        GameTextGlyphs.Collect(Configuration, History);
         Fonts.Initialize(PluginInterface.UiBuilder, PluginDirectory);
         appWindow = new AppWindow(this);
         LiveFateWindow = new LiveFateWindow(this) { IsOpen = Configuration.ShowLivePopout };

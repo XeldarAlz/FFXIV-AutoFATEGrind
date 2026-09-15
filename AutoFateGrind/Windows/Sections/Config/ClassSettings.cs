@@ -83,6 +83,11 @@ internal static class ClassSettings
     private static void DrawAddClassRow(Configuration cfg)
     {
         var gearsets = ClassSwitcher.EnumerateGearsets();
+        for (var index = 0; index < gearsets.Count; index++)
+        {
+            GameTextGlyphs.Add(gearsets[index].Name);
+        }
+
         if (gearsets.Count == 0)
         {
             SettingsRow.Note(Loc.T(L.Settings.NoGearsets));
