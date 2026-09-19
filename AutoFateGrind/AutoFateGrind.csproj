@@ -23,7 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="croizat.clib" Version="1.0.93" />
+    <PackageReference Include="croizat.clib" Version="1.0.98" />
   </ItemGroup>
 
   <ItemGroup>

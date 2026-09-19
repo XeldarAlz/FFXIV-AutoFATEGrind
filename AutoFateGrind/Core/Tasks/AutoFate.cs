@@ -457,6 +457,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private async Task TickIdleScan()
     {
         await EnsureConsumables();
+        TryMountWhileWaiting();
         var swapPending = Plugin.Cfg.SwapZonesWhenEmpty && zones.Count > 1;
         var remainingSec = Math.Max(0L, IdleWaitBeforeSwapMs - (Environment.TickCount64 - zoneIdleSinceMs)) / 1000;
         Status = swapPending
@@ -470,6 +471,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     // Each item is bounded by a wall-clock deadline, so a use that never lands can't park the grind.
     private async Task EnsureConsumables()
     {
+        await EnsureChocobo();
         var cfg = Plugin.Cfg;
         if (!cfg.AutoConsume || cfg.AutoConsumeItems.Count == 0) return;
         if (Svc.Condition[ConditionFlag.InCombat]) return;
@@ -501,6 +503,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
 
     private async Task TickFollowUpWait()
     {
+        TryMountWhileWaiting();
         var remaining = Math.Max(0L, followUpWatchUntilMs - Environment.TickCount64);
         Status = $"Watching for follow-up FATE ({remaining / 1000 + 1}s)";
         await NextFrame(100);
