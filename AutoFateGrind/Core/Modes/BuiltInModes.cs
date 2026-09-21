@@ -1,3 +1,4 @@
+using AutoFateGrind.Core.Game.Yokai;
 using AutoFateGrind.Core.Trading;
 
 namespace AutoFateGrind.Core.Modes;
@@ -58,5 +59,20 @@ public sealed class RunCountMode : IFateGrindMode
     {
         var remaining = Math.Max(0, Plugin.Cfg.TargetFateCount - ctx.CompletedCount);
         return remaining > 0 ? $"{remaining} FATEs left" : null;
+    }
+}
+
+public sealed class YokaiMedalsMode : IFateGrindMode
+{
+    public const string ModeId = "yokaimedals";
+    public string Id => ModeId;
+    public string DisplayName => "Yo-kai Medals";
+    public string Description => "Farms Legendary Medals for every Yo-kai minion you own, summoning each minion and travelling to its zones, and stops once all of them reach your target.";
+    public bool IsComplete(ModeContext ctx) => YokaiProgress.IsComplete(Plugin.Cfg);
+
+    public string? GetRemainingDisplay(ModeContext ctx)
+    {
+        var (collected, needed) = YokaiProgress.Totals(Plugin.Cfg);
+        return collected < needed ? $"{needed - collected} medals left" : null;
     }
 }

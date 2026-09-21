@@ -1,5 +1,6 @@
 using AutoFateGrind.Core.External;
 using AutoFateGrind.Core.Game.Player;
+using AutoFateGrind.Core.Game.Yokai;
 using AutoFateGrind.Core.Trading;
 using AutoFateGrind.Core.Zones;
 using clib.Services;
@@ -22,6 +23,7 @@ internal sealed partial class AutoFateController
     private AutoFateSession? session;
     private IReadOnlyList<ZoneInfo> activeZones = [];
     public AutoFateSession? SessionSnapshot => session;
+    public int ActiveZoneCount => activeZones.Count;
 
     private static readonly Random rng = new();
 
@@ -65,11 +67,53 @@ internal sealed partial class AutoFateController
             GemstoneCurrent = startWallet,
         };
         s.CaptureStartExp();
+
+        var startIndex = 0;
+        if (ZoneSelection.GoalPlansZones(Plugin.Cfg))
+        {
+            if (!PlanYokaiZones(s))
+            {
+                Diag("Start aborted: no yo-kai is left to farm.");
+                activeZones = [];
+                return;
+            }
+            startIndex = CurrentTerritoryIndex();
+        }
+
         session = s;
         Diag($"Run starting: {activeZones.Count} zone(s), mode {Plugin.Cfg.ActiveMode.DisplayName}, wallet {startWallet}g, threshold {Plugin.Cfg.TradeThreshold}g, trade-on-cap {(Plugin.Cfg.TradeOnCap ? "on" : "off")}.");
 
         ApplyStartingClass();
-        StartFateGrind(0, s);
+        StartFateGrind(startIndex, s);
+    }
+
+    private bool PlanYokaiZones(AutoFateSession owningSession)
+    {
+        var targetIndex = YokaiProgress.ResolveTargetIndex(Plugin.Cfg, owningSession.YokaiTargetMinionId);
+        var zones = YokaiProgress.ZonesFor(targetIndex);
+        if (zones.Count == 0)
+        {
+            return false;
+        }
+
+        owningSession.YokaiTargetMinionId = YokaiCatalog.Entries[targetIndex].MinionId;
+        activeZones = zones;
+        Diag($"Yo-kai target: {YokaiProgress.MinionName(targetIndex)} ({YokaiProgress.Statuses[targetIndex].Medals}/{YokaiProgress.MedalTarget(Plugin.Cfg)} medals), {zones.Count} zone(s).");
+        return true;
+    }
+
+    private int CurrentTerritoryIndex()
+    {
+        var territory = ECommons.DalamudServices.Svc.ClientState.TerritoryType;
+        for (var index = 0; index < activeZones.Count; index++)
+        {
+            if (activeZones[index].TerritoryId == territory)
+            {
+                return index;
+            }
+        }
+
+        return 0;
     }
 
     private static void ApplyStartingClass()

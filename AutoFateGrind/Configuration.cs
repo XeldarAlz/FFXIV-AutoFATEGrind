@@ -33,6 +33,8 @@ public sealed class Configuration : IPluginConfiguration
     public int TargetFateCount { get; set; } = 30;
     public int TargetGemstoneCount { get; set; } = 1500;
     public int TargetMinutes { get; set; } = 60;
+    public int TargetYokaiMedals { get; set; } = 10;
+    public HashSet<uint> YokaiSkippedMinionIds { get; set; } = [];
 
     public string CombatPresetName { get; set; } = Core.AfgConstants.BundledCombatPresetName;
     public int BundledCombatPresetRevision { get; set; } = 0;

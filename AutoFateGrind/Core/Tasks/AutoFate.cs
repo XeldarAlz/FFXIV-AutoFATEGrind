@@ -127,6 +127,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
         WrongZone,            // Not in target territory.
         SwapZone,             // Rotate to next selected zone when the current one stays empty.
         AllDone,              // Stop condition met; return cleanly.
+        YokaiAdvance,         // The yo-kai being farmed is done; hand off so the controller plans the next one.
         Unconscious,          // Player KO'd, run revive.
         WaitingForFollowUp,   // Just finished a chain parent; hold briefly for sequel.
         WaitingForCollectReward, // Nothing left to pick here, but a finished Collect FATE still owes its reward.
@@ -160,6 +161,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
         {
             // Eat up front so the buff is live before the first FATE (food works anywhere out of combat).
             await EnsureConsumables();
+            await EnsureYokaiCompanion();
             await RunStateMachine();
             Svc.Chat.Print($"[AFG] {zone.Name}: zone done.");
         }
@@ -225,6 +227,10 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
                     Status = "Stop condition met";
                     Diag("Stop condition met; exiting");
                     session.CompletedByStopCondition = true;
+                    return;
+
+                case GrindState.YokaiAdvance:
+                    await HandOffToNextYokai();
                     return;
 
                 case GrindState.Unconscious:
@@ -352,6 +358,9 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
 
         if (StopConditionMet())
             return GrindState.AllDone;
+
+        if (YokaiTargetChanged())
+            return GrindState.YokaiAdvance;
 
         if (Svc.ClientState.TerritoryType != zone.TerritoryId)
             return GrindState.WrongZone;

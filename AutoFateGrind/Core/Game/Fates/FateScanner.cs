@@ -1,3 +1,4 @@
+using AutoFateGrind.Core.Zones;
 using clib.Utils;
 using ECommons.DalamudServices;
 using FFXIVClientStructs.FFXIV.Client.Game.Fate;
@@ -50,7 +51,8 @@ internal static class FateScanner
         // A Collect FATE stays Running at 100% as its hand-in window; nothing can be contributed to it anymore.
         if (f.Progress >= 100) return false;
         if (!FateClock.IsOnMap(f)) return false;
-        if (cfg.LevelRangeFilterEnabled && !IsWithinLevelRange(f, cfg))
+        // A goal that picks its own zones sends a capped character into low-level ones, where the band would reject everything.
+        if (cfg.LevelRangeFilterEnabled && !ZoneSelection.GoalPlansZones(cfg) && !IsWithinLevelRange(f, cfg))
         {
             return false;
         }

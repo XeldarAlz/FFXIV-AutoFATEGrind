@@ -1,6 +1,7 @@
 using AutoFateGrind.Core.External;
 using AutoFateGrind.Core.Game.Fates;
 using AutoFateGrind.Core.Game.Ops;
+using AutoFateGrind.Core.Game.Yokai;
 using AutoFateGrind.Core.Ipc;
 using AutoFateGrind.Core.Modes;
 using AutoFateGrind.Core.Trading;
@@ -26,6 +27,7 @@ public sealed partial class AutoFate
         if (player is null) { await NextFrame(); return ExitReason.Continue; }
 
         await EnsureConsumables();
+        await EnsureYokaiCompanion();
         if (CancelToken.IsCancellationRequested) return ExitReason.Quit;
 
         var fate = FateScanner.PickNext(Plugin.Cfg, player.Position, sessionStuckFateIds, returnToFateId);
@@ -260,6 +262,7 @@ public sealed partial class AutoFate
             // A Collect reward only lands once the row clears, so there is nothing to settle at 100% yet.
             if (isCollect) session.UpdateGemstones(); else await SettleGemstoneReward();
             session.UpdateExp();
+            YokaiProgress.Invalidate();
             Diag($"FATE {fateId} done (session total: {session.CompletedCount}, wallet {session.GemstoneCurrent}g)");
             StartFollowUpWatch(fateId);
 

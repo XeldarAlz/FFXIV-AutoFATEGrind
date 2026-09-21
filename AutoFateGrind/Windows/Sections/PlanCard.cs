@@ -1,4 +1,5 @@
 using AutoFateGrind.Core;
+using AutoFateGrind.Core.Game.Yokai;
 using AutoFateGrind.Core.Localization;
 using AutoFateGrind.Core.Modes;
 using AutoFateGrind.Core.Tasks;
@@ -30,6 +31,7 @@ internal static class PlanCard
 
     private const string GoalPopup = "##afg_goal_popover";
     private const string AfterPopup = "##afg_after_popover";
+    private const int MaxYokaiMedals = 99;
 
     private static readonly AfterRunAction[] afterRunOrder =
         [AfterRunAction.StayLoggedIn, AfterRunAction.ReturnToInn, AfterRunAction.Logout, AfterRunAction.CloseGame];
@@ -44,7 +46,7 @@ internal static class PlanCard
 
     private static readonly Piece[] pieces = new Piece[7];
     private static readonly Vector2 PopoverPadding = new(16f, 16f);
-    private static readonly Segmented.Item[] modeItems = new Segmented.Item[4];
+    private static readonly Segmented.Item[] modeItems = new Segmented.Item[5];
     private static Vector2 goalAnchor;
     private static Vector2 afterAnchor;
     private static long goalOpenedTick;
@@ -80,7 +82,8 @@ internal static class PlanCard
         {
             ImGui.PushID("##afg_plan_chips");
             ImGui.BeginGroup();
-            QueueStrip.Draw(cfg, ctrl);
+            if (ZoneSelection.GoalPlansZones(cfg)) YokaiRoster.DrawPlanNote(cfg);
+            else QueueStrip.Draw(cfg, ctrl);
             ImGui.EndGroup();
             ImGui.PopID();
         }
@@ -110,7 +113,7 @@ internal static class PlanCard
 
         var count = 0;
         pieces[count++] = new Piece(PieceKind.Word, Loc.T(L.Grind.SentenceGrind));
-        pieces[count++] = new Piece(PieceKind.Zones, ZoneLabel(zoneCount));
+        pieces[count++] = new Piece(PieceKind.Zones, ZoneLabel(cfg, zoneCount));
         pieces[count++] = new Piece(PieceKind.Word, Loc.T(L.Grind.SentenceUntil));
         pieces[count++] = new Piece(PieceKind.Goal, GoalLabel(cfg));
         if (!endless)
@@ -213,13 +216,22 @@ internal static class PlanCard
         return hit.Clicked;
     }
 
-    private static string ZoneLabel(int count) => count == 0 ? Loc.T(L.Grind.ZonesNone) : Loc.Plural(L.Grind.ZonesCount, count);
+    private static string ZoneLabel(Configuration cfg, int count)
+    {
+        if (ZoneSelection.GoalPlansZones(cfg))
+        {
+            return count == 0 ? Loc.T(L.Grind.ZonesYokaiNone) : Loc.T(L.Grind.ZonesYokai);
+        }
+
+        return count == 0 ? Loc.T(L.Grind.ZonesNone) : Loc.Plural(L.Grind.ZonesCount, count);
+    }
 
     private static string GoalLabel(Configuration cfg) => cfg.ActiveMode.Id switch
     {
         MaxGemstonesMode.ModeId => Loc.T(L.Grind.GoalGemstones, cfg.TargetGemstoneCount.ToString("N0", Loc.Culture)),
         RunCountMode.ModeId     => Loc.T(L.Grind.GoalFates, cfg.TargetFateCount),
         TimeBoxedMode.ModeId    => Loc.T(L.Grind.GoalMinutes, cfg.TargetMinutes),
+        YokaiMedalsMode.ModeId  => Loc.T(L.Grind.GoalYokai, cfg.TargetYokaiMedals),
         _                       => Loc.T(L.Grind.GoalEndless),
     };
 
@@ -234,6 +246,7 @@ internal static class PlanCard
                 MaxGemstonesMode.ModeId => new Segmented.Item(FontAwesomeIcon.Gem, Loc.T(L.Grind.ModeGemstones)),
                 RunCountMode.ModeId     => new Segmented.Item(FontAwesomeIcon.ListOl, Loc.T(L.Grind.ModeFates)),
                 TimeBoxedMode.ModeId    => new Segmented.Item(FontAwesomeIcon.Stopwatch, Loc.T(L.Grind.ModeTime)),
+                YokaiMedalsMode.ModeId  => new Segmented.Item(FontAwesomeIcon.Ghost, Loc.T(L.Grind.ModeYokai)),
                 EndlessMode.ModeId      => new Segmented.Item(FontAwesomeIcon.Infinity, Loc.T(L.Grind.ModeEndless)),
                 _                       => new Segmented.Item(FontAwesomeIcon.Flag, modes[index].DisplayName),
             };
@@ -316,6 +329,7 @@ internal static class PlanCard
             MaxGemstonesMode.ModeId => (Loc.T(L.Grind.StopAt), Loc.T(L.Grind.UnitGemstones), 50, 1, AfgConstants.BicolorCap, cfg.TargetGemstoneCount,
                 Loc.T(L.Grind.NoteGemstones, GemstoneCatalog.CurrentWalletCount().ToString("N0", Loc.Culture))),
             RunCountMode.ModeId     => (Loc.T(L.Grind.StopAfter), Loc.T(L.Grind.UnitFates), 5, 1, 9999, cfg.TargetFateCount, Loc.T(L.Grind.NoteFates)),
+            YokaiMedalsMode.ModeId  => (Loc.T(L.Grind.StopAt), Loc.T(L.Grind.UnitYokaiMedals), 1, 1, MaxYokaiMedals, cfg.TargetYokaiMedals, Loc.T(L.Grind.NoteYokai)),
             _                       => (Loc.T(L.Grind.StopAfter), Loc.T(L.Grind.UnitMinutes), 5, 1, 1440, cfg.TargetMinutes, Loc.T(L.Grind.NoteMinutes)),
         };
 
@@ -354,6 +368,7 @@ internal static class PlanCard
         {
             case MaxGemstonesMode.ModeId: cfg.TargetGemstoneCount = Math.Clamp(value, 1, AfgConstants.BicolorCap); break;
             case RunCountMode.ModeId:     cfg.TargetFateCount = Math.Clamp(value, 1, 9999); break;
+            case YokaiMedalsMode.ModeId:  cfg.TargetYokaiMedals = Math.Clamp(value, 1, MaxYokaiMedals); break;
             default:                      cfg.TargetMinutes = Math.Clamp(value, 1, 1440); break;
         }
 

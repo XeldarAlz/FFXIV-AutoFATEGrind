@@ -1,3 +1,4 @@
+using AutoFateGrind.Core.Game.Yokai;
 using AutoFateGrind.Core.Localization;
 using AutoFateGrind.Core.Modes;
 using AutoFateGrind.Core.Tasks;
@@ -49,8 +50,26 @@ internal static class GoalProgress
                     Loc.T(L.Run.GoalMinutes, (int)elapsed.TotalMinutes), Loc.T(L.Run.GoalOfMinutes, targetMinutes),
                     remainingText, false);
             }
+            case YokaiMedalsMode.ModeId:
+                return ResolveYokai(cfg, session);
             default:
                 return new Info(null, completed.ToString(Loc.Culture), Loc.T(L.Run.Done), Loc.T(L.Run.UntilYouStop), true);
         }
+    }
+
+    private static Info ResolveYokai(Configuration cfg, AutoFateSession? session)
+    {
+        var target = YokaiProgress.MedalTarget(cfg);
+        var targetIndex = YokaiProgress.ResolveTargetIndex(cfg, session?.YokaiTargetMinionId ?? 0);
+        if (targetIndex < 0)
+        {
+            return new Info(1f, target.ToString(Loc.Culture), Loc.T(L.Run.GoalOf, target), Loc.T(L.Run.TargetReached), false);
+        }
+
+        var have = Math.Min(YokaiProgress.Statuses[targetIndex].Medals, target);
+        return new Info(
+            Math.Clamp(have / (float)target, 0f, 1f),
+            have.ToString(Loc.Culture), Loc.T(L.Run.GoalOf, target),
+            Loc.T(L.Run.YokaiToGo, YokaiProgress.MinionName(targetIndex), target - have), false);
     }
 }

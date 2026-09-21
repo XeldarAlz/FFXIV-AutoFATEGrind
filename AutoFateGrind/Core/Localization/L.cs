@@ -36,6 +36,7 @@ internal static class L
         public static readonly LocString StatusPaused = new("shell.status.paused", "Paused");
         public static readonly LocString StatusReady = new("shell.status.ready", "Ready");
         public static readonly LocString StatusPickZones = new("shell.status.pickZones", "Pick zones");
+        public static readonly LocString StatusNothingToFarm = new("shell.status.nothingToFarm", "Nothing to farm");
         public static readonly LocString StatusSetupNeeded = new("shell.status.setupNeeded", "Setup needed");
         public static readonly LocString StatusIdle = new("shell.status.idle", "Idle");
         public static readonly LocString Minimize = new("shell.minimize", "Minimize to the title strip");
@@ -55,6 +56,8 @@ internal static class L
         public static readonly LocString DetailSetupNeeded = new("grind.detail.setupNeeded", "Install the required plugins before your first run.");
         public static readonly LocString TitlePickZones = new("grind.title.pickZones", "Pick a zone to begin");
         public static readonly LocString DetailPickZones = new("grind.detail.pickZones", "Tick zones in the library and they'll appear in your plan.");
+        public static readonly LocString TitleNoYokai = new("grind.title.noYokai", "No yo-kai left to farm");
+        public static readonly LocString DetailNoYokai = new("grind.detail.noYokai", "Tick more yo-kai below or raise the medal target.");
         public static readonly LocString TitleReady = new("grind.title.ready", "Ready to grind");
         public static readonly LocString DetailReady = new("grind.detail.ready", "Everything's set. Press Start whenever you're ready.");
         public static readonly LocString TitleRunning = new("grind.title.running", "Grinding");
@@ -73,10 +76,13 @@ internal static class L
         public static readonly LocString SentenceThen = new("grind.sentence.then", "then");
         public static readonly LocString SentenceEnd = new("grind.sentence.end", ".");
         public static readonly LocString ZonesNone = new("grind.zonesNone", "no zones yet");
+        public static readonly LocString ZonesYokai = new("grind.zonesYokai", "yo-kai zones");
+        public static readonly LocString ZonesYokaiNone = new("grind.zonesYokaiNone", "no yo-kai to farm");
         public static readonly LocPlural ZonesCount = new("grind.zonesCount", "{0} zone", "{0} zones");
         public static readonly LocString GoalGemstones = new("grind.goal.gemstones", "{0} gemstones");
         public static readonly LocString GoalFates = new("grind.goal.fates", "{0} FATEs");
         public static readonly LocString GoalMinutes = new("grind.goal.minutes", "{0} minutes");
+        public static readonly LocString GoalYokai = new("grind.goal.yokai", "{0} medals per yo-kai");
         public static readonly LocString GoalEndless = new("grind.goal.endless", "you stop it");
         public static readonly LocString PlanLocked = new("grind.planLocked", "Stop the run to change the plan.");
         public static readonly LocString AfterStayToken = new("grind.after.stay.token", "stay where you are");
@@ -95,6 +101,7 @@ internal static class L
         public static readonly LocString ModeGemstones = new("grind.mode.gemstones", "Gemstones");
         public static readonly LocString ModeFates = new("grind.mode.fates", "FATEs");
         public static readonly LocString ModeTime = new("grind.mode.time", "Time");
+        public static readonly LocString ModeYokai = new("grind.mode.yokai", "Yo-kai");
         public static readonly LocString ModeEndless = new("grind.mode.endless", "Endless");
         public static readonly LocString EndlessNote = new("grind.endlessNote", "Rotates your zones until you press Stop.");
         public static readonly LocString StopAt = new("grind.stopAt", "Stop at");
@@ -102,9 +109,11 @@ internal static class L
         public static readonly LocString UnitGemstones = new("grind.unit.gemstones", "gemstones");
         public static readonly LocString UnitFates = new("grind.unit.fates", "FATEs");
         public static readonly LocString UnitMinutes = new("grind.unit.minutes", "minutes");
+        public static readonly LocString UnitYokaiMedals = new("grind.unit.yokaiMedals", "medals per yo-kai");
         public static readonly LocString NoteGemstones = new("grind.note.gemstones", "You have {0} right now.");
         public static readonly LocString NoteFates = new("grind.note.fates", "Counts every FATE that hands out a reward.");
         public static readonly LocString NoteMinutes = new("grind.note.minutes", "Paused time does not count.");
+        public static readonly LocString NoteYokai = new("grind.note.yokai", "Summons each yo-kai minion you own, grinds its zones, and moves on once it holds this many Legendary Medals. Keep the Yo-kai Watch equipped or in your armoury chest.");
 
         public static readonly LocString Zones = new("grind.library.zones", "Zones");
         public static readonly LocString SearchZones = new("grind.library.search", "Search zones");
@@ -120,6 +129,17 @@ internal static class L
         public static readonly LocString DragToReorder = new("grind.order.drag", "Drag to reorder");
         public static readonly LocString RemoveFromOrder = new("grind.order.remove", "Remove from grind order");
 
+        public static readonly LocString Yokai = new("grind.yokai.title", "Yo-kai");
+        public static readonly LocString YokaiSummary = new("grind.yokai.summary", "{0} of {1} Legendary Medals");
+        public static readonly LocString YokaiNext = new("grind.yokai.next", "next");
+        public static readonly LocString YokaiPlanNext = new("grind.yokai.planNext", "Up next: {0}  ·  {1}");
+        public static readonly LocString YokaiWeaponTag = new("grind.yokai.weaponTag", "weapon owned");
+        public static readonly LocString YokaiDropsIn = new("grind.yokai.dropsIn", "Legendary Medals drop in: {0}");
+        public static readonly LocString YokaiMinionMissing = new("grind.yokai.minionMissing", "You do not own this minion yet.");
+        public static readonly LocString YokaiWeaponOwned = new("grind.yokai.weaponOwned", "You already have this weapon.");
+        public static readonly LocString YokaiUnreachable = new("grind.yokai.unreachable", "Attune an aetheryte in one of its zones first: {0}");
+        public static readonly LocString YokaiLockedRunning = new("grind.yokai.lockedRunning", "Stop the run to change your yo-kai.");
+
         public static readonly LocString ExpansionArr = new("grind.expansion.arr", "A Realm Reborn");
         public static readonly LocString ExpansionHw = new("grind.expansion.hw", "Heavensward");
         public static readonly LocString ExpansionSb = new("grind.expansion.sb", "Stormblood");
@@ -134,10 +154,13 @@ internal static class L
         public static readonly LocString InContent = new("grind.inContent", "in content");
         public static readonly LocString ReasonInstall = new("grind.reason.install", "install the required plugins");
         public static readonly LocString ReasonPickZone = new("grind.reason.pickZone", "pick at least one zone");
+        public static readonly LocString ReasonNoYokai = new("grind.reason.noYokai", "no yo-kai left to farm");
+        public static readonly LocString ReasonNoWatch = new("grind.reason.noWatch", "get the Yo-kai Watch first");
         public static readonly LocString StartSub = new("grind.startSub", "{0}  ·  {1}");
         public static readonly LocString StopsAtGems = new("grind.stops.gems", "stops at {0} gems");
         public static readonly LocString StopsAfterFates = new("grind.stops.fates", "stops after {0} FATEs");
         public static readonly LocString StopsAfterMinutes = new("grind.stops.minutes", "stops after {0} min");
+        public static readonly LocString StopsAtYokai = new("grind.stops.yokai", "stops at {0} medals each");
         public static readonly LocString StopsWhenYouStop = new("grind.stops.endless", "runs until you stop");
         public static readonly LocString StateRunning = new("grind.state.running", "running");
         public static readonly LocString StatePaused = new("grind.state.paused", "paused");
@@ -173,6 +196,7 @@ internal static class L
         public static readonly LocString GemsToGo = new("run.goal.gemsToGo", "{0} gems to go");
         public static readonly LocString TargetReached = new("run.goal.targetReached", "target reached");
         public static readonly LocString FatesLeft = new("run.goal.fatesLeft", "{0} FATEs left");
+        public static readonly LocString YokaiToGo = new("run.goal.yokaiToGo", "{0}  ·  {1} medals to go");
         public static readonly LocString HoursLeft = new("run.goal.hoursLeft", "{0}h {1:00}m left");
         public static readonly LocString MinutesLeft = new("run.goal.minutesLeft", "{0}m {1:00}s left");
         public static readonly LocString TimeReached = new("run.goal.timeReached", "time reached");

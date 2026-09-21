@@ -93,6 +93,8 @@ public sealed class AutoFateSession
     public int FatesSinceLastBreak;
     public bool PendingHumanize;
     public ZoneInfo? PendingHumanizeFromZone;
+    public uint YokaiTargetMinionId;
+    public bool PendingYokaiAdvance;
 
     public readonly HashSet<uint> UnreachableZoneIds = [];
 

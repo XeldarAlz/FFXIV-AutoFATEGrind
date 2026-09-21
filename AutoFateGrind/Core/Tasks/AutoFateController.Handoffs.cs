@@ -42,6 +42,21 @@ internal sealed partial class AutoFateController
             return;
         }
 
+        if (owningSession.PendingYokaiAdvance)
+        {
+            owningSession.PendingYokaiAdvance = false;
+            if (PlanYokaiZones(owningSession))
+            {
+                StartFateGrind(CurrentTerritoryIndex(), owningSession);
+                return;
+            }
+
+            Diag("Yo-kai hand-off found nothing left to farm. Run ends.");
+            owningSession.CompletedByStopCondition = true;
+            EndRun(owningSession);
+            return;
+        }
+
         if (owningSession.PendingRepair)
         {
             owningSession.PendingRepair = false;

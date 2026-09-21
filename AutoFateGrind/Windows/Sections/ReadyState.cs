@@ -11,7 +11,7 @@ namespace AutoFateGrind.Windows.Sections;
 
 internal static class ReadyState
 {
-    public enum Kind { SetupNeeded, PickZones, Ready, Running, Paused }
+    public enum Kind { SetupNeeded, PickZones, NothingToFarm, Ready, Running, Paused }
 
     public readonly record struct Info(Kind Kind, Vector4 Accent, Vector4 AccentSoft, FontAwesomeIcon Icon, string Title, string Detail);
 
@@ -50,6 +50,12 @@ internal static class ReadyState
         }
 
         var zones = ZoneSelection.ResolveStartList(cfg).Count;
+        if (zones == 0 && ZoneSelection.GoalPlansZones(cfg))
+        {
+            return new Info(Kind.NothingToFarm, Styling.AccentAmber, Styling.AccentAmberSoft, FontAwesomeIcon.Ghost,
+                Loc.T(L.Grind.TitleNoYokai), Loc.T(L.Grind.DetailNoYokai));
+        }
+
         if (zones == 0)
         {
             return new Info(Kind.PickZones, Styling.AccentAmber, Styling.AccentAmberSoft, FontAwesomeIcon.MapMarkedAlt,
@@ -62,12 +68,13 @@ internal static class ReadyState
 
     public static string ShortLabel(Kind kind) => kind switch
     {
-        Kind.Running     => Loc.T(L.Shell.StatusRunning),
-        Kind.Paused      => Loc.T(L.Shell.StatusPaused),
-        Kind.Ready       => Loc.T(L.Shell.StatusReady),
-        Kind.PickZones   => Loc.T(L.Shell.StatusPickZones),
-        Kind.SetupNeeded => Loc.T(L.Shell.StatusSetupNeeded),
-        _                => Loc.T(L.Shell.StatusIdle),
+        Kind.Running       => Loc.T(L.Shell.StatusRunning),
+        Kind.Paused        => Loc.T(L.Shell.StatusPaused),
+        Kind.Ready         => Loc.T(L.Shell.StatusReady),
+        Kind.PickZones     => Loc.T(L.Shell.StatusPickZones),
+        Kind.NothingToFarm => Loc.T(L.Shell.StatusNothingToFarm),
+        Kind.SetupNeeded   => Loc.T(L.Shell.StatusSetupNeeded),
+        _                  => Loc.T(L.Shell.StatusIdle),
     };
 
     public static string PhaseLabel(AutoPhase phase) => phase switch
@@ -85,6 +92,7 @@ internal static class ReadyState
         MaxGemstonesMode.ModeId => Loc.T(L.Grind.StopsAtGems, cfg.TargetGemstoneCount),
         RunCountMode.ModeId     => Loc.T(L.Grind.StopsAfterFates, cfg.TargetFateCount),
         TimeBoxedMode.ModeId    => Loc.T(L.Grind.StopsAfterMinutes, cfg.TargetMinutes),
+        YokaiMedalsMode.ModeId  => Loc.T(L.Grind.StopsAtYokai, cfg.TargetYokaiMedals),
         _                       => Loc.T(L.Grind.StopsWhenYouStop),
     };
 }

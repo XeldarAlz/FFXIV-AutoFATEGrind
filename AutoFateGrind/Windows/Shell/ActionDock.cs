@@ -1,4 +1,5 @@
 using AutoFateGrind.Core.External;
+using AutoFateGrind.Core.Game.Yokai;
 using AutoFateGrind.Core.Localization;
 using AutoFateGrind.Core.Zones;
 using AutoFateGrind.Windows.Components;
@@ -57,10 +58,14 @@ internal static class ActionDock
         var ctrl = plugin.Controller;
         var startList = ZoneSelection.ResolveStartList(cfg);
         var depsOk = ExternalPlugins.AllRequiredInstalled();
-        var canStart = startList.Count > 0 && depsOk;
+        var yokai = ZoneSelection.GoalPlansZones(cfg);
+        var watchMissing = yokai && !YokaiOps.OwnsWatch();
+        var canStart = startList.Count > 0 && depsOk && !watchMissing;
         var reason = !depsOk ? Loc.T(L.Grind.ReasonInstall)
-            : startList.Count == 0 ? Loc.T(L.Grind.ReasonPickZone)
-            : string.Empty;
+            : watchMissing ? Loc.T(L.Grind.ReasonNoWatch)
+            : startList.Count > 0 ? string.Empty
+            : yokai ? Loc.T(L.Grind.ReasonNoYokai)
+            : Loc.T(L.Grind.ReasonPickZone);
         var sub = Loc.T(L.Grind.StartSub, Loc.Plural(L.Grind.ZonesCount, startList.Count), ReadyState.StopSummary(cfg));
 
         if (StartButton.Draw(sub, canStart, reason, innerWidth)) ctrl.RunAll(startList);

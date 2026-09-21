@@ -25,7 +25,7 @@ internal static class RunningPanel
         var inFate = fate is not null && fate.State == FateState.Running && !paused;
         var (accent, accentSoft, label) = PhasePalette(controller, inFate);
 
-        DrawHeaderStrip(cfg, accent, accentSoft, paused);
+        DrawHeaderStrip(controller, accent, accentSoft, paused);
         Styling.VSpace(6f);
         DrawHeroCard(cfg, controller, fate, inFate, accent, accentSoft, label);
 
@@ -36,7 +36,7 @@ internal static class RunningPanel
         DrawQueue(cfg);
     }
 
-    private static void DrawHeaderStrip(Configuration cfg, Vector4 accent, Vector4 accentSoft, bool paused)
+    private static void DrawHeaderStrip(AutoFateController controller, Vector4 accent, Vector4 accentSoft, bool paused)
     {
         var scale = ImGuiHelpers.GlobalScale;
         var dl = ImGui.GetWindowDrawList();
@@ -55,7 +55,7 @@ internal static class RunningPanel
 
         var current = Svc.ClientState.TerritoryType;
         var zone = ZoneRegistry.Zones.FirstOrDefault(z => z.TerritoryId == current);
-        var footer = Loc.Plural(L.Run.Rotation, cfg.SelectedZones.Count, zone?.Name ?? Loc.T(L.Run.SomewhereElse));
+        var footer = Loc.Plural(L.Run.Rotation, controller.ActiveZoneCount, zone?.Name ?? Loc.T(L.Run.SomewhereElse));
         using (Fonts.PushCaption())
         {
             var footerSize = TextDraw.Measure(footer);

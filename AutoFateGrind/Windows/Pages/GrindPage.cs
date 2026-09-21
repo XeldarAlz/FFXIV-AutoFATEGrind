@@ -1,4 +1,5 @@
 using AutoFateGrind.Core.Tasks;
+using AutoFateGrind.Core.Zones;
 using AutoFateGrind.Windows.Sections;
 using AutoFateGrind.Windows.Shell;
 
@@ -29,7 +30,8 @@ internal sealed class GrindPage
         if (PlanCard.Draw(cfg, ctrl)) scrollToLibrary = true;
         Styling.VSpace(26f);
 
-        ZoneLibrary.Draw(cfg, ctrl, scrollToLibrary);
+        if (ZoneSelection.GoalPlansZones(cfg)) YokaiRoster.Draw(cfg, ctrl, scrollToLibrary);
+        else ZoneLibrary.Draw(cfg, ctrl, scrollToLibrary);
         scrollToLibrary = false;
         Styling.VSpace(12f);
     }

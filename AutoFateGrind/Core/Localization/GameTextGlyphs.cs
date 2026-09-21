@@ -1,4 +1,5 @@
 using AutoFateGrind.Core.Game.Ops;
+using AutoFateGrind.Core.Game.Yokai;
 using AutoFateGrind.Core.Stats;
 using AutoFateGrind.Core.Trading;
 using ECommons.DalamudServices;
@@ -77,6 +78,11 @@ internal static class GameTextGlyphs
         for (var index = 0; index < tradeItems.Length; index++)
         {
             Add(tradeItems[index].ItemName);
+        }
+
+        for (var index = 0; index < YokaiCatalog.Entries.Length; index++)
+        {
+            Add(YokaiProgress.MinionName(index));
         }
     }
 
