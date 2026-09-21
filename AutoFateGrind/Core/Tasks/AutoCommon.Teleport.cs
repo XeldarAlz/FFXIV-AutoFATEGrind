@@ -7,8 +7,16 @@ using FFXIVClientStructs.FFXIV.Client.Game;
 using System;
 using System.Numerics;
 using System.Threading.Tasks;
+using PlayerHelpers = ECommons.GameHelpers.Player;
 
 namespace AutoFateGrind.Core.Tasks;
+
+internal enum TerritoryTeleportResult : byte
+{
+    Reached,
+    Unreachable,
+    Blocked,
+}
 
 public abstract partial class AutoCommon
 {
@@ -22,6 +30,42 @@ public abstract partial class AutoCommon
     {
         public bool Succeeded => Completed && Fault is null;
     }
+
+    private static readonly ConditionFlag[] ActionBlockingFlags =
+    {
+        ConditionFlag.Occupied,
+        ConditionFlag.Occupied30,
+        ConditionFlag.Occupied33,
+        ConditionFlag.Occupied38,
+        ConditionFlag.Occupied39,
+        ConditionFlag.OccupiedInEvent,
+        ConditionFlag.OccupiedInQuestEvent,
+        ConditionFlag.OccupiedInCutSceneEvent,
+        ConditionFlag.OccupiedSummoningBell,
+        ConditionFlag.WatchingCutscene,
+        ConditionFlag.WatchingCutscene78,
+        ConditionFlag.InThatPosition,
+        ConditionFlag.TradeOpen,
+        ConditionFlag.Unconscious,
+        ConditionFlag.Mounting,
+        ConditionFlag.Mounting71,
+        ConditionFlag.Fishing,
+        ConditionFlag.Gathering,
+        ConditionFlag.PreparingToCraft,
+        ConditionFlag.Crafting,
+        ConditionFlag.ExecutingCraftingAction,
+        ConditionFlag.MeldingMateria,
+        ConditionFlag.CarryingItem,
+        ConditionFlag.CarryingObject,
+        ConditionFlag.OperatingSiegeMachine,
+        ConditionFlag.ParticipatingInCustomMatch,
+        ConditionFlag.PlayingLordOfVerminion,
+        ConditionFlag.ChocoboRacing,
+        ConditionFlag.PlayingMiniGame,
+        ConditionFlag.Performing,
+        ConditionFlag.Transformed,
+        ConditionFlag.UsingHousingFunctions,
+    };
 
     // Compact condition snapshot for diagnostics — surfaces exactly which state blocks a teleport cast.
     internal static string ConditionTag()
@@ -37,7 +81,21 @@ public abstract partial class AutoCommon
         if (c[ConditionFlag.Jumping] || c[ConditionFlag.Jumping61]) tags.Add("jump");
         if (c[ConditionFlag.BeingMoved]) tags.Add("moved");
         if (c[ConditionFlag.BetweenAreas] || c[ConditionFlag.BetweenAreas51]) tags.Add("zoning");
-        if (c[ConditionFlag.Occupied33] || c[ConditionFlag.Occupied38] || c[ConditionFlag.Occupied39]) tags.Add("occupied");
+        for (var flagIndex = 0; flagIndex < ActionBlockingFlags.Length; flagIndex++)
+        {
+            if (c[ActionBlockingFlags[flagIndex]])
+            {
+                tags.Add(ActionBlockingFlags[flagIndex].ToString());
+            }
+        }
+        if (PlayerHelpers.IsAnimationLocked)
+        {
+            tags.Add("animlock");
+        }
+        if (!PlayerHelpers.Interactable)
+        {
+            tags.Add("untargetable");
+        }
         return tags.Count == 0 ? "grounded" : string.Join(",", tags);
     }
 
@@ -167,10 +225,11 @@ public abstract partial class AutoCommon
     // that in ~8s; we retry with a short backoff so the lock can clear, instead of failing the whole
     // operation on one slow timeout. A fault is a different animal: the request was answered (no
     // aetheryte in that territory, not attuned) and the same request gets the same answer, so it earns
-    // one retry and never the Return-home escalation. Returns true once we are in the target territory.
-    internal async Task<bool> TeleportToTerritory(uint territoryId, Vector3 dest, string label, int perAttemptTimeoutMs, int attempts = 4)
+    // one retry and never the Return-home escalation. Blocked means every cast stalled without a single
+    // fault: the character is held by its own state, which says nothing about the destination (issue #67).
+    internal async Task<TerritoryTeleportResult> AttemptTerritoryTeleport(uint territoryId, Vector3 dest, string label, int perAttemptTimeoutMs, int attempts = 4)
     {
-        if (Svc.ClientState.TerritoryType == territoryId) return true;
+        if (Svc.ClientState.TerritoryType == territoryId) return TerritoryTeleportResult.Reached;
 
         // A zone with no aetheryte of its own is a two-leg trip: teleport to the hub the game routes it
         // through, then ride that hub's aethernet in. Every other zone keeps the single-leg path.
@@ -184,15 +243,16 @@ public abstract partial class AutoCommon
         if (ZoneAetherytes.AttunableIdsIn(hopTerritoryId).Length == 0)
         {
             Warn($"{label}: territory {hopTerritoryId} has no aetheryte to teleport to; giving up");
-            return false;
+            return TerritoryTeleportResult.Unreachable;
         }
 
         var returnedHome = false;
+        var casts = 0;
         var stalls = 0;
         var faults = 0;
         for (var attempt = 1; attempt <= maxAttempts && !CancelToken.IsCancellationRequested; attempt++)
         {
-            if (Svc.ClientState.TerritoryType == territoryId) return true;
+            if (Svc.ClientState.TerritoryType == territoryId) return TerritoryTeleportResult.Reached;
 
             var scope = $"{label}#{attempt}";
             await PrepareForTeleport(scope);
@@ -200,6 +260,7 @@ public abstract partial class AutoCommon
 
             if (Svc.ClientState.TerritoryType != hopTerritoryId)
             {
+                casts++;
                 var outcome = await RunTeleport(hopTerritoryId, hopDest, allowSameZoneTeleport: false, perAttemptTimeoutMs, scope);
                 if (outcome.Fault is { } fault)
                 {
@@ -215,7 +276,7 @@ public abstract partial class AutoCommon
             if (viaGateway && Svc.ClientState.TerritoryType == hopTerritoryId)
                 await RideAethernetInto(territoryId, dest, gateway, scope);
 
-            if (Svc.ClientState.TerritoryType == territoryId) return true;
+            if (Svc.ClientState.TerritoryType == territoryId) return TerritoryTeleportResult.Reached;
 
             if (faults >= MaxTeleportFaults)
             {
@@ -235,8 +296,15 @@ public abstract partial class AutoCommon
                 await DelayMs(TeleportRetryBackoffMs);
             }
         }
-        return Svc.ClientState.TerritoryType == territoryId;
+
+        if (Svc.ClientState.TerritoryType == territoryId) return TerritoryTeleportResult.Reached;
+        return faults == 0 && stalls > 0 && stalls == casts
+            ? TerritoryTeleportResult.Blocked
+            : TerritoryTeleportResult.Unreachable;
     }
+
+    internal async Task<bool> TeleportToTerritory(uint territoryId, Vector3 dest, string label, int perAttemptTimeoutMs, int attempts = 4)
+        => await AttemptTerritoryTeleport(territoryId, dest, label, perAttemptTimeoutMs, attempts) == TerritoryTeleportResult.Reached;
 
     private const int GatewayAttempts = 3;
     private const int AethernetLegMs = 90_000;

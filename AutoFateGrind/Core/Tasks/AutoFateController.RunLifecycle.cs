@@ -80,11 +80,12 @@ internal sealed partial class AutoFateController
     }
 
     private const int  MaxFaultResumes     = 3;
-    private const long FaultResumeWindowMs = 5 * 60_000;
+    private const long FaultResumeWindowMs = (MaxFaultResumes + 2) * (long)AutoFate.NoProgressFaultMs;
 
     // Bounded restart after the grind task ended by throwing (gated on AutoResumeOnFault). The window
-    // resets once it lapses, so sparse faults over a long run each get a fresh budget; only a burst — a
-    // hard wedge that re-faults immediately — exhausts the budget and lets the run end for real.
+    // resets once it lapses, so sparse faults over a long run each get a fresh budget. It spans more
+    // no-progress timeouts than the budget holds, so a wedge that re-faults once per timeout still
+    // exhausts the budget and lets the run end for real (issue #67 looped 8h on a window equal to it).
     private bool TryAutoResumeAfterFault(AutoFateSession s)
     {
         s.EndedWithFault = false;

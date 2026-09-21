@@ -94,7 +94,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private const int   WrongZoneSwapAfterFailures  = 2;
     private const int   WrongZoneFaultAfterFailures = 3;
     // Never-stuck backstop: zero forward progress for this long in a non-idle state faults into auto-resume.
-    private const int   NoProgressFaultMs = 300_000;
+    internal const int  NoProgressFaultMs = 300_000;
 
     private uint? lastStuckFateId;
     private int consecutiveStuckRetries;
@@ -170,7 +170,8 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
             // controller's bounded auto-resume can't be triggered by a deliberate stop.
             if (Plugin.Cfg.AutoResumeOnFault
              && !CancelToken.IsCancellationRequested
-             && ex is not OperationCanceledException)
+             && ex is not OperationCanceledException
+             && ex is not UnrecoverableRunException)
             {
                 session.EndedWithFault = true;
                 session.FaultResumeZoneIndex = zoneIndex;
@@ -274,7 +275,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
             await NextFrame();
             consecutiveErrors = 0;
           }
-          catch (Exception ex) when (!CancelToken.IsCancellationRequested)
+          catch (Exception ex) when (!CancelToken.IsCancellationRequested && ex is not UnrecoverableRunException)
           {
             // One transient fault (e.g. a clib NRE on a despawned FATE) must not end the grind; back off
             // and retry. Only a long unbroken run of failures (a genuinely wedged state) surfaces and stops.
@@ -411,7 +412,8 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     {
         Status = $"Teleporting to {zone.Name}";
         Diag($"Off-zone (in {Svc.ClientState.TerritoryType}), teleporting to {zone.TerritoryId}");
-        if (await TeleportToTerritory(zone.TerritoryId, zone.CentralLanding, "teleport-to-zone", TeleportWatchdogMs))
+        var result = await AttemptTerritoryTeleport(zone.TerritoryId, zone.CentralLanding, "teleport-to-zone", TeleportWatchdogMs);
+        if (result == TerritoryTeleportResult.Reached)
         {
             consecutiveZoneTeleportFailures = 0;
             session.UnreachableZoneIds.Remove(zone.TerritoryId);
@@ -420,13 +422,26 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
         if (CancelToken.IsCancellationRequested) return;
 
         consecutiveZoneTeleportFailures++;
+        if (result == TerritoryTeleportResult.Blocked)
+        {
+            FaultIfCharacterStaysBlocked();
+            return;
+        }
+
         Warn($"Could not reach {zone.Name} (failure {consecutiveZoneTeleportFailures}); escalating to keep the run moving.");
 
         if (consecutiveZoneTeleportFailures >= WrongZoneSwapAfterFailures && zones.Count > 1)
         {
-            session.UnreachableZoneIds.Add(zone.TerritoryId);
-            Svc.Chat.PrintError($"[AFG] Could not teleport to {zone.Name} (aetherytes attuned?); skipping it for the rest of this run.");
-            if (AdvanceZone())
+            var unreachableZoneName = zone.Name;
+            var newlyUnreachable = session.UnreachableZoneIds.Add(zone.TerritoryId);
+            var advanced = AdvanceZone();
+            if (newlyUnreachable)
+            {
+                Svc.Chat.PrintError(advanced
+                    ? $"[AFG] Could not teleport to {unreachableZoneName} (aetherytes attuned?); skipping it for the rest of this run."
+                    : $"[AFG] Could not teleport to {unreachableZoneName} (aetherytes attuned?) and no other selected zone is reachable.");
+            }
+            if (advanced)
             {
                 consecutiveZoneTeleportFailures = 0;
                 return;
@@ -435,6 +450,19 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
 
         ErrorIf(consecutiveZoneTeleportFailures >= WrongZoneFaultAfterFailures,
             $"Unable to reach {zone.Name} after {consecutiveZoneTeleportFailures} teleport attempts.");
+    }
+
+    private void FaultIfCharacterStaysBlocked()
+    {
+        var blocker = ConditionTag();
+        Warn($"No teleport cast toward {zone.Name} could start (failure {consecutiveZoneTeleportFailures}, {blocker}); the character is held, so the zone stays reachable.");
+        if (consecutiveZoneTeleportFailures < WrongZoneFaultAfterFailures)
+        {
+            return;
+        }
+
+        throw new UnrecoverableRunException(
+            $"No teleport could start in {consecutiveZoneTeleportFailures} rounds (character state: {blocker}). Close any open window or dialog, then start again.");
     }
 
     private bool AdvanceZone()
