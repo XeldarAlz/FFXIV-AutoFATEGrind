@@ -15,6 +15,11 @@
   <em>FATEs, farmed for you. Built on Dalamud.</em>
 </p>
 
+<p align="center">
+  Based on Auto FATE Grind by XeldarAlz<br>
+  <a href="https://github.com/XeldarAlz/FFXIV-AutoFATEGrind">https://github.com/XeldarAlz/FFXIV-AutoFATEGrind</a>
+</p>
+
 ---
 
 <p align="center">
