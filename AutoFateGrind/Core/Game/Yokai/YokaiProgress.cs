@@ -3,6 +3,7 @@ using ECommons.DalamudServices;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using Lumina.Excel.Sheets;
+using System.Text;
 using CabinetSheet = Lumina.Excel.Sheets.Cabinet;
 
 namespace AutoFateGrind.Core.Game.Yokai;
@@ -126,6 +127,109 @@ internal static unsafe class YokaiProgress
         }
 
         return (collected, needed);
+    }
+
+    public static (int Owned, int WeaponsLeft) Ownership()
+    {
+        var current = Statuses;
+        var owned = 0;
+        var weaponsLeft = 0;
+        for (var index = 0; index < current.Length; index++)
+        {
+            if (!current[index].MinionUnlocked)
+            {
+                continue;
+            }
+
+            owned++;
+            if (!current[index].WeaponOwned)
+            {
+                weaponsLeft++;
+            }
+        }
+
+        return (owned, weaponsLeft);
+    }
+
+    public static string DescribeRoster(Configuration configuration)
+    {
+        var current = Statuses;
+        var target = MedalTarget(configuration);
+        var builder = new StringBuilder(current.Length * 32);
+        for (var index = 0; index < current.Length; index++)
+        {
+            if (index > 0)
+            {
+                builder.Append(" | ");
+            }
+
+            builder.Append(MinionName(index)).Append(' ').Append(current[index].Medals).Append('/').Append(target);
+            if (ExclusionReason(configuration, index) is { } reason)
+            {
+                builder.Append(" (").Append(reason).Append(')');
+            }
+        }
+
+        return builder.ToString();
+    }
+
+    public static string CompletionSummary(Configuration configuration)
+    {
+        var current = Statuses;
+        var target = MedalTarget(configuration);
+        int done = 0, locked = 0, weaponOwned = 0, unticked = 0, unreachable = 0;
+        for (var index = 0; index < current.Length; index++)
+        {
+            var status = current[index];
+            if (!status.MinionUnlocked)
+            {
+                locked++;
+            }
+            else if (status.WeaponOwned)
+            {
+                weaponOwned++;
+            }
+            else if (!IsEnabled(configuration, index))
+            {
+                unticked++;
+            }
+            else if (!status.Reachable)
+            {
+                unreachable++;
+            }
+            else if (status.Medals >= target)
+            {
+                done++;
+            }
+        }
+
+        return $"{done} at {target} medals, {weaponOwned} weapon owned, {locked} minion locked, {unreachable} without an attuned aetheryte, {unticked} unticked";
+    }
+
+    private static string? ExclusionReason(Configuration configuration, int entryIndex)
+    {
+        var status = statuses[entryIndex];
+        if (!status.MinionUnlocked)
+        {
+            return "minion locked";
+        }
+
+        if (status.WeaponOwned)
+        {
+            return "weapon owned";
+        }
+
+        if (!IsEnabled(configuration, entryIndex))
+        {
+            return "unticked";
+        }
+
+        if (!status.Reachable)
+        {
+            return "no attuned aetheryte";
+        }
+
+        return status.Medals >= MedalTarget(configuration) ? "done" : null;
     }
 
     private static void Refresh()

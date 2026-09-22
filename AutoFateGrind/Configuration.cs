@@ -35,6 +35,7 @@ public sealed class Configuration : IPluginConfiguration
     public int TargetMinutes { get; set; } = 60;
     public int TargetYokaiMedals { get; set; } = 10;
     public HashSet<uint> YokaiSkippedMinionIds { get; set; } = [];
+    public string YokaiPreviousModeId { get; set; } = "";
 
     public string CombatPresetName { get; set; } = Core.AfgConstants.BundledCombatPresetName;
     public int BundledCombatPresetRevision { get; set; } = 0;

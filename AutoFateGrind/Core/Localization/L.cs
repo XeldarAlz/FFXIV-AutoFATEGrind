@@ -114,6 +114,13 @@ internal static class L
         public static readonly LocString NoteFates = new("grind.note.fates", "Counts every FATE that hands out a reward.");
         public static readonly LocString NoteMinutes = new("grind.note.minutes", "Paused time does not count.");
         public static readonly LocString NoteYokai = new("grind.note.yokai", "Summons each yo-kai minion you own, grinds its zones, and moves on once it holds this many Legendary Medals. Keep the Yo-kai Watch equipped or in your armoury chest.");
+        public static readonly LocString YokaiEventTitle = new("grind.event.yokai.title", "Yo-kai Watch event");
+        public static readonly LocString YokaiEventOwned = new("grind.event.yokai.owned", "{0} of {1} yo-kai owned");
+        public static readonly LocPlural YokaiEventWeaponsLeft = new("grind.event.yokai.weaponsLeft", "{0} weapon left", "{0} weapons left");
+        public static readonly LocString YokaiEventWatchEquipped = new("grind.event.yokai.watchEquipped", "Yo-kai Watch equipped");
+        public static readonly LocString YokaiEventWatchStored = new("grind.event.yokai.watchStored", "Yo-kai Watch in your bags or armoury chest");
+        public static readonly LocString YokaiEventWatchMissing = new("grind.event.yokai.watchMissing", "No Yo-kai Watch on this character");
+        public static readonly LocString YokaiGoalOnCard = new("grind.event.yokai.goalOnCard", "This run's goal is set on the Yo-kai Watch card below.");
 
         public static readonly LocString Zones = new("grind.library.zones", "Zones");
         public static readonly LocString SearchZones = new("grind.library.search", "Search zones");

@@ -138,6 +138,10 @@ public sealed partial class AutoFate
         if (fate is null) return ExitReason.Continue;
         var fateId = fate.Id;
 
+        // A ring the character is already standing in still has to pay, so the minion comes out before the rotation starts.
+        await EnsureYokaiCompanion();
+        if (PublicEvent.GetFateById(fateId) is null) return ExitReason.Continue;
+
         var preset = Plugin.Cfg.CombatPresetName;
         EnsureCombatPreset(preset);
         SyncToFate(fateId);

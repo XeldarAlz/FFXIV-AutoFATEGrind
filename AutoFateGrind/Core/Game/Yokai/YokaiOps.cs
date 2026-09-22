@@ -1,3 +1,4 @@
+using Dalamud.Game.ClientState.Conditions;
 using ECommons.DalamudServices;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
@@ -54,6 +55,43 @@ internal static unsafe class YokaiOps
         }
 
         return actions->UseAction(ActionType.Companion, minionId);
+    }
+
+    public static bool IsFashionAccessoryDeployed() => Svc.Condition[ConditionFlag.UsingFashionAccessory];
+
+    public static bool TryWithdrawFashionAccessory()
+    {
+        try
+        {
+            GameMain.ExecuteCommand((int)clib.Enums.CommandFlag.WithdrawParasol, 0, 0, 0, 0);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Svc.Log.Warning(ex, "[AFG] GameMain.ExecuteCommand withdraw fashion accessory failed");
+            return false;
+        }
+    }
+
+    public static bool CanIssueSummon()
+    {
+        var actions = ActionManager.Instance();
+        if (actions is null || actions->AnimationLock > 0f)
+        {
+            return false;
+        }
+
+        var condition = Svc.Condition;
+        return !condition[ConditionFlag.Casting]
+            && !condition[ConditionFlag.Casting87]
+            && !condition[ConditionFlag.BetweenAreas]
+            && !condition[ConditionFlag.BetweenAreas51]
+            && !condition[ConditionFlag.MountOrOrnamentTransition]
+            && !condition[ConditionFlag.UsingFashionAccessory]
+            && !condition[ConditionFlag.Occupied]
+            && !condition[ConditionFlag.OccupiedInEvent]
+            && !condition[ConditionFlag.OccupiedInCutSceneEvent]
+            && !condition[ConditionFlag.Jumping];
     }
 
     public static bool TryEquipWatch()

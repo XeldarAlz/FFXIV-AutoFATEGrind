@@ -1,3 +1,4 @@
+using AutoFateGrind.Core.Game.Yokai;
 using AutoFateGrind.Core.Trading;
 using clib.Services;
 using System;
@@ -52,6 +53,7 @@ internal sealed partial class AutoFateController
             }
 
             Diag("Yo-kai hand-off found nothing left to farm. Run ends.");
+            ECommons.DalamudServices.Svc.Chat.Print($"[AFG] Yo-kai goal met: {YokaiProgress.CompletionSummary(Plugin.Cfg)}. The roster is in /xllog.");
             owningSession.CompletedByStopCondition = true;
             EndRun(owningSession);
             return;

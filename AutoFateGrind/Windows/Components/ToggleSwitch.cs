@@ -6,16 +6,16 @@ namespace AutoFateGrind.Windows.Components;
 
 internal static class ToggleSwitch
 {
-    private const float TrackWidth = 40f;
-    private const float TrackHeight = 22f;
+    public const float Width = 40f;
+    public const float Height = 22f;
     private const float KnobInset = 3f;
 
-    public static bool Draw(string id, ref bool value)
+    public static bool Draw(string id, ref bool value, bool enabled = true)
     {
         var scale = ImGuiHelpers.GlobalScale;
-        var size = new Vector2(TrackWidth * scale, TrackHeight * scale);
+        var size = new Vector2(Width * scale, Height * scale);
         var origin = ImGui.GetCursorScreenPos();
-        var hit = Hit.Area(id, size);
+        var hit = Hit.Area(id, size, enabled);
 
         var changed = false;
         if (hit.Clicked)

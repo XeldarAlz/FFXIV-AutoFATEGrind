@@ -91,6 +91,7 @@ internal sealed partial class AutoFateController
     {
         var targetIndex = YokaiProgress.ResolveTargetIndex(Plugin.Cfg, owningSession.YokaiTargetMinionId);
         var zones = YokaiProgress.ZonesFor(targetIndex);
+        Diag($"Yo-kai roster: {YokaiProgress.DescribeRoster(Plugin.Cfg)}");
         if (zones.Count == 0)
         {
             return false;

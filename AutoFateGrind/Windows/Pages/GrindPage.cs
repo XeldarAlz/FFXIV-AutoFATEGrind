@@ -28,6 +28,8 @@ internal sealed class GrindPage
         Styling.VSpace(20f);
 
         if (PlanCard.Draw(cfg, ctrl)) scrollToLibrary = true;
+        Styling.VSpace(14f);
+        YokaiEventCard.Draw(cfg, ctrl);
         Styling.VSpace(26f);
 
         if (ZoneSelection.GoalPlansZones(cfg)) YokaiRoster.Draw(cfg, ctrl, scrollToLibrary);

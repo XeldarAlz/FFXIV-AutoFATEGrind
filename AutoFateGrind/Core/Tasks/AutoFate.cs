@@ -131,6 +131,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
         Unconscious,          // Player KO'd, run revive.
         WaitingForFollowUp,   // Just finished a chain parent; hold briefly for sequel.
         WaitingForCollectReward, // Nothing left to pick here, but a finished Collect FATE still owes its reward.
+        WaitingForYokaiMinion, // The target yo-kai minion is not out; hold and re-summon rather than fight for nothing.
         BetweenFates,         // Have a target FATE; move (or activate prep NPC) and arrive.
         Engaging,             // CurrentFate is set; fight until it ends or we KO.
         WaitingForFates,      // No eligible FATE; idle-scan with optional zone swap.
@@ -226,6 +227,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
                 case GrindState.AllDone:
                     Status = "Stop condition met";
                     Diag("Stop condition met; exiting");
+                    ReportYokaiGoalMet();
                     session.CompletedByStopCondition = true;
                     return;
 
@@ -255,6 +257,10 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
 
                 case GrindState.WaitingForCollectReward:
                     await TickCollectRewardWait();
+                    break;
+
+                case GrindState.WaitingForYokaiMinion:
+                    await TickYokaiMinionWait();
                     break;
 
                 case GrindState.BetweenFates:
@@ -310,7 +316,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
         Diag($"HEARTBEAT state={state} ({inState}s) terr={Svc.ClientState.TerritoryType} zone={zone.Name} pos={posStr} fate={fateStr} {navStr} cond={ConditionTag()} " +
              $"done={session.CompletedCount} ret={returnToFateId?.ToString() ?? "-"} followUp={followUpFateId?.ToString() ?? "-"} collectReward={(CollectRewardPending ? pendingRewardSpawn.FateId.ToString() : "-")} stuckBL={sessionStuckFateIds.Count}");
 
-        if (state is not GrindState.Engaging and not GrindState.WaitingForFates and not GrindState.WaitingForCollectReward && inState >= 180)
+        if (state is not GrindState.Engaging and not GrindState.WaitingForFates and not GrindState.WaitingForCollectReward and not GrindState.WaitingForYokaiMinion && inState >= 180)
             Diag($"STALL WARNING: state {state} held {inState}s — see prior heartbeats for context.");
     }
 
@@ -326,7 +332,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
                     || session.CompletedCount != noProgressCompleted
                     || terr != noProgressTerritory
                     || Vector3.Distance(pos, noProgressPos) > StuckDetector.StuckMoveThresholdMeters
-                    || state is GrindState.Engaging or GrindState.WaitingForFates;
+                    || state is GrindState.Engaging or GrindState.WaitingForFates or GrindState.WaitingForYokaiMinion;
 
         if (advanced)
         {
@@ -387,6 +393,9 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
 
         if (ShouldWaitForFollowUp())
             return GrindState.WaitingForFollowUp;
+
+        if (YokaiMinionMissing())
+            return GrindState.WaitingForYokaiMinion;
 
         if (returnToFateId is { } retId)
         {

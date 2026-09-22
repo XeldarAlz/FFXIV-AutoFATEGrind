@@ -31,7 +31,6 @@ internal static class PlanCard
 
     private const string GoalPopup = "##afg_goal_popover";
     private const string AfterPopup = "##afg_after_popover";
-    private const int MaxYokaiMedals = 99;
 
     private static readonly AfterRunAction[] afterRunOrder =
         [AfterRunAction.StayLoggedIn, AfterRunAction.ReturnToInn, AfterRunAction.Logout, AfterRunAction.CloseGame];
@@ -47,6 +46,7 @@ internal static class PlanCard
     private static readonly Piece[] pieces = new Piece[7];
     private static readonly Vector2 PopoverPadding = new(16f, 16f);
     private static readonly Segmented.Item[] modeItems = new Segmented.Item[5];
+    private static IFateGrindMode[]? pickableModes;
     private static Vector2 goalAnchor;
     private static Vector2 afterAnchor;
     private static long goalOpenedTick;
@@ -237,6 +237,24 @@ internal static class PlanCard
 
     private static int AfterIndex(Configuration cfg) => Math.Max(0, Array.IndexOf(afterRunOrder, cfg.AfterRun));
 
+    // The Yo-kai event is switched on from its own card; the goal row only lists the stop conditions.
+    private static IFateGrindMode[] PickableModes => pickableModes ??= BuildPickableModes();
+
+    private static IFateGrindMode[] BuildPickableModes()
+    {
+        var all = FateGrindModes.All;
+        var picked = new List<IFateGrindMode>(all.Count);
+        for (var index = 0; index < all.Count; index++)
+        {
+            if (all[index].Id != YokaiMedalsMode.ModeId)
+            {
+                picked.Add(all[index]);
+            }
+        }
+
+        return [.. picked];
+    }
+
     private static void RefreshModeItems(IReadOnlyList<IFateGrindMode> modes)
     {
         for (var index = 0; index < modes.Count && index < modeItems.Length; index++)
@@ -246,7 +264,6 @@ internal static class PlanCard
                 MaxGemstonesMode.ModeId => new Segmented.Item(FontAwesomeIcon.Gem, Loc.T(L.Grind.ModeGemstones)),
                 RunCountMode.ModeId     => new Segmented.Item(FontAwesomeIcon.ListOl, Loc.T(L.Grind.ModeFates)),
                 TimeBoxedMode.ModeId    => new Segmented.Item(FontAwesomeIcon.Stopwatch, Loc.T(L.Grind.ModeTime)),
-                YokaiMedalsMode.ModeId  => new Segmented.Item(FontAwesomeIcon.Ghost, Loc.T(L.Grind.ModeYokai)),
                 EndlessMode.ModeId      => new Segmented.Item(FontAwesomeIcon.Infinity, Loc.T(L.Grind.ModeEndless)),
                 _                       => new Segmented.Item(FontAwesomeIcon.Flag, modes[index].DisplayName),
             };
@@ -297,8 +314,16 @@ internal static class PlanCard
         if (!ImGui.IsPopupOpen(GoalPopup)) return;
 
         var scale = ImGuiHelpers.GlobalScale;
-        var modes = FateGrindModes.All;
-        var visible = Math.Min(modes.Count, modeItems.Length);
+        if (ZoneSelection.GoalPlansZones(cfg))
+        {
+            var noteWidth = PopoverWidth * scale;
+            using var yokaiPopover = new Popover(GoalPopup, goalAnchor, noteWidth, goalOpenedTick);
+            if (yokaiPopover.Open) Caption(Loc.T(L.Grind.YokaiGoalOnCard), noteWidth);
+            return;
+        }
+
+        var modes = PickableModes;
+        var visible = Math.Min(modes.Length, modeItems.Length);
         RefreshModeItems(modes);
         var width = MathF.Max(PopoverWidth * scale, Segmented.PreferredWidth(modeItems.AsSpan(0, visible)));
 
@@ -306,7 +331,7 @@ internal static class PlanCard
         if (!popover.Open) return;
 
         var selected = 0;
-        for (var index = 0; index < modes.Count; index++)
+        for (var index = 0; index < modes.Length; index++)
         {
             if (modes[index].Id == cfg.ActiveMode.Id) selected = index;
         }
@@ -329,7 +354,6 @@ internal static class PlanCard
             MaxGemstonesMode.ModeId => (Loc.T(L.Grind.StopAt), Loc.T(L.Grind.UnitGemstones), 50, 1, AfgConstants.BicolorCap, cfg.TargetGemstoneCount,
                 Loc.T(L.Grind.NoteGemstones, GemstoneCatalog.CurrentWalletCount().ToString("N0", Loc.Culture))),
             RunCountMode.ModeId     => (Loc.T(L.Grind.StopAfter), Loc.T(L.Grind.UnitFates), 5, 1, 9999, cfg.TargetFateCount, Loc.T(L.Grind.NoteFates)),
-            YokaiMedalsMode.ModeId  => (Loc.T(L.Grind.StopAt), Loc.T(L.Grind.UnitYokaiMedals), 1, 1, MaxYokaiMedals, cfg.TargetYokaiMedals, Loc.T(L.Grind.NoteYokai)),
             _                       => (Loc.T(L.Grind.StopAfter), Loc.T(L.Grind.UnitMinutes), 5, 1, 1440, cfg.TargetMinutes, Loc.T(L.Grind.NoteMinutes)),
         };
 
@@ -368,7 +392,6 @@ internal static class PlanCard
         {
             case MaxGemstonesMode.ModeId: cfg.TargetGemstoneCount = Math.Clamp(value, 1, AfgConstants.BicolorCap); break;
             case RunCountMode.ModeId:     cfg.TargetFateCount = Math.Clamp(value, 1, 9999); break;
-            case YokaiMedalsMode.ModeId:  cfg.TargetYokaiMedals = Math.Clamp(value, 1, MaxYokaiMedals); break;
             default:                      cfg.TargetMinutes = Math.Clamp(value, 1, 1440); break;
         }
 
