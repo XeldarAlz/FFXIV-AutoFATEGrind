@@ -67,6 +67,9 @@ public sealed class Configuration : IPluginConfiguration
     // Per-FateType blacklist (augments BlacklistedFateIds); key is (int)FateType for stability.
     public Dictionary<int, HashSet<uint>> BlacklistedTypeIds { get; set; } = [];
 
+    public bool AutoBlacklistOnDeaths { get; set; } = true;
+    public int AutoBlacklistDeathCount { get; set; } = 3;
+
     public HashSet<int> SkippedFateRules { get; set; } = [];
     public List<FateSortEntry> FateSortOrder { get; set; } = [];
 

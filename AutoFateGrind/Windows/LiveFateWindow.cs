@@ -121,15 +121,19 @@ public sealed class LiveFateWindow : Window, IDisposable
         var dl = ImGui.GetWindowDrawList();
         var y = origin.Y;
 
-        var phase = Loc.T(L.Live.Engaging);
+        var banned = FateBlacklist.Contains(Plugin.Cfg, fate);
+        var phase = Loc.T(banned ? L.Live.Blacklisted : L.Live.Engaging);
         var phaseSize = TextDraw.SmallCapsSize(phase);
-        TextDraw.SmallCaps(phase, new Vector2(origin.X, y), Styling.AccentBlueSoft);
+        TextDraw.SmallCaps(phase, new Vector2(origin.X, y), banned ? Styling.AccentRose : Styling.AccentBlueSoft);
         y += phaseSize.Y + 4f * scale;
 
+        var buttonSize = 22f * scale;
+        var nameLineY = y;
+        float nameLineHeight;
         using (Fonts.PushHeadline())
         {
             var starWidth = fate.HasBonus ? TextDraw.IconSize(FontAwesomeIcon.Star).X + 8f * scale : 0f;
-            var name = TextDraw.Truncate($"L{fate.Level}   {fate.Name}", width - starWidth);
+            var name = TextDraw.Truncate($"L{fate.Level}   {fate.Name}", width - buttonSize - 8f * scale - starWidth);
             var nameSize = TextDraw.Measure(name);
             TextDraw.At(name, new Vector2(origin.X, y), Styling.TextStrong);
             if (fate.HasBonus)
@@ -138,8 +142,19 @@ public sealed class LiveFateWindow : Window, IDisposable
                 TextDraw.Icon(FontAwesomeIcon.Star, new Vector2(origin.X + nameSize.X + 8f * scale, y + (nameSize.Y - starSize.Y) * 0.5f), Styling.AccentAmber);
             }
 
+            nameLineHeight = nameSize.Y;
             y += nameSize.Y + 8f * scale;
         }
+
+        ImGui.SetCursorScreenPos(new Vector2(origin.X + width - buttonSize, nameLineY + (nameLineHeight - buttonSize) * 0.5f));
+        ImGui.PushID((nint)fate.Id);
+        if (IconButton.Draw(FontAwesomeIcon.Ban, "##ban_active", buttonSize, Styling.AccentRose,
+                Loc.T(banned ? L.Settings.RemoveFromBlacklist : L.Live.Ban)))
+        {
+            FateBlacklist.ToggleId(Plugin.Cfg, fate);
+        }
+
+        ImGui.PopID();
 
         var barHeight = 9f * scale;
         Paint.Bar(dl, new Vector2(origin.X, y), width, barHeight, fate.Progress / 100f, Styling.AccentBlue);
@@ -152,6 +167,7 @@ public sealed class LiveFateWindow : Window, IDisposable
             y += TextDraw.Measure(meta).Y;
         }
 
+        ImGui.SetCursorScreenPos(origin);
         ImGui.Dummy(new Vector2(width, y - origin.Y));
     }
 

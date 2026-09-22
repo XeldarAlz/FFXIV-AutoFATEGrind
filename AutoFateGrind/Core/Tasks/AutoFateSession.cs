@@ -98,6 +98,16 @@ public sealed class AutoFateSession
 
     public readonly HashSet<uint> UnreachableZoneIds = [];
 
+    private readonly Dictionary<uint, int> deathsByFateId = [];
+
+    public int CountDeath(uint fateId)
+    {
+        deathsByFateId.TryGetValue(fateId, out var deaths);
+        deaths++;
+        deathsByFateId[fateId] = deaths;
+        return deaths;
+    }
+
     public bool EndedWithFault;
     public int  FaultResumeZoneIndex;
     public int  FaultResumeCount;

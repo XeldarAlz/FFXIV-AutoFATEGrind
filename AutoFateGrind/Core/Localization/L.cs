@@ -225,6 +225,7 @@ internal static class L
         public static readonly LocString Session = new("live.session", "{0} FATEs · {1} gems · {2}");
         public static readonly LocString Exp = new("live.exp", "{0} exp · {1}/h");
         public static readonly LocString Ban = new("live.ban", "Blacklist this FATE for this character (skips it while grinding).");
+        public static readonly LocString Blacklisted = new("live.blacklisted", "Blacklisted");
         public static readonly LocString QueueMeta = new("live.queueMeta", "{0}%  {1}");
     }
 
@@ -453,6 +454,12 @@ internal static class L
         public static readonly LocString SortName = new("settings.filters.sort.name", "Name");
         public static readonly LocString ResetRecommended = new("settings.filters.resetRecommended", "Reset to recommended");
         public static readonly LocString FiltersBlacklist = new("settings.filters.blacklist", "Blacklist");
+        public static readonly LocString AutoBlacklistDeaths = new("settings.filters.autoBlacklistDeaths", "Blacklist after repeated deaths");
+        public static readonly LocString AutoBlacklistDeathsHelp = new("settings.filters.autoBlacklistDeathsHelp", "Once you die in the same FATE this many times in one run, it is added to the list below and the grind moves on. Remove it there to try it again.");
+        public static readonly LocString AutoBlacklistDeathsOff = new("settings.filters.autoBlacklistDeathsOff", "A FATE you keep dying in is retried after every revive.");
+        public static readonly LocString DeathsBeforeBlacklist = new("settings.filters.deathsBeforeBlacklist", "Deaths before blacklisting");
+        public static readonly LocString DeathsBeforeBlacklistHelp = new("settings.filters.deathsBeforeBlacklistHelp", "Deaths inside the same FATE during one run. A death anywhere else does not count.");
+        public static readonly LocString DeathsFormat = new("settings.filters.deathsFormat", "%d deaths");
         public static readonly LocString AddByName = new("settings.filters.addByName", "Add a FATE by name");
         public static readonly LocString AddByNameHelp = new("settings.filters.addByNameHelp", "Pulled live from game data, sorted A-Z. Type to search. Use this for FATEs you never want to trigger, like a world boss everyone is waiting on, without needing it to be up.");
         public static readonly LocString Blacklisted = new("settings.filters.blacklisted", "Blacklisted FATEs");

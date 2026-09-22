@@ -22,20 +22,23 @@ internal static class FateBlacklist
 
     public static void ToggleId(Configuration cfg, PublicEvent f)
     {
-        if (!cfg.BlacklistedTypeIds.TryGetValue((int)f.FateType, out var set))
-            cfg.BlacklistedTypeIds[(int)f.FateType] = set = [];
+        var set = SetFor(cfg, f.FateType);
         if (!set.Add(f.Id))
             set.Remove(f.Id);
         cfg.SaveDebounced();
     }
 
+    public static void Add(Configuration cfg, FateType type, uint fateId)
+    {
+        if (SetFor(cfg, type).Add(fateId))
+        {
+            cfg.SaveDebounced();
+        }
+    }
+
     public static void Add(Configuration cfg, FateType type, uint[] fateIds)
     {
-        if (!cfg.BlacklistedTypeIds.TryGetValue((int)type, out var set))
-        {
-            cfg.BlacklistedTypeIds[(int)type] = set = [];
-        }
-
+        var set = SetFor(cfg, type);
         var added = false;
         for (var index = 0; index < fateIds.Length; index++)
         {
@@ -46,6 +49,16 @@ internal static class FateBlacklist
         {
             cfg.SaveDebounced();
         }
+    }
+
+    private static HashSet<uint> SetFor(Configuration cfg, FateType type)
+    {
+        if (!cfg.BlacklistedTypeIds.TryGetValue((int)type, out var set))
+        {
+            cfg.BlacklistedTypeIds[(int)type] = set = [];
+        }
+
+        return set;
     }
 
     public static IReadOnlyList<BlacklistedFateGroup> All(Configuration cfg)

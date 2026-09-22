@@ -11,6 +11,7 @@ using clib.TaskSystem;
 using clib.Utils;
 using Dalamud.Game.ClientState.Conditions;
 using ECommons.DalamudServices;
+using FFXIVClientStructs.FFXIV.Client.Enums;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Fate;
 using System.Numerics;
@@ -154,6 +155,7 @@ public sealed partial class AutoFate
         if (PublicEvent.GetFateById(fateId) is not { } live) return ExitReason.Continue;
         fate = live;
         var fateName = fate.Name;
+        var fateType = fate.FateType;
         var isCollect = fate.Rule == PublicEvent.FateRule.Collect;
         var spawn = new FateSpawnKey(fateId, fate.StartTimeEpoch);
         Status = $"Engaging {fateName}";
@@ -176,9 +178,20 @@ public sealed partial class AutoFate
             {
                 var refreshed = PublicEvent.GetFateById(fateId);
                 if (refreshed is null || refreshed.State != FateState.Running) break;
-                if (IsPlayerKO()) break;
+                if (IsPlayerKO())
+                {
+                    RegisterDeath(fateId, fateName, fateType);
+                    break;
+                }
                 fate = refreshed;
                 sawRunning = true;
+
+                if (FateBlacklist.Contains(Plugin.Cfg, fate))
+                {
+                    Diag($"FATE {fateId} ({fateName}) is blacklisted; leaving it for the next pick");
+                    LeaveFate(fateId);
+                    break;
+                }
 
                 // A Collect FATE at 100% is won; its row lingers as the hand-in window (leftovers go in below), not a stall.
                 if (isCollect && fate.Progress >= 100) break;
@@ -504,9 +517,43 @@ public sealed partial class AutoFate
 
     private void AbandonFate(uint fateId)
     {
-        abandonedFateId = fateId;
         sessionStuckFateIds.Add(fateId);
+        LeaveFate(fateId);
+    }
+
+    // Keeps ComputeState from routing the ring the character still stands in back to Engaging, and
+    // drops the post-KO return so a revive does not walk straight back into it.
+    private void LeaveFate(uint fateId)
+    {
+        abandonedFateId = fateId;
+        if (returnToFateId == fateId)
+        {
+            returnToFateId = null;
+        }
+
         ClearEngageStall(fateId);
+    }
+
+    private void RegisterDeath(uint fateId, string fateName, FateType fateType)
+    {
+        var deaths = session.CountDeath(fateId);
+        var cfg = Plugin.Cfg;
+        if (!cfg.AutoBlacklistOnDeaths)
+        {
+            Diag($"KO'd in FATE {fateId} ({fateName}); death {deaths} there this run (auto-blacklist off)");
+            return;
+        }
+
+        if (deaths < cfg.AutoBlacklistDeathCount)
+        {
+            Diag($"KO'd in FATE {fateId} ({fateName}); death {deaths}/{cfg.AutoBlacklistDeathCount} there this run");
+            return;
+        }
+
+        Diag($"KO'd in FATE {fateId} ({fateName}) {deaths} times this run; blacklisting it and moving on");
+        FateBlacklist.Add(cfg, fateType, fateId);
+        LeaveFate(fateId);
+        Svc.Chat.Print($"[AFG] Died {deaths} times in {fateName}; it is now blacklisted. Remove it under Settings > FATE filters > Blacklist to grind it again.");
     }
 
     private static unsafe string DescribeEngageSituation(uint fateId, float reachMeters)

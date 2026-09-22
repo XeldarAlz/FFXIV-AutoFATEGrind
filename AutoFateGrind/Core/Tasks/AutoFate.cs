@@ -351,13 +351,13 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     {
         RefreshPendingCollectReward();
 
-        if (abandonedFateId is { } abandonedId && PublicEvent.GetFateById(abandonedId) is null)
+        if (abandonedFateId is { } abandonedId && !IsStillExcluded(abandonedId))
             abandonedFateId = null;
 
         if (IsPlayerKO())
         {
-            if (PublicEvent.CurrentFate is { Progress: < 100, Id: var dyingId })
-                returnToFateId = dyingId;
+            if (PublicEvent.CurrentFate is { Progress: < 100 } dying && !FateBlacklist.Contains(Plugin.Cfg, dying))
+                returnToFateId = dying.Id;
             followUpFateId = null;
             return GrindState.Unconscious;
         }
@@ -399,7 +399,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
 
         if (returnToFateId is { } retId)
         {
-            if (PublicEvent.GetFateById(retId) is { Progress: < 100 })
+            if (PublicEvent.GetFateById(retId) is { Progress: < 100 } && !IsStillExcluded(retId))
                 return GrindState.BetweenFates;
             returnToFateId = null;
         }
@@ -422,6 +422,17 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
             return GrindState.SwapZone;
 
         return GrindState.WaitingForFates;
+    }
+
+    // A FATE that despawned, was un-banned, or left the session stuck set is free to be engaged again.
+    private bool IsStillExcluded(uint fateId)
+    {
+        if (PublicEvent.GetFateById(fateId) is not { } fate)
+        {
+            return false;
+        }
+
+        return sessionStuckFateIds.Contains(fateId) || FateBlacklist.Contains(Plugin.Cfg, fate);
     }
 
     private enum ExitReason { Continue, Quit }

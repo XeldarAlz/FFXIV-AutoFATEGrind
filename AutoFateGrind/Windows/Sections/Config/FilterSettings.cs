@@ -81,9 +81,35 @@ internal static class FilterSettings
             () => DrawSortOrderList(cfg));
     }
 
+    private const int AutoBlacklistDeathsMin = 1;
+    private const int AutoBlacklistDeathsMax = 10;
+
     private static void DrawBlacklistGroup(Configuration cfg)
     {
         using var group = SettingsGroup.Begin(Loc.T(L.Settings.FiltersBlacklist));
+
+        SettingsRow.Draw(Loc.T(L.Settings.AutoBlacklistDeaths),
+            Loc.T(L.Settings.AutoBlacklistDeathsHelp),
+            SettingsControls.ToggleWidth,
+            () => SettingsControls.DrawToggle(cfg, () => cfg.AutoBlacklistOnDeaths, v => cfg.AutoBlacklistOnDeaths = v, "##bl_deaths_on"),
+            SettingsRow.ToggleHeight);
+
+        using (Motion.PushSwitch("##bl_deaths_body", cfg.AutoBlacklistOnDeaths))
+        {
+            if (cfg.AutoBlacklistOnDeaths)
+            {
+                SettingsRow.Draw(Loc.T(L.Settings.DeathsBeforeBlacklist),
+                    Loc.T(L.Settings.DeathsBeforeBlacklistHelp),
+                    SettingsControls.RowSliderWidth,
+                    () => SettingsControls.DrawIntSlider(cfg, "##bl_deaths",
+                        () => cfg.AutoBlacklistDeathCount, v => cfg.AutoBlacklistDeathCount = v,
+                        AutoBlacklistDeathsMin, AutoBlacklistDeathsMax, Loc.T(L.Settings.DeathsFormat)));
+            }
+            else
+            {
+                SettingsRow.Note(Loc.T(L.Settings.AutoBlacklistDeathsOff));
+            }
+        }
 
         SettingsRow.DrawBlock(Loc.T(L.Settings.AddByName),
             Loc.T(L.Settings.AddByNameHelp),
