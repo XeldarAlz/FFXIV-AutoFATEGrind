@@ -33,6 +33,7 @@ internal static class Styling
     public static readonly Vector4 BorderDim   = new(0.235f, 0.262f, 0.330f, 1.00f);
 
     public static readonly Vector4 TextStrong    = new(0.965f, 0.965f, 0.975f, 1.00f);
+    public static readonly Vector4 InkOnAccent   = new(0.078f, 0.059f, 0.133f, 1.00f);
     public static readonly Vector4 TextSecondary = new(0.780f, 0.800f, 0.840f, 1.00f);
     public static readonly Vector4 TextDim       = new(0.560f, 0.590f, 0.640f, 1.00f);
     public static readonly Vector4 TextMuted     = new(0.400f, 0.420f, 0.470f, 1.00f);
@@ -64,6 +65,14 @@ internal static class Styling
         => (float)((Environment.TickCount % periodMs) / periodMs);
 
     public static Vector4 WithAlpha(Vector4 c, float a) => c with { W = a };
+
+    // Only a pale accent crosses 0.65; the brand accents keep white text like the sibling plugins.
+    public static Vector4 ForegroundOn(Vector4 fill) => Luminance(fill) > 0.65f ? InkOnAccent : TextStrong;
+
+    // WCAG relative luminance of an sRGB color.
+    private static float Luminance(Vector4 color) => 0.2126f * Linear(color.X) + 0.7152f * Linear(color.Y) + 0.0722f * Linear(color.Z);
+
+    private static float Linear(float channel) => channel <= 0.04045f ? channel / 12.92f : MathF.Pow((channel + 0.055f) / 1.055f, 2.4f);
 
     public static Vector4 Lighten(Vector4 c, float t) => Vector4.Lerp(c, Vector4.One, t) with { W = c.W };
 

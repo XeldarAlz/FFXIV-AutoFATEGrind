@@ -211,7 +211,7 @@ internal sealed class AboutPage
         ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
         using (Tooltip.Begin())
         {
-            using (ImRaii.PushFont(UiBuilder.IconFont))
+            using (Fonts.PushIcon())
             using (ImRaii.PushColor(ImGuiCol.Text, cat.Color))
                 ImGui.TextUnformatted(cat.Icon.ToIconString());
             ImGui.SameLine(0, 8f * s);
@@ -361,29 +361,16 @@ internal sealed class AboutPage
             rounding, ImDrawFlags.None, 1f);
 
         var label = Loc.T(L.About.SupportButton);
-        var iconStr = FontAwesomeIcon.HandHoldingHeart.ToIconString();
-        Vector2 iconSize;
-        using (ImRaii.PushFont(UiBuilder.IconFont))
-            iconSize = ImGui.CalcTextSize(iconStr);
-        var labelSize = ImGui.CalcTextSize(label);
+        var iconSize = TextDraw.IconSize(FontAwesomeIcon.HandHoldingHeart);
+        var labelSize = TextDraw.Measure(label);
         var innerGap = 9f * s;
         var contentW = iconSize.X + innerGap + labelSize.X;
         var startX = origin.X + (size.X - contentW) * 0.5f;
         var midY = origin.Y + size.Y * 0.5f;
         var breathe = Styling.Pulse(2200.0);
 
-        ImGui.SetWindowFontScale(1f + 0.09f * breathe);
-        using (ImRaii.PushFont(UiBuilder.IconFont))
-        {
-            var hs = ImGui.CalcTextSize(iconStr);
-            ImGui.SetCursorScreenPos(new Vector2(startX, midY - hs.Y * 0.5f));
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextStrong))
-                ImGui.TextUnformatted(iconStr);
-        }
-        ImGui.SetWindowFontScale(1f);
-        ImGui.SetCursorScreenPos(new Vector2(startX + iconSize.X + innerGap, midY - labelSize.Y * 0.5f));
-        using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextStrong))
-            ImGui.TextUnformatted(label);
+        TextDraw.IconCentered(FontAwesomeIcon.HandHoldingHeart, new Vector2(startX + iconSize.X * 0.5f, midY), Styling.TextStrong, 1f + 0.09f * breathe);
+        TextDraw.At(label, new Vector2(startX + iconSize.X + innerGap, midY - labelSize.Y * 0.5f), Styling.TextStrong);
 
         ImGui.SetCursorScreenPos(origin);
         ImGui.Dummy(size);
@@ -470,7 +457,7 @@ internal sealed class AboutPage
     {
         var s = ImGuiHelpers.GlobalScale;
         Vector2 iconSize;
-        using (ImRaii.PushFont(UiBuilder.IconFont))
+        using (Fonts.PushIcon())
             iconSize = ImGui.CalcTextSize(icon.ToIconString());
         var labelSize = ImGui.CalcTextSize(label);
         return iconSize.X + 6f * s + labelSize.X + 14f * s * 2f;
@@ -509,7 +496,7 @@ internal sealed class AboutPage
 
         var iconStr = icon.ToIconString();
         Vector2 iconSize;
-        using (ImRaii.PushFont(UiBuilder.IconFont))
+        using (Fonts.PushIcon())
             iconSize = ImGui.CalcTextSize(iconStr);
         var labelSize = ImGui.CalcTextSize(label);
         var innerGap = 6f * s;
@@ -518,7 +505,7 @@ internal sealed class AboutPage
         var midY = origin.Y + size.Y * 0.5f;
 
         ImGui.SetCursorScreenPos(new Vector2(startX, midY - iconSize.Y * 0.5f));
-        using (ImRaii.PushFont(UiBuilder.IconFont))
+        using (Fonts.PushIcon())
         using (ImRaii.PushColor(ImGuiCol.Text, Vector4.Lerp(accent, Styling.TextStrong, h)))
             ImGui.TextUnformatted(iconStr);
         ImGui.SetCursorScreenPos(new Vector2(startX + iconSize.X + innerGap, midY - labelSize.Y * 0.5f));
@@ -544,13 +531,13 @@ internal sealed class AboutPage
         var glyph = FontAwesomeIcon.Code.ToIconString();
         var twinkle = Styling.Pulse(2600.0);
         Vector2 glyphSize;
-        using (ImRaii.PushFont(UiBuilder.IconFont))
+        using (Fonts.PushIcon())
             glyphSize = ImGui.CalcTextSize(glyph);
         var gap = 6f * s;
         var total = glyphSize.X + gap + ImGui.CalcTextSize(madeBy).X;
         Styling.CenterNextItem(total);
 
-        using (ImRaii.PushFont(UiBuilder.IconFont))
+        using (Fonts.PushIcon())
         using (ImRaii.PushColor(ImGuiCol.Text, Vector4.Lerp(Styling.AccentBlue, Styling.Lighten(Styling.AccentBlueSoft, 0.3f), twinkle)))
             ImGui.TextUnformatted(glyph);
         ImGui.SameLine(0, gap);
@@ -564,7 +551,7 @@ internal sealed class AboutPage
         var iconStr = icon.ToIconString();
         var labelUp = TextDraw.Upper(label);
         Vector2 iconSize;
-        using (ImRaii.PushFont(UiBuilder.IconFont))
+        using (Fonts.PushIcon())
             iconSize = ImGui.CalcTextSize(iconStr);
         Vector2 labelSize;
         using (Fonts.PushCaption())
