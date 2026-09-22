@@ -19,6 +19,7 @@ internal static unsafe class YokaiOps
         InventoryType.Inventory4,
     ];
 
+    // Only a spawned minion object counts as out: the companion id the game keeps can outlive a dismissal.
     public static uint SummonedMinionId()
     {
         var player = Svc.Objects.LocalPlayer;
@@ -27,9 +28,21 @@ internal static unsafe class YokaiOps
             return 0;
         }
 
-        var character = (Character*)player.Address;
-        var minion = character->CompanionData.CompanionObject;
-        return minion is not null ? minion->BaseId : character->CompanionData.CompanionId;
+        var minion = ((Character*)player.Address)->CompanionData.CompanionObject;
+        return minion is not null ? minion->BaseId : 0;
+    }
+
+    // The minion the game treats as active, set before its object spawns and possibly stale after a dismissal.
+    public static uint PendingCompanionId()
+    {
+        var player = Svc.Objects.LocalPlayer;
+        return player is null ? 0u : ((Character*)player.Address)->CompanionData.CompanionId;
+    }
+
+    public static int PlainMedalCount()
+    {
+        var inventory = InventoryManager.Instance();
+        return inventory is null ? 0 : inventory->GetInventoryItemCount(YokaiCatalog.PlainMedalItemId);
     }
 
     public static bool IsWatchEquipped()

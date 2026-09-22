@@ -268,6 +268,7 @@ public sealed partial class AutoFate
             session.UpdateExp();
             YokaiProgress.Invalidate();
             Diag($"FATE {fateId} done (session total: {session.CompletedCount}, wallet {session.GemstoneCurrent}g)");
+            LogYokaiDropState();
             StartFollowUpWatch(fateId);
 
             if (AdvanceClassQueueIfCapHit()) return ExitReason.Quit;

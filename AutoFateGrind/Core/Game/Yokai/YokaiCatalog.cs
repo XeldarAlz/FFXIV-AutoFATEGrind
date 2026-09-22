@@ -5,6 +5,7 @@ internal readonly record struct YokaiEntry(uint MinionId, uint MedalItemId, uint
 internal static class YokaiCatalog
 {
     public const uint WatchItemId = 15222;
+    public const uint PlainMedalItemId = 15167;
 
     private const uint MiddleLaNoscea = 134;
     private const uint LowerLaNoscea = 135;

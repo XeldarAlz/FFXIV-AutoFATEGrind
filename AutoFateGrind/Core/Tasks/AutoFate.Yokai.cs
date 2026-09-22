@@ -97,6 +97,19 @@ public sealed partial class AutoFate
 
     private string YokaiTargetName() => YokaiMinionName(session.YokaiTargetMinionId);
 
+    private void LogYokaiDropState()
+    {
+        if (!ZoneSelection.GoalPlansZones(Plugin.Cfg))
+        {
+            return;
+        }
+
+        var targetIndex = YokaiCatalog.IndexOfMinion(session.YokaiTargetMinionId);
+        var medals = targetIndex < 0 ? -1 : YokaiProgress.Statuses[targetIndex].Medals;
+        Diag($"Yo-kai after FATE: target {YokaiTargetName()} legendary medals {medals}, plain medals {YokaiOps.PlainMedalCount()}, "
+           + $"minion out {YokaiOps.SummonedMinionId()} (game active id {YokaiOps.PendingCompanionId()}), watch equipped {YokaiOps.IsWatchEquipped()}");
+    }
+
     private static string YokaiMinionName(uint minionId)
     {
         var index = YokaiCatalog.IndexOfMinion(minionId);
@@ -170,6 +183,14 @@ public sealed partial class AutoFate
             {
                 await NextFrame(YokaiSummonIdlePollFrames);
                 continue;
+            }
+
+            // The game already counts this minion as active (spawning after a teleport, say); using the action now would dismiss it.
+            if (YokaiOps.PendingCompanionId() == minionId
+             && await WaitUntilTimed(() => YokaiOps.SummonedMinionId() == minionId, YokaiActionWaitMs, "yokai-spawn"))
+            {
+                Diag($"{minionName} spawned on its own");
+                return;
             }
 
             attempts++;
