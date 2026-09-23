@@ -30,9 +30,16 @@ public sealed partial class AutoFate
         if (dest == rnd)
             Diag($"OnMesh did not project FATE {fate.Id} dest {rnd}; vnav may struggle");
 
-        var config = MovementConfig.Everything.WithTolerance(3f);
-        var label = $"Moving to {fate.Name}";
         var targetId = fate.Id;
+        // Mounting is refused in combat and clib's Mount() retries until the idle abort, so aggro (e.g. from a
+        // blacklisted ring the character stands in) is walked away from; the move re-plans once combat drops.
+        var walkingInCombat = Svc.Condition[ConditionFlag.InCombat];
+        if (walkingInCombat)
+        {
+            Diag($"In combat; walking toward FATE {targetId} ({fate.Name}) on foot until combat drops");
+        }
+        var config = (walkingInCombat ? MovementConfig.Default : MovementConfig.Everything).WithTolerance(3f);
+        var label = $"Moving to {fate.Name}";
 
         await TryTeleportShortcut(fate.Position, targetId, fate.Name);
         if (CancelToken.IsCancellationRequested) return MoveStopReason.None;
@@ -52,6 +59,7 @@ public sealed partial class AutoFate
 
             if (Environment.TickCount64 >= deadline) { stopReason = MoveStopReason.StuckTeleport; return true; }
             if (stopReason != MoveStopReason.None) return true;
+            if (walkingInCombat && !Svc.Condition[ConditionFlag.InCombat]) { stopReason = MoveStopReason.CombatDropped; return true; }
 
             var refreshed = PublicEvent.GetFateById(targetId);
             if (refreshed is null) { stopReason = MoveStopReason.FateInvalid; return true; }
@@ -254,8 +262,9 @@ public sealed partial class AutoFate
                 if (CancelToken.IsCancellationRequested) return;
                 if (!Svc.Condition[ConditionFlag.InCombat]) break;
                 if (IsPlayerKO()) break;
-                // A real FATE may have started on top of us; let the state machine take over.
-                if (PublicEvent.CurrentFate is { State: FateState.Running }) break;
+                // A real FATE may have started on top of us; let the state machine take over. A ring it
+                // left (blacklisted or abandoned) is not one, so the aggro from it still gets cleared.
+                if (PublicEvent.CurrentFate is { State: FateState.Running } current && current.Id != abandonedFateId) break;
                 if (Svc.Condition[ConditionFlag.Mounted]) { BossModIPC.Instance.ClearActive(); await SafeDismount("dismount-clearcombat"); }
                 AssertPresetActive(preset);
                 await NextFrame(30);

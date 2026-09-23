@@ -196,7 +196,7 @@ public sealed partial class AutoFate
         await GenerateObstacleMap(fate);
     }
 
-    private enum MoveStopReason { None, StuckRetry, StuckTeleport, StuckInCombat, HigherPriority, NpcSpawned, FateInvalid, LeftZone }
+    private enum MoveStopReason { None, StuckRetry, StuckTeleport, StuckInCombat, HigherPriority, NpcSpawned, FateInvalid, LeftZone, CombatDropped }
 
     private async Task GenerateObstacleMap(PublicEvent fate)
     {

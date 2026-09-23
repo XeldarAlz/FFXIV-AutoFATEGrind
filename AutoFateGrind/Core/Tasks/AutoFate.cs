@@ -388,6 +388,12 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
         // Only a Running CurrentFate means "fight it". A completed fate lingers non-Running for a
         // frame; routing that to Engaging (which returns instantly) would spin and freeze the game.
         var current = PublicEvent.CurrentFate;
+        // A ring the character stands in was never picked, so it has to pass the same exclusions a pick does (issue #76).
+        if (current is { State: FateState.Running, Progress: < 100 } && abandonedFateId != current.Id)
+        {
+            LeaveIfExcluded(current);
+        }
+
         if (current is { Rule: PublicEvent.FateRule.Collect, Progress: >= 100 }
          && abandonedFateId != current.Id
          && current.State is not (FateState.Ended or FateState.Failed))
@@ -447,13 +453,21 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
 
     // A FATE that despawned, was un-banned, or left the session stuck set is free to be engaged again.
     private bool IsStillExcluded(uint fateId)
+        => PublicEvent.GetFateById(fateId) is { } fate && IsExcluded(fate);
+
+    private bool IsExcluded(PublicEvent fate)
+        => sessionStuckFateIds.Contains(fate.Id) || FateBlacklist.Contains(Plugin.Cfg, fate);
+
+    private bool LeaveIfExcluded(PublicEvent fate)
     {
-        if (PublicEvent.GetFateById(fateId) is not { } fate)
+        if (!IsExcluded(fate))
         {
             return false;
         }
 
-        return sessionStuckFateIds.Contains(fateId) || FateBlacklist.Contains(Plugin.Cfg, fate);
+        Diag($"FATE {fate.Id} ({fate.Name}) is blacklisted or skipped this session; leaving it for the next pick");
+        LeaveFate(fate.Id);
+        return true;
     }
 
     private enum ExitReason { Continue, Quit }

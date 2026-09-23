@@ -44,7 +44,7 @@ public sealed partial class AutoFate
         var moveResult = await MoveToFate(fate);
         if (CancelToken.IsCancellationRequested) return ExitReason.Quit;
 
-        if (moveResult is MoveStopReason.HigherPriority)
+        if (moveResult is MoveStopReason.HigherPriority or MoveStopReason.CombatDropped)
             return ExitReason.Continue;
 
         // Teleport can't fire in combat, and the FATE is still reachable — fight free, don't blacklist.
@@ -141,7 +141,13 @@ public sealed partial class AutoFate
 
         // A ring the character is already standing in still has to pay, so the minion comes out before the rotation starts.
         await EnsureYokaiCompanion();
-        if (PublicEvent.GetFateById(fateId) is null) return ExitReason.Continue;
+
+        // Checked before the level sync and the rotation, either of which already works the FATE.
+        if (PublicEvent.GetFateById(fateId) is not { } entered || LeaveIfExcluded(entered))
+        {
+            return ExitReason.Continue;
+        }
+        fate = entered;
 
         var preset = Plugin.Cfg.CombatPresetName;
         EnsureCombatPreset(preset);
@@ -187,10 +193,8 @@ public sealed partial class AutoFate
                 fate = refreshed;
                 sawRunning = true;
 
-                if (FateBlacklist.Contains(Plugin.Cfg, fate))
+                if (LeaveIfExcluded(fate))
                 {
-                    Diag($"FATE {fateId} ({fateName}) is blacklisted; leaving it for the next pick");
-                    LeaveFate(fateId);
                     break;
                 }
 
@@ -685,6 +689,12 @@ public sealed partial class AutoFate
         }
 
         ClearEngageStall(fateId);
+
+        // Auto-attack keeps swinging at a held target after the rotation is cleared.
+        if (FateMobScanner.IsTargetingMobOf(fateId))
+        {
+            Svc.Targets.Target = null;
+        }
     }
 
     private void RegisterDeath(uint fateId, string fateName, FateType fateType)

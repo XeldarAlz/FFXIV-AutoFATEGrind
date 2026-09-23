@@ -74,6 +74,9 @@ internal static unsafe class FateMobScanner
         return found;
     }
 
+    public static bool IsTargetingMobOf(uint fateId)
+        => Svc.Targets.Target is IBattleNpc npc && IsLiveMobOfFate(npc, fateId);
+
     public static bool TryGetTarget(uint fateId, Vector3 from, out FateMobTarget target)
     {
         target = default;
