@@ -67,12 +67,13 @@ public sealed class AutoReturnToInn : AutoCommon
 
         await SafeDismount("inn-dismount");
 
+        await RideAethernetShortcut(inn.InnkeeperPos, "inn-aethernet");
+        if (CancelToken.IsCancellationRequested) return;
+
         Status = "Walking to the innkeeper";
         var walk = new MoveOp(o => o.Move(inn.CityTerritory, inn.InnkeeperPos,
             MovementConfig.Everything.WithTolerance(ArrivalTolerance),
-            allowTeleportIfFaster: false,
-            stopCondition: () => CancelToken.IsCancellationRequested,
-            allowAethernetWithinTerritory: true));
+            stopCondition: () => CancelToken.IsCancellationRequested));
         await RunCancellable(walk, WalkWatchdogMs, "inn-walk", StuckDetector.MoveStallAbort("inn-walk"));
         if (CancelToken.IsCancellationRequested) return;
 
@@ -102,9 +103,7 @@ public sealed class AutoReturnToInn : AutoCommon
             {
                 var step = new MoveOp(o => o.Move(inn.CityTerritory, npc.Position,
                     MovementConfig.Everything.WithTolerance(InnkeeperStepTolerance),
-                    allowTeleportIfFaster: false,
-                    stopCondition: () => CancelToken.IsCancellationRequested,
-                    allowAethernetWithinTerritory: false));
+                    stopCondition: () => CancelToken.IsCancellationRequested));
                 await RunCancellable(step, ApproachWatchdogMs, "inn-approach", StuckDetector.MoveStallAbort("inn-approach"));
                 continue;
             }

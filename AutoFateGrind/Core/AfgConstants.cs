@@ -55,5 +55,6 @@ internal static class AfgConstants
         public const string Repair = "Repair";
         public const string Request = "Request";
         public const string ContextIconMenu = "ContextIconMenu";
+        public const string TelepotTown = "TelepotTown";
     }
 }

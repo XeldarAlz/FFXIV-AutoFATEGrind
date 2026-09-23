@@ -104,6 +104,9 @@ internal static unsafe class NpcInteraction
     public static bool RequestDialogOpen()
         => AddonReady(AfgConstants.AddonNames.Request, out _);
 
+    public static bool AddonOpen(string name)
+        => AddonReady(name, out _);
+
     // Slot 0 of the request window and the icon-menu entry that moves the held stack into it; the same
     // callback pair TextAdvance fires, so the two never disagree on how the window gets filled.
     private const int RequestFirstSlot = 0;

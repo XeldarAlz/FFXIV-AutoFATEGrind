@@ -104,12 +104,11 @@ public sealed class AutoRepair : AutoCommon
         {
             var menderPos = m.Position;
             var menderTerr = m.TerritoryId;
+            await RideAethernetShortcut(menderPos, "repair-aethernet");
             await WalkWithRetries(
                 () => new MoveOp(o => o.Move(menderTerr, menderPos,
                     MovementConfig.Everything.WithTolerance(WalkToleranceMeters),
-                    allowTeleportIfFaster: false,
-                    stopCondition: null,
-                    allowAethernetWithinTerritory: true)),
+                    stopCondition: null)),
                 MoveWatchdogMs, "repair-walk", () => WithinReach(menderPos, WalkToleranceMeters));
         });
 

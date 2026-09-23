@@ -113,9 +113,7 @@ public sealed class AutoHumanize(uint cityTerritoryId, int durationMs) : AutoCom
 
             var move = new MoveOp(o => o.Move(cityTerritoryId, dest.Value,
                 MovementConfig.Default.WithTolerance(ArrivalTolerance),
-                allowTeleportIfFaster: false,
-                stopCondition: () => Environment.TickCount64 >= deadline || CancelToken.IsCancellationRequested,
-                allowAethernetWithinTerritory: false));
+                stopCondition: () => Environment.TickCount64 >= deadline || CancelToken.IsCancellationRequested));
             await RunCancellable(move, perHopBudget, $"humanize-walk-{hops}", StuckDetector.MoveStallAbort($"humanize-walk-{hops}"));
 
             if (CancelToken.IsCancellationRequested) return;

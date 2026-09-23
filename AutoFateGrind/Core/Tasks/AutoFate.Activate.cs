@@ -114,9 +114,7 @@ public sealed partial class AutoFate
         await WalkWithRetries(
             () => new MoveOp(o => o.Move(zone.TerritoryId, npcPos,
                 StarterNpcMovementConfig(npcPos),
-                allowTeleportIfFaster: false,
-                stopCondition: () => { Status = label; return !AwaitingNpcStart(fateId); },
-                allowAethernetWithinTerritory: false)),
+                stopCondition: () => { Status = label; return !AwaitingNpcStart(fateId); })),
             ActivateMoveWatchdogMs, $"activate-move-{fateId}",
             () => !AwaitingNpcStart(fateId) || WithinReach(npcPos, InteractRangeMeters));
     }

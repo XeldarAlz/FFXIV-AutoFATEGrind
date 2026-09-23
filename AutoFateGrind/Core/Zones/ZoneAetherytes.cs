@@ -1,6 +1,5 @@
 using ECommons.DalamudServices;
 using System.Numerics;
-using EcMap = ECommons.GameHelpers.Map;
 
 namespace AutoFateGrind.Core.Zones;
 
@@ -122,16 +121,8 @@ internal static class ZoneAetherytes
 
     private static bool TryResolvePosition(Lumina.Excel.Sheets.Aetheryte row, out Vector3 position)
     {
-        try
-        {
-            position = EcMap.AetherytePosition(row);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Svc.Log.Warning(ex, $"[AFG] Could not resolve a position for aetheryte {row.RowId}; skipping it as a teleport target");
-            position = default;
-            return false;
-        }
+        if (AetheryteGeometry.TryResolvePosition(row, out position)) return true;
+        Svc.Log.Warning($"[AFG] Could not resolve a position for aetheryte {row.RowId}; skipping it as a teleport target");
+        return false;
     }
 }

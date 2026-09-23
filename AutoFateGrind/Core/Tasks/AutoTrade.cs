@@ -52,12 +52,11 @@ public sealed class AutoTrade(uint targetItemId, uint originTerritoryId, Expansi
         {
             var traderPos = trader.Position;
             var traderTerr = trader.TerritoryId;
+            await RideAethernetShortcut(traderPos, "trade-aethernet");
             await WalkWithRetries(
                 () => new MoveOp(o => o.Move(traderTerr, traderPos,
                     MovementConfig.Everything.WithTolerance(WalkToleranceMeters),
-                    allowTeleportIfFaster: false,
-                    stopCondition: null,
-                    allowAethernetWithinTerritory: true)),
+                    stopCondition: null)),
                 MoveWatchdogMs, "trade-walk", () => WithinReach(traderPos, WalkToleranceMeters));
         });
 

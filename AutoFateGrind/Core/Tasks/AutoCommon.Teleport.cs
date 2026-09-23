@@ -125,7 +125,7 @@ public abstract partial class AutoCommon
     }
 
     // Walk (clib will swim/fly) to the nearest reachable mesh point so a teleport can cast;
-    // allowTeleportIfFaster:false keeps it from re-entering the broken teleport.
+    // Move never teleports within the zone, so it cannot re-enter the broken teleport.
     private async Task LeaveWaterForTeleport(string scope)
     {
         var here = Svc.Objects.LocalPlayer?.Position;
@@ -142,8 +142,7 @@ public abstract partial class AutoCommon
         Status = "Leaving the water before teleport";
         Diag($"{scope}: in the water ({ConditionTag()}); moving ~{Vector3.Distance(pos, dest):F0}m to a reachable point before teleport");
         var territory = Svc.ClientState.TerritoryType;
-        var move = new MoveOp(o => o.Move(territory, dest, MovementConfig.Everything.WithTolerance(3f),
-            allowTeleportIfFaster: false, stopCondition: null, allowAethernetWithinTerritory: false));
+        var move = new MoveOp(o => o.Move(territory, dest, MovementConfig.Everything.WithTolerance(3f), stopCondition: null));
         await RunCancellable(move, UnstickMoveMs, $"{scope}-water", StuckDetector.MoveStallAbort($"{scope}-water"));
     }
 
