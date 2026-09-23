@@ -51,6 +51,7 @@ public sealed class Configuration : IPluginConfiguration
     public int MaxLevelAbove { get; set; } = 5;
 
     public bool SwapZonesWhenEmpty { get; set; } = true;
+    public bool MountWhileWaitingForFates { get; set; } = false;
     public bool ShowLivePopout { get; set; } = false;
 
     // Auto-restart on fault, bounded by MaxConsecutiveStateErrors.
@@ -123,6 +124,7 @@ public sealed class Configuration : IPluginConfiguration
     public HashSet<uint> HumanizerCities { get; set; } = [129, 132, 1185, Core.Zones.CityCatalog.SolutionNineTerritoryId];
 
     public bool AutoConsume { get; set; } = false;
+    public bool AutoSummonChocobo { get; set; } = false;
     // 0 = only re-eat once Well Fed has fully worn off.
     public int AutoConsumeMinMinutes { get; set; } = 3;
     public List<ConsumableEntry> AutoConsumeItems { get; set; } = [];

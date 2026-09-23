@@ -3,14 +3,12 @@ using AutoFateGrind.Core.Game.Fates;
 using AutoFateGrind.Core.Game.Player;
 using AutoFateGrind.Core.Ipc;
 using AutoFateGrind.Core.Modes;
-using AutoFateGrind.Core.Trading;
 using AutoFateGrind.Core.Zones;
 using clib.Extensions;
 using clib.TaskSystem;
 using clib.Utils;
 using Dalamud.Game.ClientState.Conditions;
 using ECommons.DalamudServices;
-using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Fate;
 using System.Numerics;
 using System.Threading.Tasks;
@@ -37,20 +35,23 @@ public sealed partial class AutoFate
         await TryTeleportShortcut(fate.Position, targetId, fate.Name);
         if (CancelToken.IsCancellationRequested) return MoveStopReason.None;
 
-        var deadline = Environment.TickCount64 + MoveToFateWatchdogMs;
         var lastRetargetAtMs = Environment.TickCount64;
         var nextProgressLogMs = Environment.TickCount64 + MoveProgressLogMs;
         var stopReason = MoveStopReason.None;
 
-        // Graceful exits clib can observe while it is actively following a path: a deadline backstop,
-        // the FATE vanishing/finishing, its prep NPC spawning, or a closer FATE appearing. Returning
-        // true here lets clib's MoveTo stop vnav and unwind on its own. Physical "stuck" is handled by
-        // the abort tracker below, not here, so the two never race.
+        // Graceful exits clib can observe while it is actively following a path: the FATE
+        // vanishing/finishing, its prep NPC spawning, or a closer FATE appearing. Returning true here
+        // lets clib's MoveTo stop vnav and unwind on its own. Physical "stuck" is handled by the
+        // progress-aware abort tracker below, so a long but healthy flight is allowed to finish.
         bool StopCondition()
         {
             Status = label;
 
-            if (Environment.TickCount64 >= deadline) { stopReason = MoveStopReason.StuckTeleport; return true; }
+            // A 100% Collect FATE can pay out and clear while this route is already in progress. Settle that
+            // bookkeeping here without unwinding the current MoveOp; the old row disappearing must not make
+            // the state machine select this destination again and issue a replacement movement command.
+            RefreshPendingCollectReward();
+
             if (stopReason != MoveStopReason.None) return true;
 
             var refreshed = PublicEvent.GetFateById(targetId);
@@ -124,9 +125,9 @@ public sealed partial class AutoFate
             return true;
         }
 
-        var op = new MoveOp(o => o.MoveInZone(dest, config, StopCondition));
+        var op = new MoveOp(o => o.MoveInZoneWithFlightRecovery(dest, config, StopCondition));
 
-        var completed = await RunCancellable(op, MoveToFateWatchdogMs + MoveOpUnwindSlackMs, label, AbortIfFrozen);
+        var completed = await RunCancellable(op, MoveToFateEmergencyTimeoutMs, label, AbortIfFrozen);
         if (CancelToken.IsCancellationRequested) return MoveStopReason.None;
 
         if (Svc.ClientState.TerritoryType != zone.TerritoryId)
@@ -137,8 +138,8 @@ public sealed partial class AutoFate
             return MoveStopReason.LeftZone;
         }
 
-        // Cancelled by the hard timeout while wedged in a phase clib wasn't polling (e.g. a mount loop):
-        // treat as a teleport-worthy stuck.
+        // The progress-aware abort catches normal navigation wedges quickly. Reaching this emergency
+        // timeout means the movement operation itself failed to unwind, so teleport recovery is warranted.
         if (!completed && stopReason == MoveStopReason.None)
             stopReason = MoveStopReason.StuckTeleport;
 
@@ -179,11 +180,7 @@ public sealed partial class AutoFate
         var flightFromAetheryte = Vector3.Distance(aetheryte.Position, fatePos);
         if (flightFromHere - flightFromAetheryte < TeleportShortcutMinSavingMeters) return;
         RefreshPendingCollectReward();
-        if (CollectRewardPending)
-        {
-            Diag($"Skipping the teleport shortcut to {aetheryte.Name} for FATE {fateId} ({fateName}): a same-zone teleport reloads the zone while Collect FATE {pendingRewardSpawn.FateId} ({pendingRewardName}) still owes its reward; flying instead");
-            return;
-        }
+        // Pending Collect rewards do not block shortcuts within the current territory.
 
         Status = $"Teleporting to {aetheryte.Name}";
         Diag($"Teleport shortcut for FATE {fateId} ({fateName}): {aetheryte.Name} leaves {flightFromAetheryte:F0}m to fly vs {flightFromHere:F0}m from here");
@@ -295,14 +292,49 @@ public sealed partial class AutoFate
 
     private void AssertPresetActive(string preset)
     {
-        if (BossModIPC.Instance.GetActive() == preset) return;
-
-        if (!BossModIPC.Instance.SetActive(preset))
+        const int chocoboOverrideRetryMs = 5_000;
+        var activated = BossModIPC.Instance.GetActive() != preset;
+        if (activated && !BossModIPC.Instance.SetActive(preset))
         {
             Diag($"BossMod.Presets.SetActive('{preset}') returned false — preset may not exist.");
             return;
         }
-        BossModIPC.Instance.AddTransientStrategy(preset, "BossMod.Autorotation.MiscAI.AutoTarget", "MaxTargets", PullSize().ToString());
+
+        var pullSize = PullSize();
+        var targetRange = CombatTargetRangeOption();
+        var summonChocobo = Plugin.Cfg.AutoSummonChocobo;
+        var chocoboNeedsApply = chocoboOverridePreset != preset || combatOverridesChocobo != summonChocobo;
+        var canAttemptChocobo = activated || Environment.TickCount64 >= nextChocoboOverrideAttemptMs;
+        if (!activated && combatOverridesPreset == preset
+         && combatOverridesPullSize == pullSize && combatOverridesTargetRange == targetRange
+         && (!chocoboNeedsApply || !canAttemptChocobo))
+            return;
+
+        BossModIPC.Instance.AddTransientStrategy(preset, "BossMod.Autorotation.MiscAI.AutoTarget", "MaxTargets", pullSize.ToString());
+        BossModIPC.Instance.AddTransientStrategy(preset, StayCloseToTargetModule, StayCloseToTargetRangeTrack, targetRange);
+        if (chocoboNeedsApply && canAttemptChocobo)
+        {
+            if (BossModIPC.Instance.SetFateHelperChocobo(preset, summonChocobo))
+            {
+                Diag($"BossMod FATE helper Chocobo strategy set to {(summonChocobo ? "Enabled" : "Disabled")}");
+                chocoboOverridePreset = preset;
+                combatOverridesChocobo = summonChocobo;
+                chocoboOverrideUnavailableLogged = false;
+                nextChocoboOverrideAttemptMs = 0;
+            }
+            else
+            {
+                nextChocoboOverrideAttemptMs = Environment.TickCount64 + chocoboOverrideRetryMs;
+                if (!chocoboOverrideUnavailableLogged)
+                {
+                    Warn("BossMod FATE helper Chocobo strategy is unavailable; retrying in 5 seconds");
+                    chocoboOverrideUnavailableLogged = true;
+                }
+            }
+        }
+        combatOverridesPreset = preset;
+        combatOverridesPullSize = pullSize;
+        combatOverridesTargetRange = targetRange;
     }
 
     private static unsafe void SyncToFate(uint fateId)
@@ -334,6 +366,14 @@ public sealed partial class AutoFate
             RoleHealer => HealerMaxTargets,
             _          => DefaultMaxTargets,
         };
+    }
+
+    private static string CombatTargetRangeOption()
+    {
+        var player = Svc.Objects.LocalPlayer;
+        return player?.ClassJob.Value.Role is RoleTank or RoleMelee
+            ? StayCloseMeleeRangeOption
+            : StayCloseRangedRangeOption;
     }
 
     private static Vector3 RandomPointInsideRadius(Vector3 center, float radius)

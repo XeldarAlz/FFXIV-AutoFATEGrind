@@ -6,17 +6,16 @@ internal static class DefaultCombatPreset
 {
     public const string Name = AfgConstants.BundledCombatPresetName;
 
-    public const int Revision = 1;
+    public const int Revision = 2;
 
     private const string Base64Brotli =
-        "4YgOAWCc5ErO8zbnUraX8y98h5DuAagZYbHoXK2N6aRPiUwJNEIjld/bxzzxDUIjpMcWlWRSGomQm4jf" +
-        "FrsA7OV1gZloBS4PQgZ+GVMNnujMzN/yBp5AHEKhArI3xFZLoaLw6TaTcyrRN0LcOB+3ryPOIXFUb53s" +
-        "bQaByUQgEkgrBXcRmxLUEpIjJ7S1T6D58c7MeCAijidFhVXNe0xyt+d9a1qgMkT6mYBcitoU4y2BlgAg" +
-        "i5WnuI+CAwv759WxqGX+I6sGHnI+3qUAhCLd7Fs+eYCY3zmLr1qZfoH7GUhGsxEWtA9BWtabbii+i1Ys" +
-        "gpBn5jh9hA9EapIlIIZD+lS+Ta0ANdKWQT0+BjwtI+F3ziK4nwmmPpP1Wh6yiDCTl/nbvTuMkOcUJEsr" +
-        "UuCbQPKBwA4ykpKvmIGSPViEL9f5ioZudihAg5kkf7AsLfvzg4ALhz5J8WhR0G2+aPEU/8mK5+cai3sn" +
-        "lzwpTMAJPxwzbpX+Fx58sKBmInIWDc1MEMnMLaUA+8kZ5/I+L9+/ojJcdPJKzIVh6rko73mf4PPSn8qp" +
-        "GsDt1u3fK53c0e+MpAB8Pdgkzsn45SUjHpbEeFqJriUeDgdEMP0fb3lrxQrOrRM=";
+        "G28SAGQ11V7fgG8j+Psne6OVE8hqb0zGZmJmiIVEt9uHvxkARx5gUaAFlgXStm3dGkt9TbV/h+HHZ9vSoL0a7Gd6mlrrSD9g" +
+        "wBtBDmZV2TTG15s2cpghAyvzeqUE+QcUkpKVeWtWlSiKyhK2ltNk+q1ZVTzGEynkvz7AR5wukENjfA0Z7J6UJUAOdcDDlWb4" +
+        "yj7A84mOdLKa9wHM9QXfEnz9yTT3f8WwrYZSX32xHo9J0NxV5YbK06fPKld0xTdrv4QcxoWPmm1KjVekQbMzJmp2NYvgzUjI" +
+        "4QTCwgBvy46Yw11CJ40Qo9dhx5e2k2+PVqMNztBBYIMD9RD9rNfx7UsfOepWyIoygPHIS1C+kbl0v6+SBPxorB3MtiawnEB9" +
+        "3LvgvupbZF04nMaATzDG4DCcaHYs9qEfAhx8OxQU83YtsFfujuLQlQDTjfLfuoKP3Yw+nmhfuMPDv/9DCCnuD0CEaWL/kd7C" +
+        "N+OeZ1VpOHBaSrkdspjyriLwlWtJrxIRFqP8/cX8BpUelK8pjPLGtzCB5q4vtMnWr1xkkoOYJlWcbjlMbxSrLjEpRch/7SZr" +
+        "6QivFE3P2p6lK1HnjqTWRukew0Ue77YvB4k3vFp5phsF9Z2ioqQcZmjW/PAedTlymOHrz9cX";
 
     private static string? cached;
 

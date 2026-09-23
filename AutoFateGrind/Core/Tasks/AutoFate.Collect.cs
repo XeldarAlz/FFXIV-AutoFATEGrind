@@ -20,6 +20,8 @@ public sealed partial class AutoFate
     private const string AutoTargetModule = "BossMod.Autorotation.MiscAI.AutoTarget";
     private const string AutoTargetGeneralTrack = "General";
     private const string AutoTargetPassiveOption = "Passive";
+    private const string AutoTargetCollectFateTrack = "CollectFATE";
+    private const string AutoTargetEnabledOption = "Enabled";
 
     private const int HandInWalkWatchdogMs = 40_000;
     private const int HandInCombatClearMs = 30_000;
@@ -100,21 +102,61 @@ public sealed partial class AutoFate
 
     private async Task HandInLeftovers(uint fateId, string fateName, string preset)
     {
-        if (!afgHandInOwner)
+        // AFG may have yielded normal mid-FATE batches to BossMod after repeated failures. At 100%,
+        // take ownership again so no event items are carried away to the next FATE. An explicit setting
+        // change still wins immediately.
+        if (!Plugin.Cfg.CollectHandInEnabled)
         {
             return;
         }
         var itemId = FateItems.TurnInItemId(fateId);
-        var held = FateItems.HeldCount(itemId);
-        if (itemId == 0 || held <= 0)
+        if (itemId == 0)
         {
             return;
         }
-        Diag($"FATE {fateId} ({fateName}) is at 100% with {held} item(s) still held; turning them in during the hand-in window");
-        await HandInHeldItems(fateId, fateName, preset, itemId, held);
+
+        var held = FateItems.HeldCount(itemId);
+        if (held <= 0)
+        {
+            return;
+        }
+
+        afgHandInOwner = true;
+        handInFailures = 0;
+        handInNextAttemptMs = 0;
+        Diag($"FATE {fateId} ({fateName}) is at 100% with {held} item(s) still held; finishing every hand-in before selecting another FATE");
+
+        while (!CancelToken.IsCancellationRequested && !IsPlayerKO() && Plugin.Cfg.CollectHandInEnabled)
+        {
+            if (!FateAlive(fateId))
+            {
+                var remaining = FateItems.HeldCount(itemId);
+                if (remaining > 0)
+                    Diag($"Collect FATE {fateId} ({fateName}) closed with {remaining} item(s) still held; its hand-in window is no longer available");
+                return;
+            }
+
+            held = FateItems.HeldCount(itemId);
+            if (held <= 0)
+            {
+                Diag($"Collect FATE {fateId} ({fateName}): all remaining items were handed in; continuing the route");
+                return;
+            }
+
+            if (Environment.TickCount64 < handInNextAttemptMs)
+            {
+                Status = $"Waiting to hand in {held} item(s) for {fateName}";
+                await NextFrame(30);
+                continue;
+            }
+
+            await HandInHeldItems(fateId, fateName, preset, itemId, held, keepOwnership: true);
+            await NextFrame(30);
+        }
     }
 
-    private async Task<bool> HandInHeldItems(uint fateId, string fateName, string preset, uint itemId, int held)
+    private async Task<bool> HandInHeldItems(uint fateId, string fateName, string preset, uint itemId, int held,
+        bool keepOwnership = false)
     {
         if (ResolveObjectiveNpc(fateId) is null)
         {
@@ -145,6 +187,14 @@ public sealed partial class AutoFate
             Diag($"Hand-in for FATE {fateId} did not go through (attempt {handInFailures}/{MaxHandInFailuresPerFate}); retrying in {HandInRetryBackoffMs / 1000}s");
             return true;
         }
+
+        if (keepOwnership)
+        {
+            handInFailures = 0;
+            Diag($"Final hand-in for FATE {fateId} is still failing; staying here and retrying while its hand-in window remains open");
+            return true;
+        }
+
         afgHandInOwner = false;
         Diag($"Hand-in for FATE {fateId} failed {handInFailures} times; leaving the rest of this FATE's turn-ins to BossMod's 10-item hand-in");
         return true;
@@ -171,6 +221,10 @@ public sealed partial class AutoFate
                 {
                     return false;
                 }
+                // Passive AutoTarget stops selecting another enemy, but it does not clear the hostile
+                // target left over from collecting. Pin the hand-in NPC so the rotation cannot keep
+                // attacking that target and start another pull while we walk to the NPC.
+                NpcInteraction.Target(npc);
                 if (!await ApproachHandInNpc(fateId, npc, attempt))
                 {
                     continue;
@@ -179,6 +233,9 @@ public sealed partial class AutoFate
                 {
                     return false;
                 }
+                // Clearing chasers temporarily restores aggressive targeting. Select the NPC again
+                // before the dialog-ready wait so the trip cannot immediately acquire another mob.
+                NpcInteraction.Target(npc);
                 if (!await ReadyToHandIn(fateId))
                 {
                     continue;
@@ -338,10 +395,51 @@ public sealed partial class AutoFate
 
     private async Task WrapUpCollectFate(uint fateId, string fateName, string preset)
     {
+        await ClearCollectCompletionAggro(fateId, fateName, preset);
         await HandInLeftovers(fateId, fateName, preset);
         if (PublicEvent.GetFateById(fateId) is { } live && live.State is not (FateState.Ended or FateState.Failed))
         {
             TrackCollectReward(live);
+        }
+    }
+
+    // At 100%, stop pulling passive Collect mobs but keep the rotation active until everything already on
+    // the player's enmity list is dead. BossMod gives enmity-list actors normal priority independently of
+    // FATE targeting, while CollectFATE=Enabled suppresses only new passive Collect targets.
+    private async Task ClearCollectCompletionAggro(uint fateId, string fateName, string preset)
+    {
+        if (!Svc.Condition[ConditionFlag.InCombat])
+        {
+            return;
+        }
+
+        Status = $"Clearing aggro after {fateName}";
+        Diag($"Collect FATE {fateId} ({fateName}) reached 100% while still in combat; attacking enmity-list targets before hand-in or departure");
+
+        var restrictedToAggro = BossModIPC.Instance.AddTransientStrategy(
+            preset, AutoTargetModule, AutoTargetCollectFateTrack, AutoTargetEnabledOption);
+        var deadline = Environment.TickCount64 + HandInCombatClearMs;
+        try
+        {
+            while (Environment.TickCount64 < deadline)
+            {
+                if (CancelToken.IsCancellationRequested || IsPlayerKO() || !Svc.Condition[ConditionFlag.InCombat])
+                {
+                    return;
+                }
+
+                AssertPresetActive(preset);
+                await NextFrame(30);
+            }
+
+            Diag($"Collect FATE {fateId} ({fateName}) still has combat aggro after {HandInCombatClearMs / 1000}s; continuing wrap-up while the reward window remains open");
+        }
+        finally
+        {
+            if (restrictedToAggro)
+            {
+                BossModIPC.Instance.ClearTransientStrategy(preset, AutoTargetModule, AutoTargetCollectFateTrack);
+            }
         }
     }
 
@@ -413,6 +511,12 @@ public sealed partial class AutoFate
             var preset = Plugin.Cfg.CombatPresetName;
             EnsureCombatPreset(preset);
             AssertPresetActive(preset);
+        }
+        else
+        {
+            // This state is reached only when no eligible FATE remains in the zone. Match the normal
+            // idle scan and follow-up wait behaviour instead of standing on foot for the reward window.
+            TryMountWhileWaiting();
         }
         await NextFrame(60);
     }

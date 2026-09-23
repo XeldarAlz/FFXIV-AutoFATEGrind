@@ -1,6 +1,7 @@
 using AutoFateGrind.Core;
 using AutoFateGrind.Core.Debug;
 using AutoFateGrind.Core.Game.Watchers;
+using AutoFateGrind.Core.Ipc;
 using AutoFateGrind.Core.Localization;
 using AutoFateGrind.Core.Stats;
 using AutoFateGrind.Core.Tasks;
@@ -43,6 +44,10 @@ public sealed class Plugin : IDalamudPlugin
     internal LiveFateWindow LiveFateWindow { get; }
 
     private readonly EventHandler<UnobservedTaskExceptionEventArgs> unobservedTaskHandler;
+    private const int ChocoboStrategyRetryMs = 5_000;
+    private bool chocoboStrategySyncPending;
+    private bool chocoboStrategyFailureLogged;
+    private long nextChocoboStrategySyncMs;
 
     public Plugin()
     {
@@ -81,7 +86,9 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.OpenConfigUi += ToggleConfigUi;
         PluginInterface.UiBuilder.OpenMainUi += ToggleMainUi;
 
+        Svc.Framework.Update += OnFrameworkUpdate;
         Svc.ClientState.Login += OnLogin;
+        RequestChocoboStrategySync();
         if (Svc.ClientState.IsLoggedIn) OnLogin();
     }
 
@@ -106,7 +113,10 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.Draw -= WindowSystem.Draw;
         PluginInterface.UiBuilder.OpenConfigUi -= ToggleConfigUi;
         PluginInterface.UiBuilder.OpenMainUi -= ToggleMainUi;
+        Svc.Framework.Update -= OnFrameworkUpdate;
         Svc.ClientState.Login -= OnLogin;
+
+        BossModIPC.Instance.ClearAllFateHelperChocoboOverrides();
 
         WindowSystem.RemoveAllWindows();
         appWindow.Dispose();
@@ -147,6 +157,44 @@ public sealed class Plugin : IDalamudPlugin
     {
         primaryCommand.HelpMessage = Loc.T(L.Plugin.CommandHelp);
         aliasCommand.HelpMessage = Loc.T(L.Plugin.CommandHelpAlias);
+    }
+
+    internal void RequestChocoboStrategySync()
+    {
+        chocoboStrategySyncPending = true;
+        chocoboStrategyFailureLogged = false;
+        nextChocoboStrategySyncMs = 0;
+        TrySyncChocoboStrategy();
+    }
+
+    private void OnFrameworkUpdate(IFramework _)
+    {
+        if (chocoboStrategySyncPending && Environment.TickCount64 >= nextChocoboStrategySyncMs)
+            TrySyncChocoboStrategy();
+    }
+
+    private void TrySyncChocoboStrategy()
+    {
+        nextChocoboStrategySyncMs = Environment.TickCount64 + ChocoboStrategyRetryMs;
+        var preset = Configuration.CombatPresetName;
+
+        // BossMod and the managed preset can appear after AFG because plugin load order is not fixed.
+        if (!BossModIPC.Instance.IsAvailable || !BossModIPC.Instance.CanAddTransientStrategy
+                                                || BossModIPC.Instance.GetPreset(preset) is null)
+            return;
+
+        if (BossModIPC.Instance.SetFateHelperChocobo(preset, Configuration.AutoSummonChocobo))
+        {
+            chocoboStrategySyncPending = false;
+            chocoboStrategyFailureLogged = false;
+            return;
+        }
+
+        if (!chocoboStrategyFailureLogged)
+        {
+            Log.Warning("[AFG] BossMod FATE helper Chocobo strategy is unavailable for preset {Preset}; retrying", preset);
+            chocoboStrategyFailureLogged = true;
+        }
     }
 
     private static string PluginDirectory => PluginInterface.AssemblyLocation.DirectoryName ?? string.Empty;

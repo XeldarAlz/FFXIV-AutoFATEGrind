@@ -127,6 +127,19 @@ public sealed partial class AutoFate
         if (FateScanner.AwaitsNpcStart(fate))
             await ActivateFate(fate);
 
+        // A completed Collect FATE can remain in CurrentFate during its reward window, then leave it briefly
+        // empty when the reward settles during travel. Remember that we physically reached this running FATE
+        // so the next state tick engages it instead of issuing the same move again in either transition.
+        var reached = PublicEvent.GetFateById(pickedId);
+        if (reached is { State: FateState.Running, Progress: < 100 }
+         && PublicEvent.CurrentFate?.Id != pickedId
+         && Svc.Objects.LocalPlayer is { } arrivedPlayer
+         && Vector3.Distance(arrivedPlayer.Position, reached.Position) <= reached.Radius)
+        {
+            arrivedFateId = pickedId;
+            Diag($"Reached FATE {pickedId} ({pickedName}) while CurrentFate is stale or empty; engaging without repeating movement");
+        }
+
         if (returnToFateId == fate.Id && fate.State == FateState.Running)
             returnToFateId = null;
 
@@ -135,9 +148,10 @@ public sealed partial class AutoFate
 
     private async Task<ExitReason> EngageCurrentFate()
     {
-        var fate = PublicEvent.CurrentFate;
+        var fate = ResolveEngagementFate(PublicEvent.CurrentFate);
         if (fate is null) return ExitReason.Continue;
         var fateId = fate.Id;
+        if (arrivedFateId == fateId) arrivedFateId = null;
 
         // A ring the character is already standing in still has to pay, so the minion comes out before the rotation starts.
         await EnsureYokaiCompanion();
@@ -241,14 +255,11 @@ public sealed partial class AutoFate
 
                 SyncToFate(fateId);
 
-                if (isCollect)
+                if (isCollect && await MaybeHandInCollectItems(fateId, fateName, preset))
                 {
                     // A hand-in trip is progress in its own right; give the stall clocks a fresh window after one.
-                    if (await MaybeHandInCollectItems(fateId, fateName, preset))
-                    {
-                        lastProgressAtMs = Environment.TickCount64;
-                        lastInCombatAtMs = Environment.TickCount64;
-                    }
+                    lastProgressAtMs = Environment.TickCount64;
+                    lastInCombatAtMs = Environment.TickCount64;
                 }
                 else if (await TickEngagementWatchdog(fateId, fate, idle))
                 {
@@ -343,26 +354,54 @@ public sealed partial class AutoFate
 
     private async Task<bool> TickEngagementWatchdog(uint fateId, PublicEvent fate, EngageIdleTracker idle)
     {
-        if (fate.Rule == PublicEvent.FateRule.Collect)
-        {
-            return false;
-        }
         if (Svc.Condition[ConditionFlag.Mounted])
         {
+            idle.ResetTargetRangeWatch();
             return false;
         }
         if (StuckDetector.IsPositionFrozenLegit())
         {
+            idle.ResetTargetRangeWatch();
             return false;
         }
         if (Svc.Objects.LocalPlayer is not { } player)
         {
+            idle.ResetTargetRangeWatch();
             return false;
         }
 
-        if (Svc.Condition[ConditionFlag.InCombat] && HasTargetInReach(fateId, idle.Meters))
+        if (FateMobScanner.TrySurveyTargetedMob(fateId, player.Position, out var target))
         {
-            idle.MarkInReach();
+            if (target.DistanceToHitbox <= idle.Meters)
+            {
+                idle.ResetTargetRangeWatch();
+                if (Svc.Condition[ConditionFlag.InCombat])
+                {
+                    idle.MarkInReach();
+                    return false;
+                }
+            }
+            else if (!idle.TargetOutOfRangeLongEnough(target, player.Position))
+            {
+                return false;
+            }
+            else
+            {
+                await RepositionToTargetedFateMob(fateId, fate.Name, target, idle);
+                idle.Restart();
+                Status = $"Engaging {fate.Name}";
+                return false;
+            }
+        }
+        else
+        {
+            idle.ResetTargetRangeWatch();
+        }
+
+        // Collect FATEs use their own pickup and hand-in movement, but still need the selected-target
+        // range correction above while fighting for materials.
+        if (fate.Rule == PublicEvent.FateRule.Collect)
+        {
             return false;
         }
 
@@ -400,6 +439,36 @@ public sealed partial class AutoFate
         => Svc.Objects.LocalPlayer is { } player
         && FateMobScanner.TryGetTargetedMob(fateId, player.Position, out var distance)
         && distance <= reachMeters;
+
+    private async Task RepositionToTargetedFateMob(uint fateId, string fateName, FateMobTarget target, EngageIdleTracker idle)
+    {
+        Status = $"Closing on {fateName}";
+        Diag($"Selected target for FATE {fateId} ({fateName}) remains {target.DistanceToHitbox:F0}m from its hitbox (attack reach {idle.Meters:F0}m); moving into range");
+
+        var targetId = target.GameObjectId;
+        var targetPosition = target.Position;
+        var dest = targetPosition.OnMesh();
+        var tolerance = target.HitboxRadius + (idle.Meters <= EngageMeleeReachMeters
+            ? EngageMeleeApproachToleranceMeters
+            : EngageRangedApproachToleranceMeters);
+        var config = MovementConfig.Default.WithTolerance(tolerance);
+        var reachMeters = idle.Meters;
+
+        bool InRangeMovedOrGone()
+        {
+            if (PublicEvent.GetFateById(fateId) is not { State: FateState.Running }
+             || Svc.Objects.LocalPlayer is not { } moving
+             || !FateMobScanner.TrySurveyTargetedMob(fateId, moving.Position, out var live)
+             || live.GameObjectId != targetId)
+            {
+                return true;
+            }
+            return live.DistanceToHitbox <= reachMeters
+                || Vector3.Distance(live.Position, targetPosition) >= EngageTargetRepathMeters;
+        }
+
+        await WalkWithBossModParked(dest, config, InRangeMovedOrGone, $"engage-target-{fateId}");
+    }
 
     private async Task RepositionToFateMob(uint fateId, string fateName, FateMobSurvey survey, EngageIdleTracker idle)
     {
@@ -517,6 +586,7 @@ public sealed partial class AutoFate
 
     private void AbandonFate(uint fateId)
     {
+        if (arrivedFateId == fateId) arrivedFateId = null;
         sessionStuckFateIds.Add(fateId);
         LeaveFate(fateId);
     }
@@ -532,6 +602,32 @@ public sealed partial class AutoFate
         }
 
         ClearEngageStall(fateId);
+    }
+
+    private PublicEvent? ResolveEngagementFate(PublicEvent? current)
+    {
+        // A 100% Collect row stays Running while it waits to pay out, but there is no combat left in it. Once
+        // it clears, CurrentFate can also be briefly empty. In every other case the game value is authoritative.
+        if (current is { State: FateState.Running }
+         && abandonedFateId != current.Id
+         && !(current.Rule == PublicEvent.FateRule.Collect && current.Progress >= 100))
+        {
+            if (arrivedFateId is { } arrivedId && arrivedId != current.Id)
+                arrivedFateId = null;
+            return current;
+        }
+
+        if (arrivedFateId is not { } fallbackId
+         || abandonedFateId == fallbackId
+         || PublicEvent.GetFateById(fallbackId) is not { State: FateState.Running, Progress: < 100 } fallback
+         || Svc.Objects.LocalPlayer is not { } player
+         || Vector3.Distance(player.Position, fallback.Position) > fallback.Radius)
+        {
+            arrivedFateId = null;
+            return null;
+        }
+
+        return fallback;
     }
 
     private void RegisterDeath(uint fateId, string fateName, FateType fateType)
@@ -583,6 +679,10 @@ public sealed partial class AutoFate
     private const string NormalMovementModule = "BossMod.Autorotation.MiscAI.NormalMovement";
     private const string NormalMovementDestinationTrack = "Destination";
     private const string NormalMovementParkedOption = "None";
+    private const string StayCloseToTargetModule = "BossMod.Autorotation.MiscAI.StayCloseToTarget";
+    private const string StayCloseToTargetRangeTrack = "range";
+    private const string StayCloseMeleeRangeOption = "4";
+    private const string StayCloseRangedRangeOption = "25";
 
     // Hand movement to vnav without dropping the preset so the rotation keeps attacking on the way.
     // Only park when the override can be cleared again; otherwise fall back to clearing the preset,
@@ -610,6 +710,11 @@ public sealed partial class AutoFate
         private Vector3 anchor;
         private bool anchored;
         private long idleSinceMs;
+        private ulong watchedTargetId;
+        private long targetOutOfRangeSinceMs;
+        private Vector3 targetRangePlayerAnchor;
+        private float targetRangeDistanceAnchor;
+        private long targetApproachSuppressedUntilMs;
 
         public float Meters { get; } = reachMeters;
         public int Repositions { get; private set; }
@@ -632,7 +737,64 @@ public sealed partial class AutoFate
         public void MarkInReach()
         {
             Repositions = 0;
+            ResetTargetRangeWatch();
             Restart();
+        }
+
+        public bool TargetOutOfRangeLongEnough(FateMobTarget target, Vector3 playerPosition)
+        {
+            var now = Environment.TickCount64;
+            if (watchedTargetId != target.GameObjectId || targetOutOfRangeSinceMs == 0)
+            {
+                watchedTargetId = target.GameObjectId;
+                targetOutOfRangeSinceMs = now;
+                targetRangePlayerAnchor = playerPosition;
+                targetRangeDistanceAnchor = target.DistanceToHitbox;
+                targetApproachSuppressedUntilMs = target.IsCasting ? now + EngageTargetCastSettleMs : 0;
+                return false;
+            }
+
+            // A growing target distance while the player is moving is BossMod deliberately retreating (or a
+            // knockback), not a failed approach. Keep AFG's vnav correction out of the way until the mechanic
+            // resolves. Any movement also restarts the short approach grace so two movement controllers never
+            // fight each other while BossMod is already repositioning.
+            if (Vector3.Distance(targetRangePlayerAnchor, playerPosition) >= EngageTargetMovementSampleMeters)
+            {
+                if (target.DistanceToHitbox >= targetRangeDistanceAnchor + EngageTargetRetreatIncreaseMeters)
+                {
+                    targetApproachSuppressedUntilMs = Math.Max(targetApproachSuppressedUntilMs,
+                        now + EngageTargetRetreatHoldMs);
+                }
+
+                targetRangePlayerAnchor = playerPosition;
+                targetRangeDistanceAnchor = target.DistanceToHitbox;
+                targetOutOfRangeSinceMs = now;
+            }
+
+            // Most avoidable FATE mechanics are telegraphed by the selected mob's cast. Refreshing this on
+            // every tick keeps the approach blocked until shortly after that cast completes.
+            if (target.IsCasting)
+            {
+                targetApproachSuppressedUntilMs = Math.Max(targetApproachSuppressedUntilMs,
+                    now + EngageTargetCastSettleMs);
+            }
+
+            if (now < targetApproachSuppressedUntilMs)
+            {
+                targetOutOfRangeSinceMs = now;
+                return false;
+            }
+
+            return now - targetOutOfRangeSinceMs >= EngageTargetOutOfRangeGraceMs;
+        }
+
+        public void ResetTargetRangeWatch()
+        {
+            watchedTargetId = 0;
+            targetOutOfRangeSinceMs = 0;
+            targetRangePlayerAnchor = default;
+            targetRangeDistanceAnchor = 0;
+            targetApproachSuppressedUntilMs = 0;
         }
 
         public void Restart() => anchored = false;

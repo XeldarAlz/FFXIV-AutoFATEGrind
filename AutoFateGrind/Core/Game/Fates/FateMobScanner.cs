@@ -19,6 +19,13 @@ internal readonly record struct FateMobSurvey(
     public static readonly FateMobSurvey Empty = new(0, default, 0f, float.MaxValue, 0f);
 }
 
+internal readonly record struct FateMobTarget(
+    ulong GameObjectId,
+    Vector3 Position,
+    float HitboxRadius,
+    float DistanceToHitbox,
+    bool IsCasting);
+
 internal static unsafe class FateMobScanner
 {
     public static FateMobSurvey Survey(uint fateId, Vector3 from)
@@ -72,6 +79,18 @@ internal static unsafe class FateMobScanner
         }
 
         distanceToHitbox = DistanceToHitbox(from, npc);
+        return true;
+    }
+
+    public static bool TrySurveyTargetedMob(uint fateId, Vector3 from, out FateMobTarget target)
+    {
+        target = default;
+        if (Svc.Targets.Target is not IBattleNpc npc || !IsLiveMobOfFate(npc, fateId))
+        {
+            return false;
+        }
+
+        target = new FateMobTarget(npc.GameObjectId, npc.Position, npc.HitboxRadius, DistanceToHitbox(from, npc), npc.IsCasting);
         return true;
     }
 

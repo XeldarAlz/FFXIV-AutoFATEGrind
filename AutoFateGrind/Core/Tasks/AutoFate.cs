@@ -33,10 +33,9 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private const float InteractRangeMeters = 3f;
     private const float TeleportRetryProgressMeters = 3.0f;
     private const float TeleportShortcutMinSavingMeters = 300f;
-    private const int   MoveToFateWatchdogMs = 60_000;
-    // Slack on top of the in-move deadline so clib's own graceful 60s exit wins over the hard cancel
-    // when it is following a path; the hard cancel only catches a wedge in a non-polling phase.
-    private const int   MoveOpUnwindSlackMs = 10_000;
+    // MoveStallTracker handles actual lack of progress. This longer cap only catches a movement
+    // operation that remains alive despite its normal stop and cancellation paths.
+    private const int   MoveToFateEmergencyTimeoutMs = 300_000;
     private const int   MoveProgressLogMs = 15_000;
     private const int   FollowUpWatchMs = AfgConstants.FollowUpWaitMs;
     private const int   NpcSpawnTimeoutMs = 30_000;
@@ -48,6 +47,16 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     // Idle = the character has not displaced while nothing in reach is being fought; BossMod never moves
     // toward a mob outside its FATE-circle pathfind map, so AFG walks in with vnav after this long.
     private const int   EngageIdleStallMs = 8_000;
+    // Give BossMod a brief chance to close normally, then use vnav when the selected FATE target remains
+    // outside this job's attack range. This also catches movement that keeps heading to a stale fixed point.
+    private const int   EngageTargetOutOfRangeGraceMs = 1_500;
+    // BossMod may deliberately move away from the selected target to resolve a mechanic. Do not let the
+    // range watchdog reverse that movement until the mechanic has had time to resolve.
+    private const int   EngageTargetRetreatHoldMs = 6_000;
+    private const int   EngageTargetCastSettleMs = 1_500;
+    private const float EngageTargetMovementSampleMeters = 0.75f;
+    private const float EngageTargetRetreatIncreaseMeters = 0.35f;
+    private const float EngageTargetRepathMeters = 5f;
     private const int   EngageRepositionWatchdogMs = 40_000;
     private const float EngageMeleeApproachToleranceMeters  = 2.5f;
     private const float EngageRangedApproachToleranceMeters = 15f;
@@ -102,6 +111,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private int consecutiveZoneTeleportFailures;
 
     private uint? returnToFateId;          // FATE we died in; honor even if normal eligibility fails.
+    private uint? arrivedFateId;           // Reached while CurrentFate is stale/empty as a Collect reward settles.
     private uint? followUpFateId;
     private long  followUpWatchUntilMs;
     private long  zoneIdleSinceMs;
@@ -111,6 +121,13 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
 
     private static readonly Random rng = new();
     private bool presetEnsured;
+    private string? combatOverridesPreset;
+    private int combatOverridesPullSize = -1;
+    private string? combatOverridesTargetRange;
+    private string? chocoboOverridePreset;
+    private bool? combatOverridesChocobo;
+    private bool chocoboOverrideUnavailableLogged;
+    private long nextChocoboOverrideAttemptMs;
 
     // ExecuteCommand revive opcodes, per clib.Enums (CommandFlag.Revive + AgentReviveOp).
     private const uint ReviveCommandId   = (uint)clib.Enums.CommandFlag.Revive;        // 200
@@ -382,11 +399,12 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
             // fight in it, so the reward is tracked and the grind moves on to the next FATE in the zone.
             TrackCollectReward(current);
         }
-        else if (current is { State: FateState.Running } && abandonedFateId != current.Id)
+        var engagement = ResolveEngagementFate(current);
+        if (engagement is not null)
         {
-            if (current.Progress >= 100)
-                StartFollowUpWatch(current.Id);
-            else if (followUpFateId == current.Id)
+            if (engagement.Progress >= 100)
+                StartFollowUpWatch(engagement.Id);
+            else if (followUpFateId == engagement.Id)
                 followUpFateId = null;
             return GrindState.Engaging;
         }
@@ -514,6 +532,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private async Task TickIdleScan()
     {
         await EnsureConsumables();
+        TryMountWhileWaiting();
         var swapPending = Plugin.Cfg.SwapZonesWhenEmpty && zones.Count > 1;
         var remainingSec = Math.Max(0L, IdleWaitBeforeSwapMs - (Environment.TickCount64 - zoneIdleSinceMs)) / 1000;
         Status = swapPending
@@ -558,6 +577,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
 
     private async Task TickFollowUpWait()
     {
+        TryMountWhileWaiting();
         var remaining = Math.Max(0L, followUpWatchUntilMs - Environment.TickCount64);
         Status = $"Watching for follow-up FATE ({remaining / 1000 + 1}s)";
         await NextFrame(100);

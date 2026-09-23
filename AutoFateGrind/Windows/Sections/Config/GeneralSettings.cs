@@ -48,6 +48,12 @@ internal static class GeneralSettings
     {
         using var group = SettingsGroup.Begin(Loc.T(L.Settings.GeneralBehavior));
 
+        SettingsRow.Draw(Loc.T(L.Settings.MountWhileWaiting),
+            Loc.T(L.Settings.MountWhileWaitingHelp),
+            SettingsControls.ToggleWidth,
+            () => SettingsControls.DrawToggle(cfg, () => cfg.MountWhileWaitingForFates, v => cfg.MountWhileWaitingForFates = v, "##gen_mount_waiting"),
+            SettingsRow.ToggleHeight);
+
         SettingsRow.Draw(Loc.T(L.Settings.SwapZones),
             Loc.T(L.Settings.SwapZonesHelp),
             SettingsControls.ToggleWidth,

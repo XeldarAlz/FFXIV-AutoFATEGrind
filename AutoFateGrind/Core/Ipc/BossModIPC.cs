@@ -7,6 +7,11 @@ namespace AutoFateGrind.Core.Ipc;
 
 internal sealed class BossModIPC
 {
+    private const string FateHelperModule = "BossMod.Autorotation.MiscAI.FateUtils";
+    private const string FateHelperChocoboTrack = "Chocobo";
+    private const string EnabledOption = "Enabled";
+    private const string DisabledOption = "Disabled";
+
     private static BossModIPC? instance;
     public static BossModIPC Instance => instance ??= new BossModIPC();
 
@@ -25,6 +30,7 @@ internal sealed class BossModIPC
     private readonly ICallGateSubscriber<bool>                       obstacleHasTempMap;
     private readonly ICallGateSubscriber<bool>                       obstacleClearTempMap;
     private readonly ICallGateSubscriber<object?>                    obstacleEvaluateQuality;
+    private readonly HashSet<string> fateHelperChocoboOverrides = [];
 
     private BossModIPC()
     {
@@ -58,6 +64,41 @@ internal sealed class BossModIPC
 
     public bool AddTransientStrategy(string preset, string module, string track, string option)
         => IpcGate.Invoke(addTransient.HasFunction, () => addTransient.InvokeFunc(preset, module, track, option), false, "[BossModIPC] AddTransientStrategy failed");
+
+    public bool CanAddTransientStrategy => addTransient.HasFunction;
+
+    public bool SetFateHelperChocobo(string preset, bool enabled)
+    {
+        var applied = AddTransientStrategy(preset, FateHelperModule, FateHelperChocoboTrack,
+            enabled ? EnabledOption : DisabledOption);
+        if (applied)
+        {
+            lock (fateHelperChocoboOverrides)
+                fateHelperChocoboOverrides.Add(preset);
+        }
+        return applied;
+    }
+
+    public bool ClearFateHelperChocobo(string preset)
+    {
+        var cleared = ClearTransientStrategy(preset, FateHelperModule, FateHelperChocoboTrack);
+        if (cleared)
+        {
+            lock (fateHelperChocoboOverrides)
+                fateHelperChocoboOverrides.Remove(preset);
+        }
+        return cleared;
+    }
+
+    public void ClearAllFateHelperChocoboOverrides()
+    {
+        string[] presets;
+        lock (fateHelperChocoboOverrides)
+            presets = [.. fateHelperChocoboOverrides];
+
+        foreach (var preset in presets)
+            ClearFateHelperChocobo(preset);
+    }
 
     public bool CanClearTransientStrategy => clearTransient.HasFunction;
 
