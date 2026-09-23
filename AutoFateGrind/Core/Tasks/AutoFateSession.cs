@@ -91,10 +91,26 @@ public sealed class AutoFateSession
     public bool PendingRepair;
     public ZoneInfo? PendingRepairFromZone;
     public int FatesSinceLastBreak;
+    private int fatesBeforeNextBreak;
     public bool PendingHumanize;
     public ZoneInfo? PendingHumanizeFromZone;
     public uint YokaiTargetMinionId;
     public bool PendingYokaiAdvance;
+
+    public int FatesBeforeNextBreak(int configured)
+    {
+        if (fatesBeforeNextBreak == 0)
+        {
+            fatesBeforeNextBreak = Pacing.FatesBeforeBreak(configured);
+        }
+        return fatesBeforeNextBreak;
+    }
+
+    public void ResetBreakCounter()
+    {
+        FatesSinceLastBreak = 0;
+        fatesBeforeNextBreak = 0;
+    }
 
     public readonly HashSet<uint> UnreachableZoneIds = [];
 

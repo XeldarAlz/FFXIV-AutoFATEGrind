@@ -10,6 +10,10 @@ internal static class FateScanner
 {
     private const int UrgentTimeThresholdSec = 240;
     private const uint TwistOfFateStatusId = 1288;
+    private const int   MaxEquivalentPicks = 3;
+    private const float EquivalentDistanceRatio = 1.2f;
+    private const float EquivalentDistanceSlackMeters = 30f;
+    private const int   EquivalentProgressPoints = 20;
 
     public const uint NoMotivationNpcId = 0xE0000000;
 
@@ -38,6 +42,67 @@ internal static class FateScanner
         var eligible = fates.Where(f => IsEligible(f, cfg, sessionBlacklist));
         return ApplySort(eligible, cfg.FateSortOrder, playerPos).FirstOrDefault();
     }
+
+    // The top-ranked FATE plus the runners-up a player would call just as good: same leading priorities,
+    // progress within a few points, and not much further away. Stays top-ranked-only without a Distance key.
+    public static void CollectEquivalentPicks(
+        Configuration cfg,
+        Vector3 playerPos,
+        IReadOnlySet<uint>? sessionBlacklist,
+        List<PublicEvent> picks)
+    {
+        picks.Clear();
+        var fates = PublicEvent.Fates;
+        if (fates is null) return;
+
+        var order = EffectiveOrder(cfg.FateSortOrder);
+        var ranked = ApplySort(fates.Where(f => IsEligible(f, cfg, sessionBlacklist)), order, playerPos).ToList();
+        if (ranked.Count == 0) return;
+
+        var best = ranked[0];
+        picks.Add(best);
+
+        var distanceIndex = IndexOfCriterion(order, FateSortCriterion.Distance);
+        if (distanceIndex < 0) return;
+
+        var maxDistance = Vector3.Distance(best.Position, playerPos) * EquivalentDistanceRatio + EquivalentDistanceSlackMeters;
+        for (var rankIndex = 1; rankIndex < ranked.Count && picks.Count < MaxEquivalentPicks; rankIndex++)
+        {
+            var candidate = ranked[rankIndex];
+            if (Vector3.Distance(candidate.Position, playerPos) > maxDistance) continue;
+            if (!RanksAlike(best, candidate, order, distanceIndex, playerPos)) continue;
+            picks.Add(candidate);
+        }
+    }
+
+    private static bool RanksAlike(PublicEvent best, PublicEvent candidate, IReadOnlyList<FateSortEntry> order, int leadingCount, Vector3 playerPos)
+    {
+        for (var orderIndex = 0; orderIndex < leadingCount; orderIndex++)
+        {
+            var criterion = order[orderIndex].Criterion;
+            if (criterion == FateSortCriterion.Progress)
+            {
+                if (Math.Abs(best.Progress - candidate.Progress) > EquivalentProgressPoints) return false;
+                continue;
+            }
+
+            var key = KeyFor(criterion, playerPos);
+            if (key(best).CompareTo(key(candidate)) != 0) return false;
+        }
+        return true;
+    }
+
+    private static int IndexOfCriterion(IReadOnlyList<FateSortEntry> order, FateSortCriterion criterion)
+    {
+        for (var orderIndex = 0; orderIndex < order.Count; orderIndex++)
+        {
+            if (order[orderIndex].Criterion == criterion) return orderIndex;
+        }
+        return -1;
+    }
+
+    private static IReadOnlyList<FateSortEntry> EffectiveOrder(IReadOnlyList<FateSortEntry> sortOrder)
+        => sortOrder is { Count: > 0 } ? sortOrder : DefaultSortOrder;
 
     public static bool IsEligible(PublicEvent f, Configuration cfg, IReadOnlySet<uint>? sessionBlacklist)
     {
@@ -77,7 +142,7 @@ internal static class FateScanner
         IReadOnlyList<FateSortEntry> sortOrder,
         Vector3 playerPos)
     {
-        var order = sortOrder is { Count: > 0 } ? sortOrder : DefaultSortOrder;
+        var order = EffectiveOrder(sortOrder);
         IOrderedEnumerable<PublicEvent>? ordered = null;
         foreach (var entry in order)
         {

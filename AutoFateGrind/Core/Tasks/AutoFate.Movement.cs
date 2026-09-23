@@ -83,9 +83,11 @@ public sealed partial class AutoFate
                     {
                         var better = FateScanner.PickNext(Plugin.Cfg, player.Position, sessionStuckFateIds, null);
                         if (better is not null && better.Id != targetId
+                         && !WasPassedOver(better.Id)
                          && Vector3.Distance(player.Position, better.Position) + RetargetDistanceMarginMeters < distToCurrent)
                         {
                             Diag($"Mid-path retarget: {targetId} -> {better.Id} ({better.Name}) (closer by >{RetargetDistanceMarginMeters:F0}m)");
+                            CommitToFate(better.Id);
                             stopReason = MoveStopReason.HigherPriority;
                             return true;
                         }
@@ -177,7 +179,8 @@ public sealed partial class AutoFate
 
         var flightFromHere = Vector3.Distance(player.Position, fatePos);
         var flightFromAetheryte = Vector3.Distance(aetheryte.Position, fatePos);
-        if (flightFromHere - flightFromAetheryte < TeleportShortcutMinSavingMeters) return;
+        var minimumSaving = Pacing.TeleportShortcutSavingMeters(TeleportShortcutMinSavingMeters);
+        if (flightFromHere - flightFromAetheryte < minimumSaving) return;
         RefreshPendingCollectReward();
         if (CollectRewardPending)
         {
@@ -186,7 +189,7 @@ public sealed partial class AutoFate
         }
 
         Status = $"Teleporting to {aetheryte.Name}";
-        Diag($"Teleport shortcut for FATE {fateId} ({fateName}): {aetheryte.Name} leaves {flightFromAetheryte:F0}m to fly vs {flightFromHere:F0}m from here");
+        Diag($"Teleport shortcut for FATE {fateId} ({fateName}): {aetheryte.Name} leaves {flightFromAetheryte:F0}m to fly vs {flightFromHere:F0}m from here (threshold {minimumSaving:F0}m)");
 
         await PrepareForTeleport($"fate-approach-{fateId}");
         if (CancelToken.IsCancellationRequested) return;

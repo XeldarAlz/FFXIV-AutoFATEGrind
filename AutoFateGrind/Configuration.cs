@@ -111,6 +111,11 @@ public sealed class Configuration : IPluginConfiguration
     public bool GmAlertKillGame { get; set; } = false;
     public List<string> GmAlertCommands { get; set; } = [];
 
+    public bool PacingEnabled { get; set; } = true;
+    public int PacingReactionMinSec { get; set; } = 1;
+    public int PacingReactionMaxSec { get; set; } = 6;
+    public bool PacingPickVariety { get; set; } = false;
+
     public bool HumanizerEnabled { get; set; } = false;
     public int HumanizerFatesBeforeBreak { get; set; } = 20;
     public int HumanizerBreakMinMinutes { get; set; } = 5;

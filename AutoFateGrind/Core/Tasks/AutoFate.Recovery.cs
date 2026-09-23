@@ -34,6 +34,8 @@ public sealed partial class AutoFate
         var returningHome = soloWait;
         if (soloWait)
         {
+            await DelayMs(Pacing.ReviveDelayMs());
+            if (CancelToken.IsCancellationRequested) return;
             TriggerReturnHome();
         }
         else
@@ -152,9 +154,12 @@ public sealed partial class AutoFate
         var parent = sheet?.GetRowOrDefault(parentFateId);
         if (parent?.HasFollowUp != true) return;
         if (followUpFateId != parentFateId)
-            Diag($"Watching for follow-up to FATE {parentFateId} for {FollowUpWatchMs/1000}s");
+        {
+            followUpWatchMs = Pacing.FollowUpWatchMs(FollowUpWatchMs);
+            Diag($"Watching for follow-up to FATE {parentFateId} for {followUpWatchMs / 1000}s");
+        }
         followUpFateId = parentFateId;
-        followUpWatchUntilMs = Environment.TickCount64 + FollowUpWatchMs;
+        followUpWatchUntilMs = Environment.TickCount64 + followUpWatchMs;
     }
 
     private bool ShouldWaitForFollowUp()

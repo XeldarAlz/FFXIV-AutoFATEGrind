@@ -382,7 +382,7 @@ internal static class L
         public static readonly LocString CatConsumables = new("settings.cat.consumables", "Consumables");
         public static readonly LocString CatConsumablesSub = new("settings.cat.consumablesSub", "Keep food and medicine buffs up while grinding: Well Fed is a free +3% EXP.");
         public static readonly LocString CatHumanizer = new("settings.cat.humanizer", "Humanizer");
-        public static readonly LocString CatHumanizerSub = new("settings.cat.humanizerSub", "Take periodic city breaks between FATEs: teleport to a random hub and wander around for a few minutes before resuming.");
+        public static readonly LocString CatHumanizerSub = new("settings.cat.humanizerSub", "Act less like a bot: vary your timing between FATEs and take periodic city breaks in a random hub.");
         public static readonly LocString CatPartyInvites = new("settings.cat.partyInvites", "Party invites");
         public static readonly LocString CatPartyInvitesSub = new("settings.cat.partyInvitesSub", "Auto-decline incoming party invites during a run, after a human-like delay, with an optional reply.");
         public static readonly LocString CatGmAlert = new("settings.cat.gmAlert", "GM alert");
@@ -603,6 +603,14 @@ internal static class L
         public static readonly LocString AllowedCities = new("settings.humanizer.allowedCities", "Allowed cities");
         public static readonly LocString AllowedCitiesHelp = new("settings.humanizer.allowedCitiesHelp", "Tick the cities the plugin is allowed to teleport to. One is picked at random each break. Untick cities you haven't unlocked or don't want visited.");
         public static readonly LocString NoCities = new("settings.humanizer.noCities", "No cities selected - Humanizer will skip the break and keep grinding.");
+        public static readonly LocString Pacing = new("settings.humanizer.pacing", "Pacing");
+        public static readonly LocString PacingEnable = new("settings.humanizer.pacingEnable", "Vary timing between FATEs");
+        public static readonly LocString PacingEnableHelp = new("settings.humanizer.pacingEnableHelp", "Every player running AFG sees a FATE end at the same moment, so without this they all move on, teleport and swap zones in perfect sync. When on, each step waits a short random delay, and the teleport shortcut distance, zone swap wait, follow-up watch, release after a KO and FATEs between breaks are rolled fresh every time.");
+        public static readonly LocString PacingOff = new("settings.humanizer.pacingOff", "Pacing is off. Every step starts the moment it can, in sync with other AFG users.");
+        public static readonly LocString ReactionDelay = new("settings.humanizer.reactionDelay", "Reaction delay");
+        public static readonly LocString ReactionDelayHelp = new("settings.humanizer.reactionDelayHelp", "How long to wait after a FATE ends or a new one appears before moving on. Rolls lean toward the short end, and now and then a longer pause is added.");
+        public static readonly LocString PickVariety = new("settings.humanizer.pickVariety", "Vary FATE choice");
+        public static readonly LocString PickVarietyHelp = new("settings.humanizer.pickVarietyHelp", "When a few FATEs rank about the same, head to a random one of them instead of always the top pick. AFG users nearby then spread out, at the cost of slightly longer trips.");
 
         public static readonly LocString InvitesDecline = new("settings.invites.decline", "Decline");
         public static readonly LocString AutoDecline = new("settings.invites.autoDecline", "Auto-decline party invites");

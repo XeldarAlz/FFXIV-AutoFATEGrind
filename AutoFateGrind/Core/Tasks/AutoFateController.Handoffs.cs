@@ -158,7 +158,7 @@ internal sealed partial class AutoFateController
         if (!cfg.HumanizerEnabled || cfg.HumanizerCities.Count == 0)
         {
             Diag("Humanize hand-off skipped: feature disabled or no cities selected.");
-            owningSession.FatesSinceLastBreak = 0;
+            owningSession.ResetBreakCounter();
             StartFateGrind(resumeIndex, owningSession);
             return;
         }
@@ -169,7 +169,7 @@ internal sealed partial class AutoFateController
         if (cities.Length == 0)
         {
             Diag("Humanize hand-off skipped: no selected cities are in the current catalog.");
-            owningSession.FatesSinceLastBreak = 0;
+            owningSession.ResetBreakCounter();
             StartFateGrind(resumeIndex, owningSession);
             return;
         }
@@ -200,7 +200,7 @@ internal sealed partial class AutoFateController
                 // intact so the threshold re-trips on the next completed FATE and the break retries.
                 if (humanize.BreakTaken)
                 {
-                    owningSession.FatesSinceLastBreak = 0;
+                    owningSession.ResetBreakCounter();
                     Diag($"Humanize finished: resuming FATE grind at {activeZones[resumeIdx].Name}.");
                 }
                 else

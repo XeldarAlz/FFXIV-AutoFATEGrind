@@ -111,7 +111,9 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private uint? returnToFateId;          // FATE we died in; honor even if normal eligibility fails.
     private uint? followUpFateId;
     private long  followUpWatchUntilMs;
+    private int   followUpWatchMs = FollowUpWatchMs;
     private long  zoneIdleSinceMs;
+    private int   zoneIdleWaitMs = IdleWaitBeforeSwapMs;
     private uint? abandonedFateId;
     private uint? engageStallFateId;
     private int   engageStallStrikes;
@@ -139,6 +141,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
         WaitingForFollowUp,   // Just finished a chain parent; hold briefly for sequel.
         WaitingForCollectReward, // Nothing left to pick here, but a finished Collect FATE still owes its reward.
         WaitingForYokaiMinion, // The target yo-kai minion is not out; hold and re-summon rather than fight for nothing.
+        Settling,             // A next FATE is ready; hold a rolled reaction delay so AFG users don't move in lockstep.
         BetweenFates,         // Have a target FATE; move (or activate prep NPC) and arrive.
         Engaging,             // CurrentFate is set; fight until it ends or we KO.
         WaitingForFates,      // No eligible FATE; idle-scan with optional zone swap.
@@ -270,6 +273,10 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
                     await TickYokaiMinionWait();
                     break;
 
+                case GrindState.Settling:
+                    await TickSettle();
+                    break;
+
                 case GrindState.BetweenFates:
                     if (await MoveAndArrive() is ExitReason.Quit) return;
                     break;
@@ -339,7 +346,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
                     || session.CompletedCount != noProgressCompleted
                     || terr != noProgressTerritory
                     || Vector3.Distance(pos, noProgressPos) > StuckDetector.StuckMoveThresholdMeters
-                    || state is GrindState.Engaging or GrindState.WaitingForFates or GrindState.WaitingForYokaiMinion;
+                    || state is GrindState.Engaging or GrindState.WaitingForFates or GrindState.WaitingForYokaiMinion or GrindState.Settling;
 
         if (advanced)
         {
@@ -415,17 +422,24 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
         if (player is null) return GrindState.Idle;
 
         if (FateScanner.PickNext(Plugin.Cfg, player.Position, sessionStuckFateIds, returnToFateId) is not null)
-            return GrindState.BetweenFates;
+        {
+            if (lastObservedState == GrindState.WaitingForFates)
+                BeginSettle("a FATE appeared");
+            return IsSettling() ? GrindState.Settling : GrindState.BetweenFates;
+        }
 
         // Leaving the zone forfeits a pending Collect reward; wait for it here instead of starting the swap clock.
         if (CollectRewardPending)
             return GrindState.WaitingForCollectReward;
 
         if (zoneIdleSinceMs == 0)
+        {
             zoneIdleSinceMs = Environment.TickCount64;
+            zoneIdleWaitMs = Pacing.IdleWaitBeforeSwapMs(IdleWaitBeforeSwapMs);
+        }
 
         if (Plugin.Cfg.SwapZonesWhenEmpty && zones.Count > 1
-         && Environment.TickCount64 - zoneIdleSinceMs >= IdleWaitBeforeSwapMs)
+         && Environment.TickCount64 - zoneIdleSinceMs >= zoneIdleWaitMs)
             return GrindState.SwapZone;
 
         return GrindState.WaitingForFates;
@@ -522,7 +536,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     {
         await EnsureConsumables();
         var swapPending = Plugin.Cfg.SwapZonesWhenEmpty && zones.Count > 1;
-        var remainingSec = Math.Max(0L, IdleWaitBeforeSwapMs - (Environment.TickCount64 - zoneIdleSinceMs)) / 1000;
+        var remainingSec = Math.Max(0L, zoneIdleWaitMs - (Environment.TickCount64 - zoneIdleSinceMs)) / 1000;
         Status = swapPending
             ? $"Waiting for FATEs in {zone.Name} (swapping in {remainingSec}s)"
             : $"Waiting for FATEs in {zone.Name}";

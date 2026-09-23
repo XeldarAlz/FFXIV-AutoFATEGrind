@@ -46,6 +46,7 @@ public sealed partial class AutoFate
         var nextName = nextIndex < 0 ? "none" : YokaiProgress.MinionName(nextIndex);
         Diag($"Yo-kai minion {session.YokaiTargetMinionId} no longer needs medals; handing off to plan the next one ({nextName})");
         await HoldForCollectReward();
+        await WaitOutSettle();
         await ClearBlockingCombat();
         session.PendingYokaiAdvance = true;
     }

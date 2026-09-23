@@ -31,7 +31,7 @@ public sealed partial class AutoFate
         await EnsureYokaiCompanion();
         if (CancelToken.IsCancellationRequested) return ExitReason.Quit;
 
-        var fate = FateScanner.PickNext(Plugin.Cfg, player.Position, sessionStuckFateIds, returnToFateId);
+        var fate = PickFate(player.Position);
         if (fate is null) return ExitReason.Continue;
 
         // Snapshot id/name while the handle is fresh: a LeftZone move ends in another territory where the
@@ -289,12 +289,14 @@ public sealed partial class AutoFate
             Diag($"FATE {fateId} done (session total: {session.CompletedCount}, wallet {session.GemstoneCurrent}g)");
             LogYokaiDropState();
             StartFollowUpWatch(fateId);
+            BeginSettle($"FATE {fateId} done");
 
             if (AdvanceClassQueueIfCapHit()) return ExitReason.Quit;
 
             if (QueueHandoffIfDue())
             {
                 await HoldForCollectReward();
+                await WaitOutSettle();
                 await ClearBlockingCombat();
                 return ExitReason.Quit;
             }
@@ -320,9 +322,9 @@ public sealed partial class AutoFate
 
         if (Plugin.Cfg.HumanizerEnabled
          && Plugin.Cfg.HumanizerCities.Count > 0
-         && session.FatesSinceLastBreak >= Math.Max(1, Plugin.Cfg.HumanizerFatesBeforeBreak))
+         && session.FatesSinceLastBreak >= session.FatesBeforeNextBreak(Plugin.Cfg.HumanizerFatesBeforeBreak))
         {
-            Diag($"Humanizer threshold {Plugin.Cfg.HumanizerFatesBeforeBreak} reached (counter {session.FatesSinceLastBreak}); queueing break hand-off.");
+            Diag($"Humanizer threshold {session.FatesBeforeNextBreak(Plugin.Cfg.HumanizerFatesBeforeBreak)} reached (configured {Plugin.Cfg.HumanizerFatesBeforeBreak}, counter {session.FatesSinceLastBreak}); queueing break hand-off.");
             session.PendingHumanize = true;
             session.PendingHumanizeFromZone = zone;
             return true;

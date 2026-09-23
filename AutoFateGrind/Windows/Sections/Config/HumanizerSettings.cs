@@ -10,6 +10,7 @@ internal static class HumanizerSettings
 {
     public static void Draw(Configuration cfg)
     {
+        DrawPacingGroup(cfg);
         DrawBreaksGroup(cfg);
         using var more = Motion.PushSection("##hum_more", cfg.HumanizerEnabled);
         if (more is null)
@@ -19,6 +20,37 @@ internal static class HumanizerSettings
 
         DrawWanderingGroup(cfg);
         DrawCitiesGroup(cfg);
+    }
+
+    private static void DrawPacingGroup(Configuration cfg)
+    {
+        using var group = SettingsGroup.Begin(Loc.T(L.Settings.Pacing));
+
+        SettingsRow.Draw(Loc.T(L.Settings.PacingEnable),
+            Loc.T(L.Settings.PacingEnableHelp),
+            SettingsControls.ToggleWidth,
+            () => SettingsControls.DrawToggle(cfg, () => cfg.PacingEnabled, v => cfg.PacingEnabled = v, "##pace_on"),
+            SettingsRow.ToggleHeight);
+
+        using var body = Motion.PushSwitch("##pace_body", cfg.PacingEnabled);
+        if (!cfg.PacingEnabled)
+        {
+            SettingsRow.Note(Loc.T(L.Settings.PacingOff));
+            return;
+        }
+
+        SettingsRow.Draw(Loc.T(L.Settings.ReactionDelay),
+            Loc.T(L.Settings.ReactionDelayHelp),
+            SettingsControls.RangeInlineWidth(),
+            () => SettingsControls.DrawRangeInline(cfg, "##pace_reaction_min", "##pace_reaction_max",
+                () => cfg.PacingReactionMinSec, v => cfg.PacingReactionMinSec = v,
+                () => cfg.PacingReactionMaxSec, v => cfg.PacingReactionMaxSec = v, 30, 0, Loc.T(L.Settings.SecondsFormat)));
+
+        SettingsRow.Draw(Loc.T(L.Settings.PickVariety),
+            Loc.T(L.Settings.PickVarietyHelp),
+            SettingsControls.ToggleWidth,
+            () => SettingsControls.DrawToggle(cfg, () => cfg.PacingPickVariety, v => cfg.PacingPickVariety = v, "##pace_variety"),
+            SettingsRow.ToggleHeight);
     }
 
     private static void DrawBreaksGroup(Configuration cfg)
