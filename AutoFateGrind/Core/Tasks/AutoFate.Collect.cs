@@ -20,6 +20,8 @@ public sealed partial class AutoFate
     private const string AutoTargetModule = "BossMod.Autorotation.MiscAI.AutoTarget";
     private const string AutoTargetGeneralTrack = "General";
     private const string AutoTargetPassiveOption = "Passive";
+    private const string AutoTargetCollectFateTrack = "CollectFATE";
+    private const string AutoTargetEnabledOption = "Enabled";
 
     private const int HandInWalkWatchdogMs = 40_000;
     private const int HandInCombatClearMs = 30_000;
@@ -34,6 +36,11 @@ public sealed partial class AutoFate
     private const int CollectRewardWatchMinMs = 90_000;
     private const int CollectRewardWatchMaxMs = 240_000;
     private const int CollectRewardWatchSlackMs = 15_000;
+    // BossMod's FATE helper only picks items up out of combat; pulls stop while one lies this close. A node it
+    // never collects (unreachable, or the preset's helper has pickup off) releases the hold for a cooldown.
+    private const float PickupHoldRangeMeters = 30f;
+    private const int   PickupHoldTimeoutMs = 30_000;
+    private const int   PickupHoldCooldownMs = 20_000;
 
     private readonly record struct FateSpawnKey(uint FateId, int StartEpoch);
 
@@ -47,12 +54,18 @@ public sealed partial class AutoFate
     private int  handInFailures;
     private long handInNextAttemptMs;
     private bool handInNpcMissingLogged;
+    private bool collectPullsHeld;
+    private bool presetHasFateHelper;
+    private long pickupHoldSinceMs;
+    private int  pickupHoldHeldCount;
+    private long pickupHoldSuppressedUntilMs;
 
     private static int HandInBatch => Math.Max(1, Plugin.Cfg.CollectHandInBatch);
 
     private void BeginCollectFate(FateSpawnKey spawn, string fateName)
     {
         EnableTextAdvanceForCollect();
+        presetHasFateHelper = BossModIPC.Instance.GetPreset(Plugin.Cfg.CombatPresetName)?.Contains(FateUtilsModule, StringComparison.Ordinal) == true;
         if (handInSpawn == spawn)
         {
             return;
@@ -61,11 +74,103 @@ public sealed partial class AutoFate
         handInFailures = 0;
         handInNextAttemptMs = 0;
         handInNpcMissingLogged = false;
+        pickupHoldSinceMs = 0;
+        pickupHoldSuppressedUntilMs = 0;
         afgHandInOwner = Plugin.Cfg.CollectHandInEnabled;
 
         Diag(afgHandInOwner
             ? $"Collect FATE {spawn.FateId} ({fateName}): AFG hands in every {HandInBatch} of item {FateItems.TurnInItemId(spawn.FateId)}; BossMod's own 10-item hand-in stays as the backstop"
             : $"Collect FATE {spawn.FateId} ({fateName}): hand-ins left to BossMod's FATE helper (AFG hand-in is off in settings)");
+    }
+
+    // BossMod keeps pulling every FATE mob until 10 items are held, so a hand-in batch or a pickup never sees a gap
+    // between pulls. Holding its CollectFATE track finishes the mobs already on the character and starts no new ones.
+    private void UpdateCollectPullHold(uint fateId, string preset)
+    {
+        var reason = CollectPullHoldReason(fateId);
+        if (reason is null)
+        {
+            ReleaseCollectPullHold(preset);
+            return;
+        }
+        if (collectPullsHeld)
+        {
+            return;
+        }
+        if (HoldCollectPulls(fateId, preset))
+        {
+            Diag($"Collect FATE {fateId}: {reason}; BossMod finishes the mobs already on the character and pulls no new ones");
+        }
+    }
+
+    private bool HoldCollectPulls(uint fateId, string preset)
+    {
+        if (!collectPullsHeld)
+        {
+            if (!BossModIPC.Instance.CanClearTransientStrategy)
+            {
+                return false;
+            }
+            collectPullsHeld = BossModIPC.Instance.AddTransientStrategy(preset, AutoTargetModule, AutoTargetCollectFateTrack, AutoTargetEnabledOption);
+        }
+        if (collectPullsHeld)
+        {
+            FateMobScanner.DropUnpulledTarget(fateId);
+        }
+        return collectPullsHeld;
+    }
+
+    private void ReleaseCollectPullHold(string preset)
+    {
+        if (!collectPullsHeld)
+        {
+            return;
+        }
+        collectPullsHeld = false;
+        BossModIPC.Instance.ClearTransientStrategy(preset, AutoTargetModule, AutoTargetCollectFateTrack);
+    }
+
+    private string? CollectPullHoldReason(uint fateId)
+    {
+        var itemId = FateItems.TurnInItemId(fateId);
+        if (itemId == 0)
+        {
+            return null;
+        }
+        var held = FateItems.HeldCount(itemId);
+        if (afgHandInOwner && held >= HandInBatch && ResolveObjectiveNpc(fateId) is not null)
+        {
+            return $"holding {held} item(s) for the hand-in";
+        }
+        return PickupHoldAllowed(fateId, held) ? "a FATE item lies on the ground nearby" : null;
+    }
+
+    private bool PickupHoldAllowed(uint fateId, int held)
+    {
+        var now = Environment.TickCount64;
+        if (!presetHasFateHelper
+         || now < pickupHoldSuppressedUntilMs
+         || Svc.Objects.LocalPlayer is not { } player
+         || !FateMobScanner.HasPickupWithin(fateId, player.Position, PickupHoldRangeMeters))
+        {
+            pickupHoldSinceMs = 0;
+            return false;
+        }
+        // The helper only picks up out of combat, so the clock only runs once the held pulls are finished.
+        if (pickupHoldSinceMs == 0 || held != pickupHoldHeldCount || Svc.Condition[ConditionFlag.InCombat])
+        {
+            pickupHoldSinceMs = now;
+            pickupHoldHeldCount = held;
+            return true;
+        }
+        if (now - pickupHoldSinceMs < PickupHoldTimeoutMs)
+        {
+            return true;
+        }
+        pickupHoldSinceMs = 0;
+        pickupHoldSuppressedUntilMs = now + PickupHoldCooldownMs;
+        Diag($"Collect FATE {fateId}: BossMod picked nothing up in {PickupHoldTimeoutMs / 1000}s of holding pulls for a nearby item; pulling again for {PickupHoldCooldownMs / 1000}s");
+        return false;
     }
 
     private static bool FateAlive(uint fateId)
@@ -154,6 +259,7 @@ public sealed partial class AutoFate
     {
         Status = $"Handing in {held} item(s) for {fateName}";
         Diag($"FATE {fateId} ({fateName}): walking {held} item(s) to the hand-in NPC");
+        EndRingChase(preset);
 
         // Mirror BossMod's own hand-in trip: no new pulls, no node pickups, and no movement of its own.
         var parkedMovement = ParkBossModMovement(preset);
@@ -246,6 +352,7 @@ public sealed partial class AutoFate
     private async Task<bool> FightFreeAtHandInNpc(uint fateId, string preset, bool movementParked)
     {
         Status = "Clearing aggro before handing in";
+        HoldCollectPulls(fateId, preset);
         BossModIPC.Instance.ClearTransientStrategy(preset, AutoTargetModule, AutoTargetGeneralTrack);
         if (movementParked)
         {

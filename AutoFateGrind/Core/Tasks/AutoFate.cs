@@ -52,6 +52,13 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private const float EngageMeleeApproachToleranceMeters  = 2.5f;
     private const float EngageRangedApproachToleranceMeters = 15f;
     private const int   MaxEngageRepositions = 3;
+    // A reposition only counts as solved once the fight held in reach this long; arriving and being dragged off again does not.
+    private const int   EngageReachSettleMs = 5_000;
+    // BossMod paths only inside the FATE ring and melee rotations aim for 3y off the hitbox, so a melee target
+    // whose 3y band lies outside the ring is one BossMod will never walk to.
+    private const float EngageMeleeRingGoalMeters = 3f;
+    private const float EngageRingEdgeMarginMeters = 0.5f;
+    private const float EngageChaseRepathMeters = 3f;
     // With no live FATE mob loaded, walk to the ring centre from further out than this to load the rest.
     private const float EngageCentreSeekMinMeters = 20f;
     private const float EngageCentreSeekToleranceMeters = 10f;

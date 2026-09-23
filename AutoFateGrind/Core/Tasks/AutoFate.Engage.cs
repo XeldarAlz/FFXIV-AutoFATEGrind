@@ -147,6 +147,7 @@ public sealed partial class AutoFate
         EnsureCombatPreset(preset);
         SyncToFate(fateId);
         AssertPresetActive(preset);
+        ResetEngageOverrides(preset);
 
         await EnsureObstacleMapForEngage(fate);
 
@@ -243,6 +244,7 @@ public sealed partial class AutoFate
 
                 if (isCollect)
                 {
+                    UpdateCollectPullHold(fateId, preset);
                     // A hand-in trip is progress in its own right; give the stall clocks a fresh window after one.
                     if (await MaybeHandInCollectItems(fateId, fateName, preset))
                     {
@@ -250,7 +252,9 @@ public sealed partial class AutoFate
                         lastInCombatAtMs = Environment.TickCount64;
                     }
                 }
-                else if (await TickEngagementWatchdog(fateId, fate, idle))
+
+                var chasing = await TickRingChase(fateId, idle, preset);
+                if (!chasing && !isCollect && await TickEngagementWatchdog(fateId, fate, idle))
                 {
                     break;
                 }
@@ -263,6 +267,8 @@ public sealed partial class AutoFate
         }
         finally
         {
+            EndRingChase(preset);
+            ReleaseCollectPullHold(preset);
             BossModIPC.Instance.ClearActive();
             if (isCollect) DisableTextAdvance();
         }
@@ -365,6 +371,7 @@ public sealed partial class AutoFate
             idle.MarkInReach();
             return false;
         }
+        idle.MarkOutOfReach();
 
         if (!idle.Stalled(player.Position))
         {
@@ -462,20 +469,13 @@ public sealed partial class AutoFate
         return true;
     }
 
-    // On foot only: clib's Mount() has no in-combat guard and spins until the idle abort.
     private async Task WalkWithBossModParked(Vector3 dest, MovementConfig config, Func<bool> stopCondition, string label)
     {
         var preset = Plugin.Cfg.CombatPresetName;
         var parked = ParkBossModMovement(preset);
         try
         {
-            var op = new MoveOp(o => o.MoveInZone(dest, config, stopCondition));
-            await RunCancellable(op, EngageRepositionWatchdogMs, label, StuckDetector.MoveStallAbort(label));
-
-            if (op.Fault is { } fault)
-            {
-                Diag($"{label} faulted: {fault.Message}");
-            }
+            await WalkInFight(dest, config, stopCondition, label);
         }
         finally
         {
@@ -484,6 +484,157 @@ public sealed partial class AutoFate
                 ResumeBossModMovement(preset);
             }
         }
+    }
+
+    // On foot only: clib's Mount() has no in-combat guard and spins until the idle abort.
+    private async Task WalkInFight(Vector3 dest, MovementConfig config, Func<bool> stopCondition, string label)
+    {
+        var op = new MoveOp(o => o.MoveInZone(dest, config, stopCondition));
+        await RunCancellable(op, EngageRepositionWatchdogMs, label, StuckDetector.MoveStallAbort(label));
+
+        if (op.Fault is { } fault)
+        {
+            Diag($"{label} faulted: {fault.Message}");
+        }
+    }
+
+    // BossMod's pathfind map is the FATE ring, so it parks a melee at the edge while its target stands outside.
+    // AFG owns movement for as long as the target stays out there; BossMod keeps the rotation and takes over
+    // again once the target is back within its reach or gone.
+    private async Task<bool> TickRingChase(uint fateId, EngageIdleTracker idle, string preset)
+    {
+        if (!TryFindRingChaseTarget(fateId, idle.Meters, out var target))
+        {
+            EndRingChase(preset);
+            return false;
+        }
+
+        if (target.GameObjectId != ringChaseTargetId)
+        {
+            ringChaseTargetId = target.GameObjectId;
+            ringChaseFailures = 0;
+            Diag($"Target of FATE {fateId} stands outside BossMod's FATE-ring pathfind area ({target.DistanceToHitbox:F0}m off its hitbox); AFG walks the character while BossMod keeps attacking ({DescribeEngageSituation(fateId, idle.Meters)})");
+        }
+        if (!ringChaseParked)
+        {
+            ringChaseParked = BossModIPC.Instance.AddTransientStrategy(preset, NormalMovementModule, NormalMovementDestinationTrack, NormalMovementParkedOption);
+        }
+
+        var goalMeters = RingGoalMeters(idle.Meters);
+        if (target.DistanceToHitbox <= goalMeters || StuckDetector.IsPositionFrozenLegit())
+        {
+            return true;
+        }
+
+        Status = "Closing on a mob outside the FATE ring";
+        if (await ChaseRingTarget(fateId, target, goalMeters))
+        {
+            ringChaseFailures = 0;
+            return true;
+        }
+
+        ringChaseFailures++;
+        if (ringChaseFailures < MaxEngageRepositions)
+        {
+            return true;
+        }
+        Diag($"Could not reach the out-of-ring target of FATE {fateId} after {MaxEngageRepositions} walks; handing movement back to BossMod until the target changes");
+        ringChaseGivenUpTargetId = target.GameObjectId;
+        EndRingChase(preset);
+        return false;
+    }
+
+    private bool TryFindRingChaseTarget(uint fateId, float reachMeters, out FateMobTarget target)
+    {
+        target = default;
+        if (!BossModIPC.Instance.CanClearTransientStrategy || Svc.Condition[ConditionFlag.Mounted])
+        {
+            return false;
+        }
+        if (Svc.Objects.LocalPlayer is not { } player || PublicEvent.GetFateById(fateId) is not { State: FateState.Running } fate)
+        {
+            return false;
+        }
+        if (!FateMobScanner.TryGetTarget(fateId, player.Position, out target))
+        {
+            return false;
+        }
+        if (target.GameObjectId == ringChaseGivenUpTargetId)
+        {
+            return false;
+        }
+        ringChaseGivenUpTargetId = 0;
+        return IsBeyondBossModRing(fate.Position, fate.Radius, target, RingGoalMeters(reachMeters));
+    }
+
+    // While AFG holds movement nothing else closes the last metre, so the chase aims at the distance BossMod's own
+    // rotation goal would have walked to; the watchdog's looser reach would leave a melee just out of range.
+    private static float RingGoalMeters(float reachMeters)
+        => reachMeters <= EngageMeleeReachMeters ? EngageMeleeRingGoalMeters : EngageRangedReachMeters;
+
+    private static bool IsBeyondBossModRing(Vector3 centre, float radius, in FateMobTarget target, float goalMeters)
+    {
+        if (radius <= 0f)
+        {
+            return false;
+        }
+        var offset = new Vector2(target.Position.X - centre.X, target.Position.Z - centre.Z);
+        return offset.Length() - target.HitboxRadius - goalMeters > radius - EngageRingEdgeMarginMeters;
+    }
+
+    // True when the walk got somewhere: into reach, or the target moved, changed, or died on the way.
+    private async Task<bool> ChaseRingTarget(uint fateId, FateMobTarget target, float goalMeters)
+    {
+        var tolerance = target.HitboxRadius + (goalMeters <= EngageMeleeRingGoalMeters
+            ? EngageMeleeApproachToleranceMeters
+            : EngageRangedApproachToleranceMeters);
+        var config = MovementConfig.Default.WithTolerance(tolerance);
+
+        bool Settled()
+        {
+            if (PublicEvent.GetFateById(fateId) is not { State: FateState.Running })
+            {
+                return true;
+            }
+            if (Svc.Objects.LocalPlayer is not { } moving || !FateMobScanner.TryGetTarget(fateId, moving.Position, out var live))
+            {
+                return true;
+            }
+            return live.GameObjectId != target.GameObjectId
+                || live.DistanceToHitbox <= goalMeters
+                || Vector3.Distance(live.Position, target.Position) >= EngageChaseRepathMeters;
+        }
+
+        await WalkInFight(target.Position.OnMesh(), config, Settled, $"engage-ring-chase-{fateId}");
+        return Settled();
+    }
+
+    private void EndRingChase(string preset)
+    {
+        ringChaseTargetId = 0;
+        ringChaseFailures = 0;
+        if (!ringChaseParked)
+        {
+            return;
+        }
+        ringChaseParked = false;
+        ResumeBossModMovement(preset);
+    }
+
+    // Overrides live on BossMod's in-memory preset and outlast AFG, so a crash or unload mid-FATE would leave them behind.
+    private void ResetEngageOverrides(string preset)
+    {
+        ringChaseParked = false;
+        ringChaseTargetId = 0;
+        ringChaseFailures = 0;
+        ringChaseGivenUpTargetId = 0;
+        collectPullsHeld = false;
+        if (!BossModIPC.Instance.CanClearTransientStrategy)
+        {
+            return;
+        }
+        BossModIPC.Instance.ClearTransientStrategy(preset, NormalMovementModule, NormalMovementDestinationTrack);
+        BossModIPC.Instance.ClearTransientStrategy(preset, AutoTargetModule, AutoTargetCollectFateTrack);
     }
 
     private void RegisterEngageStall(uint fateId, string fateName)
@@ -605,11 +756,17 @@ public sealed partial class AutoFate
         BossModIPC.Instance.ClearActive();
     }
 
+    private bool  ringChaseParked;
+    private ulong ringChaseTargetId;
+    private int   ringChaseFailures;
+    private ulong ringChaseGivenUpTargetId;
+
     private sealed class EngageIdleTracker(float reachMeters)
     {
         private Vector3 anchor;
         private bool anchored;
         private long idleSinceMs;
+        private long inReachSinceMs;
 
         public float Meters { get; } = reachMeters;
         public int Repositions { get; private set; }
@@ -631,9 +788,19 @@ public sealed partial class AutoFate
 
         public void MarkInReach()
         {
-            Repositions = 0;
+            var now = Environment.TickCount64;
+            if (inReachSinceMs == 0)
+            {
+                inReachSinceMs = now;
+            }
+            else if (now - inReachSinceMs >= EngageReachSettleMs)
+            {
+                Repositions = 0;
+            }
             Restart();
         }
+
+        public void MarkOutOfReach() => inReachSinceMs = 0;
 
         public void Restart() => anchored = false;
     }

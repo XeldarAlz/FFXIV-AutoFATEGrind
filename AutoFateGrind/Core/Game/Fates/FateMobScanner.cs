@@ -1,3 +1,5 @@
+using DalamudObjectKind = Dalamud.Game.ClientState.Objects.Enums.ObjectKind;
+using DalamudStatusFlags = Dalamud.Game.ClientState.Objects.Enums.StatusFlags;
 using Dalamud.Game.ClientState.Objects.Types;
 using ECommons.DalamudServices;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
@@ -18,6 +20,12 @@ internal readonly record struct FateMobSurvey(
 
     public static readonly FateMobSurvey Empty = new(0, default, 0f, float.MaxValue, 0f);
 }
+
+internal readonly record struct FateMobTarget(
+    ulong GameObjectId,
+    Vector3 Position,
+    float HitboxRadius,
+    float DistanceToHitbox);
 
 internal static unsafe class FateMobScanner
 {
@@ -61,7 +69,14 @@ internal static unsafe class FateMobScanner
 
     public static bool TryGetTargetedMob(uint fateId, Vector3 from, out float distanceToHitbox)
     {
-        distanceToHitbox = float.MaxValue;
+        var found = TryGetTarget(fateId, from, out var target);
+        distanceToHitbox = found ? target.DistanceToHitbox : float.MaxValue;
+        return found;
+    }
+
+    public static bool TryGetTarget(uint fateId, Vector3 from, out FateMobTarget target)
+    {
+        target = default;
         if (Svc.Targets.Target is not IBattleNpc npc)
         {
             return false;
@@ -71,8 +86,45 @@ internal static unsafe class FateMobScanner
             return false;
         }
 
-        distanceToHitbox = DistanceToHitbox(from, npc);
+        target = new FateMobTarget(npc.GameObjectId, npc.Position, npc.HitboxRadius, DistanceToHitbox(from, npc));
         return true;
+    }
+
+    // BossMod's AutoTarget only waits for a target the player has not pulled yet; one already in a fight stays.
+    public static void DropUnpulledTarget(uint fateId)
+    {
+        if (Svc.Targets.Target is not IBattleNpc npc || !IsLiveMobOfFate(npc, fateId))
+        {
+            return;
+        }
+        if ((npc.StatusFlags & DalamudStatusFlags.InCombat) != 0)
+        {
+            return;
+        }
+        Svc.Targets.Target = null;
+    }
+
+    public static bool HasPickupWithin(uint fateId, Vector3 from, float maxMeters)
+    {
+        var maxSquared = maxMeters * maxMeters;
+        var objects = Svc.Objects;
+        for (var objectIndex = 0; objectIndex < objects.Length; objectIndex++)
+        {
+            var candidate = objects[objectIndex];
+            if (candidate is null || candidate.ObjectKind != DalamudObjectKind.EventObj || !candidate.IsTargetable)
+            {
+                continue;
+            }
+            if (((CSGameObject*)candidate.Address)->FateId != fateId)
+            {
+                continue;
+            }
+            if (Vector3.DistanceSquared(from, candidate.Position) <= maxSquared)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static bool IsLiveMobOfFate(IBattleNpc npc, uint fateId)
