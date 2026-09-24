@@ -44,7 +44,16 @@ public sealed partial class AutoFate
         await TryTeleportShortcut(fate.Position, targetId, fate.Name);
         if (CancelToken.IsCancellationRequested) return MoveStopReason.None;
 
-        var deadline = Environment.TickCount64 + MoveToFateWatchdogMs;
+        // The shortcut may have changed our start position. Keep one deadline for the whole move,
+        // including any flight re-plan, so a path that moves without getting closer still times out.
+        var moveDistance = Svc.Objects.LocalPlayer is { } startPlayer
+            ? Vector3.Distance(startPlayer.Position, dest)
+            : 0f;
+        var watchdogMs = Math.Clamp(
+            (int)(moveDistance / MoveToFateMinimumSpeedMetersPerSecond * 1000) + MoveToFateWatchdogSlackMs,
+            MoveToFateMinWatchdogMs, MoveToFateMaxWatchdogMs);
+        var deadline = Environment.TickCount64 + watchdogMs;
+        Diag($"Move to FATE {targetId} ({fate.Name}): {moveDistance:F0}m to destination, {watchdogMs / 1000}s deadline");
         var lastRetargetAtMs = Environment.TickCount64;
         var nextProgressLogMs = Environment.TickCount64 + MoveProgressLogMs;
         var stopReason = MoveStopReason.None;
@@ -134,9 +143,9 @@ public sealed partial class AutoFate
             return true;
         }
 
-        var op = new MoveOp(o => o.MoveInZone(dest, config, StopCondition));
+        var op = new MoveOp(o => o.MoveInZoneWithFlightRecovery(dest, config, StopCondition, Diag));
 
-        var completed = await RunCancellable(op, MoveToFateWatchdogMs + MoveOpUnwindSlackMs, label, AbortIfFrozen);
+        var completed = await RunCancellable(op, watchdogMs + MoveOpUnwindSlackMs, label, AbortIfFrozen);
         if (CancelToken.IsCancellationRequested) return MoveStopReason.None;
 
         if (Svc.ClientState.TerritoryType != zone.TerritoryId)
