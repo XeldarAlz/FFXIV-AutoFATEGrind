@@ -31,11 +31,11 @@ internal static class GameTextGlyphs
         }
         catch (Exception exception)
         {
-            Svc.Log.Error(exception, $"{AfgConstants.LogPrefix} Failed to collect game text glyphs; some game names may render as missing glyphs");
+            RunLog.Error(exception, "Failed to collect game text glyphs; some game names may render as missing glyphs");
             return;
         }
 
-        Svc.Log.Information($"{AfgConstants.LogPrefix} Collected {CountGlyphs()} game text glyphs in {watch.ElapsedMilliseconds} ms");
+        RunLog.Info($"Collected {CountGlyphs()} game text glyphs in {watch.ElapsedMilliseconds} ms");
     }
 
     public static void Add(string? text)

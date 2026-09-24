@@ -1,4 +1,3 @@
-using ECommons.DalamudServices;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -109,7 +108,7 @@ internal static class Loc
         }
         catch (CultureNotFoundException exception)
         {
-            Svc.Log.Warning(exception, $"{AfgConstants.LogPrefix} Culture '{name}' is unavailable; falling back to the invariant culture");
+            RunLog.Warning(exception, $"Culture '{name}' is unavailable; falling back to the invariant culture");
             return CultureInfo.InvariantCulture;
         }
     }

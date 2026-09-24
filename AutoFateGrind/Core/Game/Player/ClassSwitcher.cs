@@ -117,7 +117,7 @@ internal static unsafe class ClassSwitcher
         var result = mod->EquipGearset(apiIndex, 0);
         if (result != 0)
         {
-            Svc.Log.Warning($"[AFG] EquipGearset({apiIndex}) returned {result}");
+            RunLog.Warning($"EquipGearset({apiIndex}) returned {result}");
             return false;
         }
         return true;

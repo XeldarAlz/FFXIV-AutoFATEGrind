@@ -79,24 +79,24 @@ internal sealed class GmAlertWatcher : IDisposable
     private static void FireAlerts(Configuration cfg, IPlayerCharacter gm)
     {
         var name = gm.Name.TextValue;
-        Svc.Log.Warning($"[AFG] GM detected nearby: {name} (OnlineStatus {gm.OnlineStatus.RowId}). Firing GM alert.");
+        RunLog.Warning($"GM detected nearby: {name} (OnlineStatus {gm.OnlineStatus.RowId}). Firing GM alert.");
 
         if (cfg.GmAlertStopRun)
         {
             try { Plugin.Instance.Controller.Stop(); }
-            catch (Exception ex) { Svc.Log.Warning(ex, "[AFG] GM alert: Controller.Stop threw."); }
+            catch (Exception ex) { RunLog.Warning(ex, "GM alert: Controller.Stop threw."); }
         }
 
         if (cfg.GmAlertToast)
         {
             try { Svc.Toasts.ShowNormal($"GM {name} is nearby!"); }
-            catch (Exception ex) { Svc.Log.Warning(ex, "[AFG] GM alert: toast threw."); }
+            catch (Exception ex) { RunLog.Warning(ex, "GM alert: toast threw."); }
         }
 
         if (cfg.GmAlertChat)
         {
             try { Svc.Chat.PrintError($"[AFG] GM {name} is nearby!"); }
-            catch (Exception ex) { Svc.Log.Warning(ex, "[AFG] GM alert: chat print threw."); }
+            catch (Exception ex) { RunLog.Warning(ex, "GM alert: chat print threw."); }
         }
 
         if (cfg.GmAlertSound)
@@ -105,13 +105,13 @@ internal sealed class GmAlertWatcher : IDisposable
         foreach (var cmd in cfg.GmAlertCommands)
         {
             try { Chat.ExecuteCommand(cmd); }
-            catch (Exception ex) { Svc.Log.Warning(ex, $"[AFG] GM alert: command '{cmd}' threw."); }
+            catch (Exception ex) { RunLog.Warning(ex, $"GM alert: command '{cmd}' threw."); }
         }
 
         if (cfg.GmAlertKillGame)
         {
             try { Chat.ExecuteCommand("/xlkill"); }
-            catch (Exception ex) { Svc.Log.Warning(ex, "[AFG] GM alert: /xlkill threw."); }
+            catch (Exception ex) { RunLog.Warning(ex, "GM alert: /xlkill threw."); }
         }
     }
 
@@ -126,7 +126,7 @@ internal sealed class GmAlertWatcher : IDisposable
             for (var i = 0; i < n; i++)
             {
                 try { Console.Beep(f, d); }
-                catch (Exception ex) { Svc.Log.Debug($"[AFG] Console.Beep failed: {ex.Message}"); break; }
+                catch (Exception ex) { RunLog.Debug($"Console.Beep failed: {ex.Message}"); break; }
             }
         });
     }

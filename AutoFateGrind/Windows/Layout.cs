@@ -14,6 +14,8 @@ internal static class Layout
     public const float ZoneCardHeight = 48f;
     public const float ZoneCardMinWidth = 230f;
     public const float SegmentHeight = 40f;
+    public const float ActionPillHeight = 30f;
+    public const float ConsoleChipHeight = 28f;
     public const float LibraryHeaderHeight = 36f;
     public const float SearchWidth = 220f;
 

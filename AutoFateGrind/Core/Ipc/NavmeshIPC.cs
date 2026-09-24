@@ -48,14 +48,14 @@ internal sealed class NavmeshIPC
     // True once the current zone's navmesh is fully built and queryable; obstacle-map/pathfind IPC throw
     // "navmesh creation is in progress" while false. Older vnavmesh lacks the gate → assume ready, don't block.
     public bool IsReady()
-        => IpcGate.Invoke(navIsReady.HasFunction, navIsReady.InvokeFunc, true, "[NavmeshIPC] IsReady failed");
+        => IpcGate.Invoke(navIsReady.HasFunction, navIsReady.InvokeFunc, true, "IsReady failed");
 
     // 0..1 while a build is in progress; -1 when idle/complete. User-facing progress hint only.
     public float BuildProgress()
-        => IpcGate.Invoke(navBuildProgress.HasFunction, navBuildProgress.InvokeFunc, BuildIdle, "[NavmeshIPC] BuildProgress failed");
+        => IpcGate.Invoke(navBuildProgress.HasFunction, navBuildProgress.InvokeFunc, BuildIdle, "BuildProgress failed");
 
     public bool IsRunning()
-        => IpcGate.Invoke(pathIsRunning.HasFunction, pathIsRunning.InvokeFunc, false, "[NavmeshIPC] IsRunning failed");
+        => IpcGate.Invoke(pathIsRunning.HasFunction, pathIsRunning.InvokeFunc, false, "IsRunning failed");
 
     public bool IsBusy()
     {
@@ -63,12 +63,12 @@ internal sealed class NavmeshIPC
         if (simpleMovePathfindInProgress.HasFunction)
         {
             try { if (simpleMovePathfindInProgress.InvokeFunc()) return true; }
-            catch (Exception ex) { Svc.Log.Warning(ex, "[NavmeshIPC] PathfindInProgress(SimpleMove) failed"); }
+            catch (Exception ex) { RunLog.Warning(ex, "PathfindInProgress(SimpleMove) failed"); }
         }
         if (navPathfindInProgress.HasFunction)
         {
             try { if (navPathfindInProgress.InvokeFunc()) return true; }
-            catch (Exception ex) { Svc.Log.Warning(ex, "[NavmeshIPC] PathfindInProgress(Nav) failed"); }
+            catch (Exception ex) { RunLog.Warning(ex, "PathfindInProgress(Nav) failed"); }
         }
         return false;
     }
@@ -78,36 +78,36 @@ internal sealed class NavmeshIPC
     public Task<List<Vector3>>? Pathfind(Vector3 from, Vector3 to, bool fly)
         => IpcGate.Invoke<Task<List<Vector3>>?>(navPathfind.HasFunction,
             () => navPathfind.InvokeFunc(from, to, fly),
-            null, "[NavmeshIPC] Pathfind failed");
+            null, "Pathfind failed");
 
     public Vector3? NearestPointReachable(Vector3 position, float halfExtentXZ = 5f, float halfExtentY = 5f)
         => IpcGate.Invoke(nearestPointReachable.HasFunction,
             () => nearestPointReachable.InvokeFunc(position, halfExtentXZ, halfExtentY),
-            (Vector3?)null, "[NavmeshIPC] NearestPointReachable failed");
+            (Vector3?)null, "NearestPointReachable failed");
 
     // The highest mesh point below position within ±halfExtentXZ. vnavmesh names the flag allowUnlandable but
     // applies it as its flood-fill reachability filter.
     public Vector3? PointOnFloor(Vector3 position, bool allowUnreachable, float halfExtentXZ)
         => IpcGate.Invoke(pointOnFloor.HasFunction,
             () => pointOnFloor.InvokeFunc(position, allowUnreachable, halfExtentXZ),
-            (Vector3?)null, "[NavmeshIPC] PointOnFloor failed");
+            (Vector3?)null, "PointOnFloor failed");
 
     // Waypoints left on the path vnav is following; WaypointsUnavailable when this vnavmesh has no such IPC.
     public int NumWaypoints()
-        => IpcGate.Invoke(pathNumWaypoints.HasFunction, pathNumWaypoints.InvokeFunc, WaypointsUnavailable, "[NavmeshIPC] NumWaypoints failed");
+        => IpcGate.Invoke(pathNumWaypoints.HasFunction, pathNumWaypoints.InvokeFunc, WaypointsUnavailable, "NumWaypoints failed");
 
     // The waypoint vnav is steering toward right now. The IPC copies the whole list, so callers cache it.
     public Vector3? CurrentWaypoint()
     {
-        var waypoints = IpcGate.Invoke<List<Vector3>?>(pathListWaypoints.HasFunction, pathListWaypoints.InvokeFunc, null, "[NavmeshIPC] ListWaypoints failed");
+        var waypoints = IpcGate.Invoke<List<Vector3>?>(pathListWaypoints.HasFunction, pathListWaypoints.InvokeFunc, null, "ListWaypoints failed");
         return waypoints is { Count: > 0 } ? waypoints[0] : null;
     }
 
     // vnavmesh registers Path.Stop and Path.MoveTo as actions, so HasFunction is always false for them.
     public void Stop()
-        => IpcGate.Run(pathStop.HasAction, pathStop.InvokeAction, "[NavmeshIPC] Stop failed");
+        => IpcGate.Run(pathStop.HasAction, pathStop.InvokeAction, "Stop failed");
 
     // Follows the waypoints as given, with no path search, so the caller has to know the way is clear.
     public void MoveAlong(List<Vector3> waypoints, bool fly)
-        => IpcGate.Run(pathMoveTo.HasAction, () => pathMoveTo.InvokeAction(waypoints, fly), "[NavmeshIPC] Path.MoveTo failed");
+        => IpcGate.Run(pathMoveTo.HasAction, () => pathMoveTo.InvokeAction(waypoints, fly), "Path.MoveTo failed");
 }

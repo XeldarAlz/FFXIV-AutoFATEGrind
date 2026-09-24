@@ -1,4 +1,3 @@
-using ECommons.DalamudServices;
 using Newtonsoft.Json;
 using System.IO;
 
@@ -43,7 +42,7 @@ internal sealed class RunHistory
         }
         catch (Exception ex)
         {
-            Svc.Log.Warning(ex, $"{AfgConstants.LogPrefix} RunHistory load failed; starting empty");
+            RunLog.Warning(ex, "RunHistory load failed; starting empty");
         }
     }
 
@@ -89,7 +88,7 @@ internal sealed class RunHistory
         }
         catch (Exception ex)
         {
-            Svc.Log.Warning(ex, $"{AfgConstants.LogPrefix} RunHistory save failed");
+            RunLog.Warning(ex, "RunHistory save failed");
         }
     }
 

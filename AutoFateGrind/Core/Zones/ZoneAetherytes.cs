@@ -122,7 +122,7 @@ internal static class ZoneAetherytes
     private static bool TryResolvePosition(Lumina.Excel.Sheets.Aetheryte row, out Vector3 position)
     {
         if (AetheryteGeometry.TryResolvePosition(row, out position)) return true;
-        Svc.Log.Warning($"[AFG] Could not resolve a position for aetheryte {row.RowId}; skipping it as a teleport target");
+        RunLog.Warning($"Could not resolve a position for aetheryte {row.RowId}; skipping it as a teleport target");
         return false;
     }
 }

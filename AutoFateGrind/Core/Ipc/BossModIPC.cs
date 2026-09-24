@@ -45,39 +45,39 @@ internal sealed class BossModIPC
     public bool IsAvailable => setActive.HasFunction;
 
     public bool SetActive(string presetName)
-        => IpcGate.Invoke(setActive.HasFunction, () => setActive.InvokeFunc(presetName), false, "[BossModIPC] SetActive failed");
+        => IpcGate.Invoke(setActive.HasFunction, () => setActive.InvokeFunc(presetName), false, "SetActive failed");
 
     public bool ClearActive()
-        => IpcGate.Invoke(clearActive.HasFunction, clearActive.InvokeFunc, false, "[BossModIPC] ClearActive failed");
+        => IpcGate.Invoke(clearActive.HasFunction, clearActive.InvokeFunc, false, "ClearActive failed");
 
     public string? GetActive()
-        => IpcGate.Invoke<string?>(getActive.HasFunction, getActive.InvokeFunc, null, "[BossModIPC] GetActive failed");
+        => IpcGate.Invoke<string?>(getActive.HasFunction, getActive.InvokeFunc, null, "GetActive failed");
 
     public string? GetPreset(string name)
-        => IpcGate.Invoke<string?>(getPreset.HasFunction, () => getPreset.InvokeFunc(name), null, "[BossModIPC] GetPreset failed");
+        => IpcGate.Invoke<string?>(getPreset.HasFunction, () => getPreset.InvokeFunc(name), null, "GetPreset failed");
 
     public bool AddTransientStrategy(string preset, string module, string track, string option)
-        => IpcGate.Invoke(addTransient.HasFunction, () => addTransient.InvokeFunc(preset, module, track, option), false, "[BossModIPC] AddTransientStrategy failed");
+        => IpcGate.Invoke(addTransient.HasFunction, () => addTransient.InvokeFunc(preset, module, track, option), false, "AddTransientStrategy failed");
 
     public bool CanClearTransientStrategy => clearTransient.HasFunction;
 
     public bool ClearTransientStrategy(string preset, string module, string track)
-        => IpcGate.Invoke(clearTransient.HasFunction, () => clearTransient.InvokeFunc(preset, module, track), false, "[BossModIPC] ClearTransientStrategy failed");
+        => IpcGate.Invoke(clearTransient.HasFunction, () => clearTransient.InvokeFunc(preset, module, track), false, "ClearTransientStrategy failed");
 
     public bool CreatePreset(string serialized, bool overwrite)
-        => IpcGate.Invoke(createPreset.HasFunction, () => createPreset.InvokeFunc(serialized, overwrite), false, "[BossModIPC] CreatePreset failed");
+        => IpcGate.Invoke(createPreset.HasFunction, () => createPreset.InvokeFunc(serialized, overwrite), false, "CreatePreset failed");
 
     public bool GenerateObstacleMap(Vector3 center, float radius, bool writeToFile = false)
-        => IpcGate.Invoke(obstacleGenerate.HasFunction, () => obstacleGenerate.InvokeFunc(center, radius, writeToFile), false, "[BossModIPC] GenerateObstacleMap failed");
+        => IpcGate.Invoke(obstacleGenerate.HasFunction, () => obstacleGenerate.InvokeFunc(center, radius, writeToFile), false, "GenerateObstacleMap failed");
 
     public TaskStatus? GetObstacleMapStatus()
-        => IpcGate.Invoke<TaskStatus?>(obstacleGetStatus.HasFunction, () => obstacleGetStatus.InvokeFunc(), null, "[BossModIPC] GetObstacleMapStatus failed");
+        => IpcGate.Invoke<TaskStatus?>(obstacleGetStatus.HasFunction, () => obstacleGetStatus.InvokeFunc(), null, "GetObstacleMapStatus failed");
 
     public bool HasTempObstacleMap()
-        => IpcGate.Invoke(obstacleHasTempMap.HasFunction, obstacleHasTempMap.InvokeFunc, false, "[BossModIPC] HasTempObstacleMap failed");
+        => IpcGate.Invoke(obstacleHasTempMap.HasFunction, obstacleHasTempMap.InvokeFunc, false, "HasTempObstacleMap failed");
 
     public bool ClearTempObstacleMap()
-        => IpcGate.Invoke(obstacleClearTempMap.HasFunction, obstacleClearTempMap.InvokeFunc, false, "[BossModIPC] ClearTempObstacleMap failed");
+        => IpcGate.Invoke(obstacleClearTempMap.HasFunction, obstacleClearTempMap.InvokeFunc, false, "ClearTempObstacleMap failed");
 
     // Reads IsBad by reflection; missing IPC or property is treated as "not bad" to preserve behavior.
     public bool EvaluateTempMapQualityIsBad()
@@ -88,5 +88,5 @@ internal sealed class BossModIPC
             var prop = result.GetType().GetProperty(QualityIsBadProperty);
             if (prop is null) return false;
             return prop.GetValue(result) is bool b && b;
-        }, false, "[BossModIPC] EvaluateTempMapQuality failed");
+        }, false, "EvaluateTempMapQuality failed");
 }

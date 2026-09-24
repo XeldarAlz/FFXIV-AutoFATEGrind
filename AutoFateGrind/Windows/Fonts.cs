@@ -5,7 +5,6 @@ using Dalamud.Interface;
 using Dalamud.Interface.ManagedFontAtlas;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
-using ECommons.DalamudServices;
 using System.IO;
 
 namespace AutoFateGrind.Windows;
@@ -155,11 +154,11 @@ internal static class Fonts
                 return File.ReadAllBytes(path);
             }
 
-            Svc.Log.Warning($"{AfgConstants.LogPrefix} Latin font missing at '{path}'; falling back to the Dalamud default font, Latin Extended letters will not render");
+            RunLog.Warning($"Latin font missing at '{path}'; falling back to the Dalamud default font, Latin Extended letters will not render");
         }
         catch (Exception exception)
         {
-            Svc.Log.Error(exception, $"{AfgConstants.LogPrefix} Failed to read the Latin font");
+            RunLog.Error(exception, "Failed to read the Latin font");
         }
 
         return null;

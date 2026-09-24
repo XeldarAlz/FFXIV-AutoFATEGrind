@@ -39,7 +39,7 @@ internal static class ExpReader
         }
         catch (Exception ex)
         {
-            Svc.Log.Warning(ex, "[AFG] ExpReader.Read failed");
+            RunLog.Warning(ex, "ExpReader.Read failed");
             return null;
         }
     }

@@ -2,17 +2,18 @@ using AutoFateGrind.Core.Ipc;
 using clib.TaskSystem;
 using ECommons.DalamudServices;
 using System;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 
 namespace AutoFateGrind.Core.Tasks;
 
 public abstract partial class AutoCommon : TaskBase
 {
-    protected void Diag(string message) => Svc.Log.Info($"{AfgConstants.LogPrefix} {message}");
+    protected static void Diag(string message, [CallerFilePath] string callerFile = "") => RunLog.Info(message, callerFile);
 
-    protected void Warn(string message) => Svc.Log.Warning($"{AfgConstants.LogPrefix} {message}");
+    protected static void Warn(string message, [CallerFilePath] string callerFile = "") => RunLog.Warning(message, callerFile);
 
-    protected void Trace(string message) => Svc.Log.Debug($"{AfgConstants.LogPrefix} {message}");
+    protected static void Trace(string message, [CallerFilePath] string callerFile = "") => RunLog.Debug(message, callerFile);
 
     // Pins Status every frame to override clib's internal coordinate strings during teleport/aethernet.
     protected async Task RunWithStatusPinned(string label, Func<Task> work)

@@ -88,11 +88,11 @@ internal sealed unsafe class PartyInviteWatcher : IDisposable
 
         if (stage == Stage.ConfirmPending || MentionsPendingInviter(prompt))
         {
-            Svc.Log.Warning($"[AFG] Party invite: SelectYesno {addon->Id} looks invite-related but matched neither prompt template: \"{prompt}\" (join='{joinPrompt}', decline='{declinePrompt}').");
+            RunLog.Warning($"Party invite: SelectYesno {addon->Id} looks invite-related but matched neither prompt template: \"{prompt}\" (join='{joinPrompt}', decline='{declinePrompt}').");
             return;
         }
 
-        Svc.Log.Debug($"[AFG] SelectYesno {addon->Id} is not a party invite: \"{prompt}\"");
+        RunLog.Debug($"SelectYesno {addon->Id} is not a party invite: \"{prompt}\"");
     }
 
     private static bool DeclineArmed()
@@ -113,7 +113,7 @@ internal sealed unsafe class PartyInviteWatcher : IDisposable
         inviteAddonId = addon->Id;
         confirmAddonId = 0;
         actAtTick = Environment.TickCount64 + delayMs;
-        Svc.Log.Info($"[AFG] Party invite from {DisplayName()} detected; declining in ~{delayMs / 1000}s.");
+        RunLog.Info($"Party invite from {DisplayName()} detected; declining in ~{delayMs / 1000}s.");
     }
 
     private void ArmConfirm(AtkUnitBase* addon)
@@ -123,7 +123,7 @@ internal sealed unsafe class PartyInviteWatcher : IDisposable
         stage = Stage.ConfirmPending;
         confirmAddonId = addon->Id;
         actAtTick = Environment.TickCount64 + rng.Next(ConfirmDelayMinMs, ConfirmDelayMaxMs + 1);
-        Svc.Log.Debug($"[AFG] Party invite: decline confirmation {addon->Id} opened for {DisplayName()}; confirming shortly.");
+        RunLog.Debug($"Party invite: decline confirmation {addon->Id} opened for {DisplayName()}; confirming shortly.");
     }
 
     private void OnUpdate(IFramework _)
@@ -140,7 +140,7 @@ internal sealed unsafe class PartyInviteWatcher : IDisposable
         var addon = FindSelectYesno(inviteAddonId);
         if (addon is null)
         {
-            Svc.Log.Debug("[AFG] Party invite: prompt closed before our decline; standing down.");
+            RunLog.Debug("Party invite: prompt closed before our decline; standing down.");
             stage = Stage.Idle;
             return;
         }
@@ -164,7 +164,7 @@ internal sealed unsafe class PartyInviteWatcher : IDisposable
         if (confirmAddonId == 0)
         {
             if (now < confirmDeadlineTick) return;
-            Svc.Log.Info($"[AFG] Declined party invite from {DisplayName()} (no confirmation prompt appeared).");
+            RunLog.Info($"Declined party invite from {DisplayName()} (no confirmation prompt appeared).");
             FinishDecline();
             return;
         }
@@ -172,7 +172,7 @@ internal sealed unsafe class PartyInviteWatcher : IDisposable
         var addon = FindSelectYesno(confirmAddonId);
         if (addon is null)
         {
-            Svc.Log.Debug("[AFG] Party invite: confirmation prompt closed before our click; standing down.");
+            RunLog.Debug("Party invite: confirmation prompt closed before our click; standing down.");
             stage = Stage.Idle;
             return;
         }
@@ -186,7 +186,7 @@ internal sealed unsafe class PartyInviteWatcher : IDisposable
             return;
         }
 
-        Svc.Log.Info($"[AFG] Declined party invite from {DisplayName()}.");
+        RunLog.Info($"Declined party invite from {DisplayName()}.");
         FinishDecline();
     }
 
@@ -195,7 +195,7 @@ internal sealed unsafe class PartyInviteWatcher : IDisposable
         if (GenericHelpers.IsAddonReady(addon)) return true;
         if (now < actAtTick + NotReadyAbandonMs) return false;
 
-        Svc.Log.Warning($"[AFG] Party invite: {what} {addon->Id} never became ready; standing down.");
+        RunLog.Warning($"Party invite: {what} {addon->Id} never became ready; standing down.");
         stage = Stage.Idle;
         return false;
     }
@@ -226,7 +226,7 @@ internal sealed unsafe class PartyInviteWatcher : IDisposable
         }
         catch (Exception ex)
         {
-            Svc.Log.Warning(ex, $"[AFG] Party invite: {what} threw.");
+            RunLog.Warning(ex, $"Party invite: {what} threw.");
             return false;
         }
     }
@@ -241,7 +241,7 @@ internal sealed unsafe class PartyInviteWatcher : IDisposable
         }
         catch (Exception ex)
         {
-            Svc.Log.Debug($"[AFG] Party invite: failed to read SelectYesno prompt: {ex.Message}");
+            RunLog.Debug($"Party invite: failed to read SelectYesno prompt: {ex.Message}");
             return "";
         }
     }
@@ -258,16 +258,16 @@ internal sealed unsafe class PartyInviteWatcher : IDisposable
         }
         catch (Exception ex)
         {
-            Svc.Log.Warning(ex, "[AFG] Party invite: failed to read the Addon sheet prompt templates.");
+            RunLog.Warning(ex, "Party invite: failed to read the Addon sheet prompt templates.");
         }
 
         if (!joinPrompt.IsValid || !declinePrompt.IsValid)
         {
-            Svc.Log.Warning("[AFG] Party invite: prompt templates unavailable; auto-decline cannot identify invites.");
+            RunLog.Warning("Party invite: prompt templates unavailable; auto-decline cannot identify invites.");
             return;
         }
 
-        Svc.Log.Debug($"[AFG] Party invite templates: join='{joinPrompt}', decline='{declinePrompt}'.");
+        RunLog.Debug($"Party invite templates: join='{joinPrompt}', decline='{declinePrompt}'.");
     }
 
     private static bool MentionsPendingInviter(string prompt)
@@ -302,7 +302,7 @@ internal sealed unsafe class PartyInviteWatcher : IDisposable
             };
 
         try { Chat.SendMessage(line); }
-        catch (Exception ex) { Svc.Log.Warning(ex, $"[AFG] Party invite: reply send threw for '{line}'."); }
+        catch (Exception ex) { RunLog.Warning(ex, $"Party invite: reply send threw for '{line}'."); }
     }
 
     private string BuildTell(string body)
@@ -326,7 +326,7 @@ internal sealed unsafe class PartyInviteWatcher : IDisposable
         }
         catch (Exception ex)
         {
-            Svc.Log.Debug($"[AFG] Party invite: failed to read inviter info: {ex.Message}");
+            RunLog.Debug($"Party invite: failed to read inviter info: {ex.Message}");
         }
     }
 

@@ -204,7 +204,7 @@ internal static unsafe class NpcInteraction
             return;
         }
         var first = master.Entries[0];
-        Svc.Log.Debug($"{AfgConstants.LogPrefix} SelectString: choosing '{first.Text}'");
+        RunLog.Debug($"SelectString: choosing '{first.Text}'");
         first.Select();
     }
 

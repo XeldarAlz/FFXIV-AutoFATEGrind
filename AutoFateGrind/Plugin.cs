@@ -95,7 +95,7 @@ public sealed class Plugin : IDalamudPlugin
         if (e.Exception.ToString().Contains("Navmesh.IPCProvider"))
         {
             e.SetObserved();
-            Log.Debug($"[AFG] Observed vnavmesh IPC task fault: {e.Exception.GetBaseException().Message}");
+            RunLog.Debug($"Observed vnavmesh IPC task fault: {e.Exception.GetBaseException().Message}");
         }
     }
 
@@ -135,6 +135,8 @@ public sealed class Plugin : IDalamudPlugin
             ToggleDependenciesUi();
         else if (trimmed.Equals("stats", StringComparison.OrdinalIgnoreCase) || trimmed.Equals("history", StringComparison.OrdinalIgnoreCase))
             ToggleHistoryUi();
+        else if (trimmed.Equals("log", StringComparison.OrdinalIgnoreCase))
+            ToggleLogUi();
         else if (trimmed.Equals("pause", StringComparison.OrdinalIgnoreCase) || trimmed.Equals("resume", StringComparison.OrdinalIgnoreCase))
             Controller.TogglePause();
         else if (trimmed.Equals("target", StringComparison.OrdinalIgnoreCase))
@@ -190,4 +192,5 @@ public sealed class Plugin : IDalamudPlugin
     public void ToggleAboutUi() => appWindow.TogglePage(AppWindow.Page.About);
     public void ToggleDependenciesUi() => appWindow.TogglePage(AppWindow.Page.Plugins);
     public void ToggleHistoryUi() => appWindow.TogglePage(AppWindow.Page.History);
+    public void ToggleLogUi() => appWindow.TogglePage(AppWindow.Page.Log);
 }

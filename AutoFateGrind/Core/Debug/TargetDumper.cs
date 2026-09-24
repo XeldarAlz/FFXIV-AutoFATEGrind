@@ -29,6 +29,6 @@ internal static unsafe class TargetDumper
             ?.GetRowOrDefault(baseId)?.Singular.ToString() ?? name;
 
         Svc.Chat.Print($"{AfgConstants.LogPrefix} Target: BaseId={baseId}  Name=\"{residentName}\"");
-        Svc.Log.Info($"[TargetDumper] territory={territoryId} BaseId={baseId} name='{residentName}'");
+        RunLog.Info($"territory={territoryId} BaseId={baseId} name='{residentName}'");
     }
 }

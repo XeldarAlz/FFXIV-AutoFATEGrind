@@ -1,5 +1,4 @@
 using ECommons;
-using ECommons.DalamudServices;
 using ECommons.Throttlers;
 using ECommons.UIHelpers.AddonMasterImplementations;
 using FFXIVClientStructs.FFXIV.Component.GUI;
@@ -71,7 +70,7 @@ internal static unsafe class ShopInteraction
         {
             if (entry.ItemId != targetItemId) continue;
             entry.Select(quantity);
-            Svc.Log.Info($"[AFG] ShopExchangeCurrency.Select(item={targetItemId} qty={quantity} index={entry.Index})");
+            RunLog.Info($"ShopExchangeCurrency.Select(item={targetItemId} qty={quantity} index={entry.Index})");
             return true;
         }
         return false;

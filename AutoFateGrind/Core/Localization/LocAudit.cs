@@ -1,5 +1,4 @@
 #if DEBUG
-using ECommons.DalamudServices;
 using System.IO;
 using System.Reflection;
 using System.Text;
@@ -21,7 +20,7 @@ internal static class LocAudit
             var catalog = StringCatalog.Load(Path.Combine(directory, string.Concat(language.Code, ".json")));
             if (catalog.Count == 0)
             {
-                Svc.Log.Warning($"{AfgConstants.LogPrefix} [Loc] '{language.Code}.json' missing or empty.");
+                RunLog.Warning($"'{language.Code}.json' missing or empty.");
                 continue;
             }
 
@@ -37,11 +36,11 @@ internal static class LocAudit
 
             if (missingCount == 0)
             {
-                Svc.Log.Info($"{AfgConstants.LogPrefix} [Loc] '{language.Code}.json' complete ({keys.Count} keys).");
+                RunLog.Info($"'{language.Code}.json' complete ({keys.Count} keys).");
                 continue;
             }
 
-            Svc.Log.Warning($"{AfgConstants.LogPrefix} [Loc] '{language.Code}.json' missing {missingCount}/{keys.Count} keys: {missing}…");
+            RunLog.Warning($"'{language.Code}.json' missing {missingCount}/{keys.Count} keys: {missing}…");
         }
     }
 

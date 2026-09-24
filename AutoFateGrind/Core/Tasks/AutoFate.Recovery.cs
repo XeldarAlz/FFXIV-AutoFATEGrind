@@ -107,7 +107,7 @@ public sealed partial class AutoFate
         }
         catch (Exception ex)
         {
-            Svc.Log.Warning(ex, "[AFG] GameMain.ExecuteCommand revive failed");
+            RunLog.Warning(ex, "GameMain.ExecuteCommand revive failed");
             return false;
         }
     }

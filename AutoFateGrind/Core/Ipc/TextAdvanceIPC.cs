@@ -31,7 +31,7 @@ internal static class TextAdvanceIPC
         }
         catch (Exception ex)
         {
-            Svc.Log.Warning(ex, "[TextAdvanceIPC] subscribe failed");
+            RunLog.Warning(ex, "subscribe failed");
         }
     }
 
@@ -41,7 +41,7 @@ internal static class TextAdvanceIPC
     {
         EnsureInit();
         try { return isEnabled?.HasFunction != true || isEnabled.InvokeFunc(); }
-        catch (Exception ex) { Svc.Log.Warning(ex, "[TextAdvanceIPC] IsEnabled failed"); return true; }
+        catch (Exception ex) { RunLog.Warning(ex, "IsEnabled failed"); return true; }
     }
 
     public static bool EnableExternalControl(string callerName, bool talkSkip, bool requestFill, bool requestHandin)
@@ -60,7 +60,7 @@ internal static class TextAdvanceIPC
         }
         catch (Exception ex)
         {
-            Svc.Log.Warning(ex, "[TextAdvanceIPC] EnableExternalControl failed");
+            RunLog.Warning(ex, "EnableExternalControl failed");
             return false;
         }
     }
@@ -69,6 +69,6 @@ internal static class TextAdvanceIPC
     {
         EnsureInit();
         try { disableExternalControl?.InvokeFunc(callerName); }
-        catch (Exception ex) { Svc.Log.Warning(ex, "[TextAdvanceIPC] DisableExternalControl failed"); }
+        catch (Exception ex) { RunLog.Warning(ex, "DisableExternalControl failed"); }
     }
 }

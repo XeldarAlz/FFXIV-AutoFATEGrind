@@ -28,7 +28,7 @@ internal sealed partial class AutoFateController
     private static readonly Random rng = new();
 
     private static void Diag(string message)
-        => ECommons.DalamudServices.Svc.Log.Info($"{AfgConstants.LogPrefix} {message}");
+        => RunLog.Info(message);
 
     // First active-zone index whose territory matches origin (first match wins), or fallback when origin is
     // null / not in the current selection.

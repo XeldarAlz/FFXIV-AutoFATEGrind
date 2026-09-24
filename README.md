@@ -69,6 +69,7 @@ The plugin needs a few helpers for movement and combat to be installed and loade
 | `/afg config` | Open the Settings page |
 | `/afg stats` | Open the History page |
 | `/afg deps` | Open the Plugins page |
+| `/afg log` | Open the Console page (live plugin log, copy it for bug reports) |
 | `/afg about` | Open the About page |
 | `/afg pause` | Pause or resume the current run |
 | `/afg target` | Log targeted NPC's BaseId (debug helper) |

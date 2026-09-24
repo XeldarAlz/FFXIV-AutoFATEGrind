@@ -1,10 +1,10 @@
+using AutoFateGrind.Core;
 using AutoFateGrind.Core.Localization;
 using AutoFateGrind.Windows.Components;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
-using ECommons.DalamudServices;
 using System.Numerics;
 
 namespace AutoFateGrind.Windows.Pages;
@@ -676,5 +676,5 @@ internal sealed class AboutPage
 
     private static void OpenUrl(string url)
         => UrlActions.OpenInBrowser(url, ex =>
-            Svc.Log.Warning(ex, $"failed to launch browser for {url}, copied to clipboard instead"));
+            RunLog.Warning(ex, $"failed to launch browser for {url}, copied to clipboard instead"));
 }

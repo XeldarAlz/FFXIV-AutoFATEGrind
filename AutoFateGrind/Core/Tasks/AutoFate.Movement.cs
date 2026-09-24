@@ -403,7 +403,7 @@ public sealed partial class AutoFate
         }
         catch (Exception ex)
         {
-            Svc.Log.Warning(ex, "[AFG] TextAdvance enable failed");
+            RunLog.Warning(ex, "TextAdvance enable failed");
         }
     }
 
@@ -411,7 +411,7 @@ public sealed partial class AutoFate
     {
         if (!textAdvanceArmed) return;
         try { TextAdvanceIPC.DisableExternalControl(TextAdvanceScope); }
-        catch (Exception ex) { Svc.Log.Warning(ex, "[AFG] TextAdvance disable failed"); }
+        catch (Exception ex) { RunLog.Warning(ex, "TextAdvance disable failed"); }
         textAdvanceArmed = false;
     }
 }

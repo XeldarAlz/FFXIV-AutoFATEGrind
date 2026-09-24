@@ -40,7 +40,7 @@ internal static class StuckDetector
         {
             var kind = tracker.Check();
             if (kind == StallKind.None) return false;
-            Svc.Log.Info($"{AfgConstants.LogPrefix} {label} stalled ({kind}); aborting the move");
+            RunLog.Info($"{label} stalled ({kind}); aborting the move");
             return true;
         };
     }
@@ -101,7 +101,7 @@ internal static class StuckDetector
                 return false;
             }
 
-            Svc.Log.Info($"{AfgConstants.LogPrefix} {label} froze in the air for {AirborneFreezeMs}ms at {position}; aborting the descent");
+            RunLog.Info($"{label} froze in the air for {AirborneFreezeMs}ms at {position}; aborting the descent");
             return true;
         };
     }

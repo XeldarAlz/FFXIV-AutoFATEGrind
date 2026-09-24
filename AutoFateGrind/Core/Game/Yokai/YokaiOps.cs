@@ -81,7 +81,7 @@ internal static unsafe class YokaiOps
         }
         catch (Exception ex)
         {
-            Svc.Log.Warning(ex, "[AFG] GameMain.ExecuteCommand withdraw fashion accessory failed");
+            RunLog.Warning(ex, "GameMain.ExecuteCommand withdraw fashion accessory failed");
             return false;
         }
     }
