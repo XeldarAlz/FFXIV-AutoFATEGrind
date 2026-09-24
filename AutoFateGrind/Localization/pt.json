@@ -342,6 +342,8 @@
   "settings.general.behavior": "Comportamento",
   "settings.general.swapZones": "Trocar de zona quando esvaziar",
   "settings.general.swapZonesHelp": "Quando a zona atual fica sem FATEs elegíveis, pula para a próxima zona na sua ordem de prioridade.",
+  "settings.general.mountWhileWaiting": "Montar enquanto espera FATEs",
+  "settings.general.mountWhileWaitingHelp": "Monta automaticamente fora de combate enquanto espera FATEs ou um FATE de continuação.",
   "settings.general.autoPause": "Pausar automaticamente em conteúdo",
   "settings.general.autoPauseHelp": "Pausa a sessão enquanto você está em uma masmorra, provação, raid ou qualquer outro conteúdo instanciado e retoma ao sair. Suas zonas, meta e estatísticas são mantidas, e o tempo em pausa não conta para uma meta de tempo.",
   "settings.general.autoResume": "Retomar automaticamente após falha",

@@ -342,6 +342,8 @@
   "settings.general.behavior": "Davranış",
   "settings.general.swapZones": "Boşalınca bölge değiştir",
   "settings.general.swapZonesHelp": "Mevcut bölgede uygun FATE kalmayınca öncelik sıranızdaki bir sonraki bölgeye geçer.",
+  "settings.general.mountWhileWaiting": "FATE beklerken bineğe bin",
+  "settings.general.mountWhileWaitingHelp": "FATE veya devam FATE’i beklerken savaş dışında otomatik olarak bineğe bin.",
   "settings.general.autoPause": "İçerikte otomatik duraklat",
   "settings.general.autoPauseHelp": "Zindan, trial, raid ya da başka bir instance içeriğindeyken oturumu duraklatır, dışarı çıkınca sürdürür. Bölgeleriniz, hedefiniz ve oturum istatistikleri korunur; duraklatılan süre süre hedefine sayılmaz.",
   "settings.general.autoResume": "Hatadan sonra otomatik devam et",

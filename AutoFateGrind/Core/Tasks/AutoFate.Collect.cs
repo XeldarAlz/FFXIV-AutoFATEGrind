@@ -521,6 +521,10 @@ public sealed partial class AutoFate
             EnsureCombatPreset(preset);
             AssertPresetActive(preset);
         }
+        else
+        {
+            TryMountWhileWaiting();
+        }
         await NextFrame(60);
     }
 

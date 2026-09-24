@@ -342,6 +342,8 @@
   "settings.general.behavior": "Verhalten",
   "settings.general.swapZones": "Gebiet wechseln, wenn leer",
   "settings.general.swapZonesHelp": "Wenn dem aktuellen Gebiet die passenden FATEs ausgehen, springt das Plugin zum nächsten Gebiet in deiner Reihenfolge.",
+  "settings.general.mountWhileWaiting": "Beim Warten auf FATEs aufsitzen",
+  "settings.general.mountWhileWaitingHelp": "Außerhalb des Kampfes beim Warten auf FATEs oder Folge-FATEs automatisch aufsitzen.",
   "settings.general.autoPause": "Im Inhalt automatisch pausieren",
   "settings.general.autoPauseHelp": "Pausiert den Durchlauf, während du in einem Dungeon, einer Prüfung, einem Raid oder anderem Instanzinhalt bist, und setzt ihn draußen fort. Gebiete, Ziel und Sitzungsstatistik bleiben erhalten, und pausierte Zeit zählt nicht für ein Zeitziel.",
   "settings.general.autoResume": "Nach Fehler automatisch fortsetzen",

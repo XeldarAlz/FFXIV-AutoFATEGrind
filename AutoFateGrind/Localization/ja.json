@@ -342,6 +342,8 @@
   "settings.general.behavior": "動作",
   "settings.general.swapZones": "空になったらエリアを切り替え",
   "settings.general.swapZonesHelp": "現在のエリアに対象FATEがなくなったら、優先順の次のエリアへ移動します。",
+  "settings.general.mountWhileWaiting": "FATE待機中にマウントに乗る",
+  "settings.general.mountWhileWaitingHelp": "FATEや連続FATEを待っている間、非戦闘時に自動でマウントに乗ります。",
   "settings.general.autoPause": "コンテンツ中は自動で一時停止",
   "settings.general.autoPauseHelp": "ダンジョン、討伐戦、レイドなどインスタンスコンテンツにいる間は周回を一時停止し、出たら再開します。エリア、目標、セッション統計は保持され、一時停止中の時間は時間目標に含まれません。",
   "settings.general.autoResume": "エラー後に自動再開",
