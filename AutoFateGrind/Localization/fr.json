@@ -500,6 +500,8 @@
   "settings.repair.noTargetChat": "[AFG] Aucune cible - ciblez d'abord un PNJ réparateur, puis cliquez à nouveau.",
   "settings.repair.npcSetChat": "[AFG] PNJ de réparation personnalisé défini : {0} (territoire {1}).",
   "settings.consumables.group": "Consommables",
+  "settings.consumables.autoSummonChocobo": "Invoquer le chocobo",
+  "settings.consumables.autoSummonChocoboHelp": "Contrôle la stratégie Chocobo de l’assistant d’ALÉA de BossMod. Une fois activée, elle utilise un légume de Gysahl pendant un ALÉA synchronisé lorsque le temps restant du compagnon passe sous 60 secondes.",
   "settings.consumables.autoConsume": "Consommer nourriture et médicaments automatiquement",
   "settings.consumables.autoConsumeHelp": "Utilise nourriture et médicaments entre les ALÉA pour maintenir leurs effets ; Repu seul vaut +3 % d'exp gratuits. Les objets ne sont consommés qu'hors combat et renouvelés avant la fin de l'effet.",
   "settings.consumables.autoConsumeOff": "La consommation automatique est désactivée. Activez-la pour choisir des objets.",

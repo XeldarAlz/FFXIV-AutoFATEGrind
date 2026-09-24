@@ -307,14 +307,39 @@ public sealed partial class AutoFate
 
     private void AssertPresetActive(string preset)
     {
-        if (BossModIPC.Instance.GetActive() == preset) return;
-
-        if (!BossModIPC.Instance.SetActive(preset))
+        const int retryMs = 5_000;
+        var activated = BossModIPC.Instance.GetActive() != preset;
+        if (activated && !BossModIPC.Instance.SetActive(preset))
         {
             Diag($"BossMod.Presets.SetActive('{preset}') returned false — preset may not exist.");
             return;
         }
-        BossModIPC.Instance.AddTransientStrategy(preset, "BossMod.Autorotation.MiscAI.AutoTarget", "MaxTargets", PullSize().ToString());
+        if (activated)
+            BossModIPC.Instance.AddTransientStrategy(preset, "BossMod.Autorotation.MiscAI.AutoTarget", "MaxTargets", PullSize().ToString());
+
+        var enabled = Plugin.Cfg.AutoSummonChocobo;
+        if (!activated && chocoboOverridePreset == preset && chocoboOverrideEnabled == enabled)
+            return;
+        if (!activated && Environment.TickCount64 < nextChocoboOverrideAttemptMs)
+            return;
+
+        if (BossModIPC.Instance.SetFateHelperChocobo(preset, enabled))
+        {
+            Diag($"BossMod FATE helper Chocobo strategy set to {(enabled ? "Enabled" : "Disabled")}");
+            chocoboOverridePreset = preset;
+            chocoboOverrideEnabled = enabled;
+            chocoboOverrideFailureLogged = false;
+            nextChocoboOverrideAttemptMs = 0;
+        }
+        else
+        {
+            nextChocoboOverrideAttemptMs = Environment.TickCount64 + retryMs;
+            if (!chocoboOverrideFailureLogged)
+            {
+                Warn("BossMod FATE helper Chocobo strategy is unavailable; retrying in 5 seconds");
+                chocoboOverrideFailureLogged = true;
+            }
+        }
     }
 
     private static unsafe void SyncToFate(uint fateId)

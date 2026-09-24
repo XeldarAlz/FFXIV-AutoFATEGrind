@@ -500,6 +500,8 @@
   "settings.repair.noTargetChat": "[AFG] Hedef yok - önce bir onarım NPC'sini hedefleyin, sonra yeniden tıklayın.",
   "settings.repair.npcSetChat": "[AFG] Özel onarım NPC'si ayarlandı: {0} (bölge {1}).",
   "settings.consumables.group": "Tüketilebilirler",
+  "settings.consumables.autoSummonChocobo": "Chocobo çağır",
+  "settings.consumables.autoSummonChocoboHelp": "BossMod FATE yardımcısının Chocobo stratejisini kontrol eder. Etkinleştirildiğinde, senkronize bir FATE sırasında yoldaşın süresi 60 saniyenin altına düşerse Gysahl Greens kullanır.",
   "settings.consumables.autoConsume": "Yemek ve ilacı otomatik kullan",
   "settings.consumables.autoConsumeHelp": "Etkilerini sürdürmek için FATE'ler arasında yemek ve ilaç kullanır; Well Fed tek başına bedava %3 tecrübe. Eşyalar yalnızca savaş dışında kullanılır ve etki bitmeden yenilenir.",
   "settings.consumables.autoConsumeOff": "Otomatik kullanım kapalı. Eşya seçmek için açın.",

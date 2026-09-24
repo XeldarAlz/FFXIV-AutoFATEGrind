@@ -500,6 +500,8 @@
   "settings.repair.noTargetChat": "[AFG] ターゲットがありません - 先に修理NPCをターゲットしてからもう一度押してください。",
   "settings.repair.npcSetChat": "[AFG] カスタム修理NPCを設定しました: {0}（エリア {1}）。",
   "settings.consumables.group": "消耗品",
+  "settings.consumables.autoSummonChocobo": "チョコボを呼び出す",
+  "settings.consumables.autoSummonChocoboHelp": "BossMod の FATE helper にある Chocobo 戦略を制御します。有効にすると、FATE 同期中にバディの残り時間が60秒未満になった時、ギサールの野菜を使用します。",
   "settings.consumables.autoConsume": "食事と薬を自動使用",
   "settings.consumables.autoConsumeHelp": "FATEの合間に食事と薬を使って効果を維持します。食事効果だけで経験値+3%です。アイテムは非戦闘時のみ使用し、効果が切れる前に更新します。",
   "settings.consumables.autoConsumeOff": "自動使用はオフです。アイテムを選ぶにはオンにしてください。",

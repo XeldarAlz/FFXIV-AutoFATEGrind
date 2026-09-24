@@ -500,6 +500,8 @@
   "settings.repair.noTargetChat": "[AFG] 没有目标 - 请先选中一个修理NPC，再点一次。",
   "settings.repair.npcSetChat": "[AFG] 已设置自定义修理NPC：{0}（区域 {1}）。",
   "settings.consumables.group": "消耗品",
+  "settings.consumables.autoSummonChocobo": "召唤陆行鸟",
+  "settings.consumables.autoSummonChocoboHelp": "控制 BossMod 的 FATE helper「Chocobo」策略。启用后，在已同步 FATE 且搭档剩余时间低于 60 秒时使用基萨尔野菜续时。",
   "settings.consumables.autoConsume": "自动使用食物和药品",
   "settings.consumables.autoConsumeHelp": "在FATE之间使用食物和药品以维持效果；仅饱食状态就是免费的 +3% 经验。只在非战斗状态使用，并在效果结束前刷新。",
   "settings.consumables.autoConsumeOff": "自动使用已关闭。开启后才能选择物品。",
