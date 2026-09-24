@@ -5,6 +5,7 @@
 <h1 align="center">Auto FATE Grind</h1>
 
 <p align="center">
+  <a href="https://discord.gg/hppkAvdBEE"><img alt="Discord" src="https://img.shields.io/badge/Discord-join-5865F2?style=flat-square&logo=discord&logoColor=white"></a>
   <a href="https://github.com/XeldarAlz/FFXIV-AutoFATEGrind/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/XeldarAlz/FFXIV-AutoFATEGrind?style=flat-square&color=blue"></a>
   <a href="https://github.com/XeldarAlz/FFXIV-AutoFATEGrind/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/XeldarAlz/FFXIV-AutoFATEGrind/total?style=flat-square&color=blue&cacheSeconds=300"></a>
   <a href="https://github.com/XeldarAlz/FFXIV-AutoFATEGrind/actions/workflows/release.yml"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/XeldarAlz/FFXIV-AutoFATEGrind/release.yml?style=flat-square"></a>
@@ -70,6 +71,7 @@ The plugin needs a few helpers for movement and combat to be installed and loade
 | `/afg stats` | Open the History page |
 | `/afg deps` | Open the Plugins page |
 | `/afg log` | Open the Console page (live plugin log, copy it for bug reports) |
+| `/afg changelog` | Open the Changelog page (what's new in each update) |
 | `/afg about` | Open the About page |
 | `/afg pause` | Pause or resume the current run |
 | `/afg target` | Log targeted NPC's BaseId (debug helper) |
@@ -79,6 +81,12 @@ The plugin needs a few helpers for movement and combat to be installed and loade
 The windows are available in English, Deutsch, Français, Español, Português (Brasil), Русский, Türkçe, 日本語, and 中文. The plugin picks a language from your Dalamud and game client settings on first launch; change it any time under Settings, General, Language. Game data such as zone and FATE names always follows the game client.
 
 Spotted a wrong or awkward translation? Open a [translation issue](https://github.com/XeldarAlz/FFXIV-AutoFATEGrind/issues/new?template=translation_report.yml) and tell me what it should say instead.
+
+## Community
+
+Questions, ideas, or just want to hang out with other players? Come say hi on Discord.
+
+→ [Join our Discord](https://discord.gg/hppkAvdBEE)
 
 ## More from me
 
