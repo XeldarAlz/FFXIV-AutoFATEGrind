@@ -1,3 +1,4 @@
+using AutoFateGrind.Core.Changelog;
 using AutoFateGrind.Core.Modes;
 using Dalamud.Configuration;
 using ECommons.Throttlers;
@@ -138,6 +139,22 @@ public sealed class Configuration : IPluginConfiguration
     public bool DeclineInviteReply { get; set; } = false;
     public PartyInviteReplyChannel DeclineInviteReplyChannel { get; set; } = PartyInviteReplyChannel.Tell;
     public string DeclineInviteReplyMessage { get; set; } = "";
+
+    public string LastSeenChangelogVersion { get; set; } = string.Empty;
+
+    [Newtonsoft.Json.JsonIgnore]
+    public bool HasUnseenChangelog => !string.Equals(LastSeenChangelogVersion, ChangelogData.LatestVersion, StringComparison.Ordinal);
+
+    public void MarkChangelogSeen()
+    {
+        if (!HasUnseenChangelog)
+        {
+            return;
+        }
+
+        LastSeenChangelogVersion = ChangelogData.LatestVersion;
+        Save();
+    }
 
     public void Save() => Plugin.PluginInterface.SavePluginConfig(this);
 

@@ -9,7 +9,7 @@ namespace AutoFateGrind.Windows.Shell;
 
 public sealed class AppWindow : Window, IDisposable
 {
-    public enum Page { Grind, Settings, History, Plugins, Log, About }
+    public enum Page { Grind, Settings, History, Plugins, Log, Changelog, About }
 
     private const float PageRevealMs = 260f;
     private const float PageSlide = 12f;
@@ -39,6 +39,7 @@ public sealed class AppWindow : Window, IDisposable
     private readonly HistoryPage historyPage = new();
     private readonly PluginsPage pluginsPage = new();
     private readonly LogPage logPage = new();
+    private readonly ChangelogPage changelogPage = new();
     private readonly AboutPage aboutPage = new();
 
     private Page page = Page.Grind;
@@ -251,6 +252,7 @@ public sealed class AppWindow : Window, IDisposable
             case Page.History: historyPage.Draw(plugin); break;
             case Page.Plugins: pluginsPage.Draw(); break;
             case Page.Log: logPage.Draw(); break;
+            case Page.Changelog: changelogPage.Draw(pageShownTick); break;
             case Page.About: aboutPage.Draw(pageShownTick); break;
         }
     }

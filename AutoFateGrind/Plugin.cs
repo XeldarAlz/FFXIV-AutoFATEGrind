@@ -137,6 +137,8 @@ public sealed class Plugin : IDalamudPlugin
             ToggleHistoryUi();
         else if (trimmed.Equals("log", StringComparison.OrdinalIgnoreCase))
             ToggleLogUi();
+        else if (trimmed.Equals("changelog", StringComparison.OrdinalIgnoreCase))
+            ToggleChangelogUi();
         else if (trimmed.Equals("pause", StringComparison.OrdinalIgnoreCase) || trimmed.Equals("resume", StringComparison.OrdinalIgnoreCase))
             Controller.TogglePause();
         else if (trimmed.Equals("target", StringComparison.OrdinalIgnoreCase))
@@ -193,4 +195,5 @@ public sealed class Plugin : IDalamudPlugin
     public void ToggleDependenciesUi() => appWindow.TogglePage(AppWindow.Page.Plugins);
     public void ToggleHistoryUi() => appWindow.TogglePage(AppWindow.Page.History);
     public void ToggleLogUi() => appWindow.TogglePage(AppWindow.Page.Log);
+    public void ToggleChangelogUi() => appWindow.TogglePage(AppWindow.Page.Changelog);
 }
