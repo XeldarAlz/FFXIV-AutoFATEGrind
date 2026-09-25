@@ -550,6 +550,8 @@
   "settings.repair.noTargetChat": "[AFG] Sin objetivo - fija como objetivo a un PNJ reparador y vuelve a pulsar.",
   "settings.repair.npcSetChat": "[AFG] PNJ de reparación personalizado fijado: {0} (territorio {1}).",
   "settings.consumables.group": "Consumibles",
+  "settings.consumables.autoSummonChocobo": "Invocar chocobo",
+  "settings.consumables.autoSummonChocoboHelp": "Controla la estrategia Chocobo del asistente de FATE de BossMod. Al activarla, usa verduras Gysahl durante un FATE sincronizado cuando al compañero le quedan menos de 60 segundos.",
   "settings.consumables.autoConsume": "Consumir comida y medicina automáticamente",
   "settings.consumables.autoConsumeHelp": "Usa comida y medicina entre FATE para mantener sus efectos; Bien alimentado por sí solo es un +3 % de exp gratis. Los objetos solo se consumen fuera de combate y se renuevan antes de que expire el efecto.",
   "settings.consumables.autoConsumeOff": "El consumo automático está desactivado. Actívalo para elegir objetos.",

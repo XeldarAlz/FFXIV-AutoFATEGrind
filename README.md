@@ -43,6 +43,7 @@ Lists every FATE zone from A Realm Reborn through Dawntrail in one window. Tick 
 - **Auto-trade**: spends Bicolor Gemstones at the trader once you hit your threshold.
 - **Auto-repair**: Dark Matter first, Grand Company mender as fallback.
 - **Auto-consume**: keeps food and medicine buffs up (Well Fed is a free +3% EXP), HQ first.
+- **Companion control**: independently enables or disables BossMod's FATE chocobo strategy, including Gysahl Greens renewal. It defaults to enabled to preserve existing behavior.
 - **Humanizer**: takes random city breaks between FATEs so long sessions look less mechanical.
 - **Pause & resume**: park a run without losing your zones, goal, or session stats, and auto-pause while you're in a duty so you can queue for content mid-grind.
 - **Party invites**: auto-declines incoming invites during a run after a random delay, with an optional reply message.

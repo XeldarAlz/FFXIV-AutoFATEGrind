@@ -550,6 +550,8 @@
   "settings.repair.noTargetChat": "[AFG] No target - target a repair NPC first, then click again.",
   "settings.repair.npcSetChat": "[AFG] Custom repair NPC set: {0} (territory {1}).",
   "settings.consumables.group": "Consumables",
+  "settings.consumables.autoSummonChocobo": "Summon chocobo",
+  "settings.consumables.autoSummonChocoboHelp": "Control BossMod's FATE helper Chocobo strategy while AFG runs. When enabled, it uses Gysahl Greens while synced to a FATE if the companion timer falls below 60 seconds.",
   "settings.consumables.autoConsume": "Auto-consume food & medicine",
   "settings.consumables.autoConsumeHelp": "Use food and medicine between FATEs to keep their buffs up; Well Fed alone is a free +3% EXP. Items are consumed only when out of combat, and refreshed before the buff runs out.",
   "settings.consumables.autoConsumeOff": "Auto-consume is off. Enable it to pick items.",

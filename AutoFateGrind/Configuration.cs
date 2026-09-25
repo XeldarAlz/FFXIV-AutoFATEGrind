@@ -129,6 +129,8 @@ public sealed class Configuration : IPluginConfiguration
     public HashSet<uint> HumanizerCities { get; set; } = [129, 132, 1185, Core.Zones.CityCatalog.SolutionNineTerritoryId];
 
     public bool AutoConsume { get; set; } = false;
+    // BossMod's FATE helper enables this strategy when unset; preserve that behavior for existing users.
+    public bool AutoSummonChocobo { get; set; } = true;
     // 0 = only re-eat once Well Fed has fully worn off.
     public int AutoConsumeMinMinutes { get; set; } = 3;
     public List<ConsumableEntry> AutoConsumeItems { get; set; } = [];

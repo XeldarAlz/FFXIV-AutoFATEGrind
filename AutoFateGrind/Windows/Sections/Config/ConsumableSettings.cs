@@ -29,6 +29,12 @@ internal static class ConsumableSettings
     {
         using var group = SettingsGroup.Begin(Loc.T(L.Settings.ConsumablesGroup));
 
+        SettingsRow.Draw(Loc.T(L.Settings.AutoSummonChocobo),
+            Loc.T(L.Settings.AutoSummonChocoboHelp),
+            SettingsControls.ToggleWidth,
+            () => SettingsControls.DrawToggle(cfg, () => cfg.AutoSummonChocobo, v => cfg.AutoSummonChocobo = v, "##con_chocobo"),
+            SettingsRow.ToggleHeight);
+
         SettingsRow.Draw(Loc.T(L.Settings.AutoConsume),
             Loc.T(L.Settings.AutoConsumeHelp),
             SettingsControls.ToggleWidth,

@@ -550,6 +550,8 @@
   "settings.repair.noTargetChat": "[AFG] Sem alvo - mire um NPC de reparo primeiro e clique de novo.",
   "settings.repair.npcSetChat": "[AFG] NPC de reparo personalizado definido: {0} (território {1}).",
   "settings.consumables.group": "Consumíveis",
+  "settings.consumables.autoSummonChocobo": "Invocar chocobo",
+  "settings.consumables.autoSummonChocoboHelp": "Controla a estratégia Chocobo do assistente de FATE do BossMod. Quando ativada, usa Gysahl Greens durante um FATE sincronizado se restarem menos de 60 segundos para o companheiro.",
   "settings.consumables.autoConsume": "Consumir comida e remédio automaticamente",
   "settings.consumables.autoConsumeHelp": "Usa comida e remédio entre FATEs para manter os efeitos; só Bem Alimentado já é +3% de exp de graça. Os itens são consumidos apenas fora de combate e renovados antes do efeito acabar.",
   "settings.consumables.autoConsumeOff": "O consumo automático está desativado. Ative para escolher itens.",
