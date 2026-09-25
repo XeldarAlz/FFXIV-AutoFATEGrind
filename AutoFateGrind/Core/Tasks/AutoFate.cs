@@ -549,6 +549,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private async Task TickIdleScan()
     {
         await EnsureConsumables();
+        TryMountWhileWaiting();
         var swapPending = Plugin.Cfg.SwapZonesWhenEmpty && zones.Count > 1;
         var remainingSec = Math.Max(0L, zoneIdleWaitMs - (Environment.TickCount64 - zoneIdleSinceMs)) / 1000;
         Status = swapPending
@@ -593,6 +594,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
 
     private async Task TickFollowUpWait()
     {
+        TryMountWhileWaiting();
         var remaining = Math.Max(0L, followUpWatchUntilMs - Environment.TickCount64);
         Status = $"Watching for follow-up FATE ({remaining / 1000 + 1}s)";
         await NextFrame(100);

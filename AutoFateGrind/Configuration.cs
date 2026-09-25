@@ -52,6 +52,7 @@ public sealed class Configuration : IPluginConfiguration
     public int MaxLevelAbove { get; set; } = 5;
 
     public bool SwapZonesWhenEmpty { get; set; } = true;
+    public bool MountWhileWaitingForFates { get; set; } = false;
     public bool ShowLivePopout { get; set; } = false;
 
     // Auto-restart on fault, bounded by MaxConsecutiveStateErrors.

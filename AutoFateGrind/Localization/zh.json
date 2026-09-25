@@ -392,6 +392,8 @@
   "settings.general.behavior": "行为",
   "settings.general.swapZones": "区域清空后切换",
   "settings.general.swapZonesHelp": "当前区域没有符合条件的FATE时，跳到优先顺序中的下一个区域。",
+  "settings.general.mountWhileWaiting": "等待FATE时上坐骑",
+  "settings.general.mountWhileWaitingHelp": "等待FATE或后续连锁FATE时，在脱离战斗后自动上坐骑。",
   "settings.general.autoPause": "副本中自动暂停",
   "settings.general.autoPauseHelp": "在副本、讨伐战、大型任务或其他实例内容中暂停运行，离开后自动继续。区域、目标和会话统计都会保留，暂停的时间不计入时间目标。",
   "settings.general.autoResume": "故障后自动恢复",

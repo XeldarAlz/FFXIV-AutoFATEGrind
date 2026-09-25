@@ -452,6 +452,8 @@ internal static class L
         public static readonly LocString GeneralBehavior = new("settings.general.behavior", "Behavior");
         public static readonly LocString SwapZones = new("settings.general.swapZones", "Swap zones when empty");
         public static readonly LocString SwapZonesHelp = new("settings.general.swapZonesHelp", "When the current zone runs out of eligible FATEs, jump to the next zone in your priority order.");
+        public static readonly LocString MountWhileWaiting = new("settings.general.mountWhileWaiting", "Mount while waiting for FATEs");
+        public static readonly LocString MountWhileWaitingHelp = new("settings.general.mountWhileWaitingHelp", "Automatically mount when out of combat while waiting for FATEs or a follow-up FATE.");
         public static readonly LocString AutoPause = new("settings.general.autoPause", "Auto-pause in content");
         public static readonly LocString AutoPauseHelp = new("settings.general.autoPauseHelp", "Pause the run while you are inside a duty, trial, raid, or any other instanced content, then resume it once you are back outside. Your zones, goal, and session stats are kept, and paused time does not count toward a time-based goal.");
         public static readonly LocString AutoResume = new("settings.general.autoResume", "Auto-resume on fault");

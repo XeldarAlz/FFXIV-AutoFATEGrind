@@ -392,6 +392,8 @@
   "settings.general.behavior": "Поведение",
   "settings.general.swapZones": "Менять зону, когда она пуста",
   "settings.general.swapZonesHelp": "Когда в текущей зоне заканчиваются подходящие FATE, переходить к следующей зоне в вашем порядке приоритета.",
+  "settings.general.mountWhileWaiting": "Садиться на маунта в ожидании FATE",
+  "settings.general.mountWhileWaitingHelp": "Автоматически садиться на маунта вне боя во время ожидания FATE или продолжения цепочки.",
   "settings.general.autoPause": "Автопауза в контенте",
   "settings.general.autoPauseHelp": "Ставит сессию на паузу, пока вы в подземелье, испытании, рейде или другом инстансе, и продолжает после выхода. Зоны, цель и статистика сохраняются, а время на паузе не идет в зачет цели по времени.",
   "settings.general.autoResume": "Автовозобновление после сбоя",

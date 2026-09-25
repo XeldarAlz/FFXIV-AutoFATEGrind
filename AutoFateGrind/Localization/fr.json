@@ -392,6 +392,8 @@
   "settings.general.behavior": "Comportement",
   "settings.general.swapZones": "Changer de zone quand elle est vide",
   "settings.general.swapZonesHelp": "Quand la zone actuelle n'a plus d'ALÉA éligible, passe à la zone suivante de votre ordre de priorité.",
+  "settings.general.mountWhileWaiting": "Monter en attendant les ALÉA",
+  "settings.general.mountWhileWaitingHelp": "Utilise automatiquement une monture hors combat en attendant un ALÉA ou sa suite.",
   "settings.general.autoPause": "Pause automatique en instance",
   "settings.general.autoPauseHelp": "Met la session en pause tant que vous êtes dans un donjon, un défi, un raid ou tout autre contenu instancié, puis la reprend à la sortie. Vos zones, votre objectif et vos statistiques sont conservés, et le temps en pause ne compte pas pour un objectif de temps.",
   "settings.general.autoResume": "Reprise automatique après erreur",

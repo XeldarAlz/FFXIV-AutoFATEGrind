@@ -54,6 +54,12 @@ internal static class GeneralSettings
             () => SettingsControls.DrawToggle(cfg, () => cfg.SwapZonesWhenEmpty, v => cfg.SwapZonesWhenEmpty = v, "##gen_swap"),
             SettingsRow.ToggleHeight);
 
+        SettingsRow.Draw(Loc.T(L.Settings.MountWhileWaiting),
+            Loc.T(L.Settings.MountWhileWaitingHelp),
+            SettingsControls.ToggleWidth,
+            () => SettingsControls.DrawToggle(cfg, () => cfg.MountWhileWaitingForFates, v => cfg.MountWhileWaitingForFates = v, "##gen_mount_waiting"),
+            SettingsRow.ToggleHeight);
+
         SettingsRow.Draw(Loc.T(L.Settings.AutoPause),
             Loc.T(L.Settings.AutoPauseHelp),
             SettingsControls.ToggleWidth,
