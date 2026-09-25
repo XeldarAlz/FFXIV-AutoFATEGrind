@@ -33,8 +33,12 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private const float InteractRangeMeters = 3f;
     private const float TeleportRetryProgressMeters = 3.0f;
     private const float TeleportShortcutMinSavingMeters = 300f;
-    private const int   MoveToFateWatchdogMs = 60_000;
-    // Slack on top of the in-move deadline so clib's own graceful 60s exit wins over the hard cancel
+    private const int   MoveToFateMinWatchdogMs = 60_000;
+    private const int   MoveToFateMaxWatchdogMs = 240_000;
+    private const int   MoveToFateWatchdogSlackMs = 30_000;
+    // A slower effective speed allows detours and ground travel; the deadline still catches circling routes.
+    private const float MoveToFateMinimumSpeedMetersPerSecond = 3f;
+    // Slack on top of the in-move deadline so clib's own graceful exit wins over the hard cancel
     // when it is following a path; the hard cancel only catches a wedge in a non-polling phase.
     private const int   MoveOpUnwindSlackMs = 10_000;
     private const int   MoveProgressLogMs = 15_000;
