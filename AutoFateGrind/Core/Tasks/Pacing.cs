@@ -74,5 +74,8 @@ internal static class Pacing
 
     public static int RollIndex(int count) => random.Next(count);
 
+    public static int RollBetween(int minimum, int maximum)
+        => Roll(Math.Min(minimum, maximum), Math.Max(minimum, maximum));
+
     private static int Roll(int minimum, int maximum) => random.Next(minimum, maximum + 1);
 }

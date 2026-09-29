@@ -136,6 +136,15 @@ public sealed class Configuration : IPluginConfiguration
     public int PacingReactionMaxSec { get; set; } = 6;
     public bool PacingPickVariety { get; set; } = false;
 
+    // Level indexes into BossMod NormalMovement options, rolled per FATE: delays None/Short/Long, cushion None/Small/Medium/Large.
+    public bool CombatMovementEnabled { get; set; } = false;
+    public int CombatDodgeDelayMin { get; set; } = 0;
+    public int CombatDodgeDelayMax { get; set; } = 1;
+    public int CombatMoveDelayMin { get; set; } = 0;
+    public int CombatMoveDelayMax { get; set; } = 0;
+    public int CombatCushionMin { get; set; } = 0;
+    public int CombatCushionMax { get; set; } = 2;
+
     public bool HumanizerEnabled { get; set; } = false;
     public int HumanizerFatesBeforeBreak { get; set; } = 20;
     public int HumanizerBreakMinMinutes { get; set; } = 5;

@@ -111,6 +111,7 @@ public sealed class Plugin : IDalamudPlugin
         Svc.ClientState.Login -= OnLogin;
 
         Core.Ipc.BossModFateHelper.ReleaseChocobo();
+        Core.Ipc.BossModMovementTuning.Release();
 
         WindowSystem.RemoveAllWindows();
         appWindow.Dispose();

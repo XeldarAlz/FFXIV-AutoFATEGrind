@@ -1,3 +1,4 @@
+using AutoFateGrind.Core.Ipc;
 using AutoFateGrind.Core.Localization;
 using AutoFateGrind.Core.Zones;
 using AutoFateGrind.Windows.Components;
@@ -8,9 +9,16 @@ namespace AutoFateGrind.Windows.Sections.Config;
 
 internal static class HumanizerSettings
 {
+    private const long ModuleCheckIntervalMs = 5_000;
+
+    private static string? moduleCheckPreset;
+    private static long moduleCheckTick;
+    private static bool moduleMissing;
+
     public static void Draw(Configuration cfg)
     {
         DrawPacingGroup(cfg);
+        DrawCombatMovementGroup(cfg);
         DrawBreaksGroup(cfg);
         using var more = Motion.PushSection("##hum_more", cfg.HumanizerEnabled);
         if (more is null)
@@ -51,6 +59,68 @@ internal static class HumanizerSettings
             SettingsControls.ToggleWidth,
             () => SettingsControls.DrawToggle(cfg, () => cfg.PacingPickVariety, v => cfg.PacingPickVariety = v, "##pace_variety"),
             SettingsRow.ToggleHeight);
+    }
+
+    private static void DrawCombatMovementGroup(Configuration cfg)
+    {
+        using var group = SettingsGroup.Begin(Loc.T(L.Settings.CombatMovement));
+
+        SettingsRow.Draw(Loc.T(L.Settings.CombatMovementEnable),
+            Loc.T(L.Settings.CombatMovementEnableHelp),
+            SettingsControls.ToggleWidth,
+            () => SettingsControls.DrawToggle(cfg, () => cfg.CombatMovementEnabled, v => cfg.CombatMovementEnabled = v, "##combat_move_on"),
+            SettingsRow.ToggleHeight);
+
+        using var body = Motion.PushSwitch("##combat_move_body", cfg.CombatMovementEnabled);
+        if (!cfg.CombatMovementEnabled)
+        {
+            SettingsRow.Note(Loc.T(L.Settings.CombatMovementOff));
+            return;
+        }
+
+        var none = Loc.T(L.Settings.MovementLevelNone);
+        string[] delayLabels = [none, Loc.T(L.Settings.DelayShort), Loc.T(L.Settings.DelayLong)];
+        string[] roomLabels = [none, Loc.T(L.Settings.RoomSmall), Loc.T(L.Settings.RoomMedium), Loc.T(L.Settings.RoomLarge)];
+
+        SettingsRow.Draw(Loc.T(L.Settings.DodgeDelay),
+            Loc.T(L.Settings.DodgeDelayHelp),
+            SettingsControls.ComboRangeWidth(),
+            () => SettingsControls.DrawComboRange(cfg, "##combat_dodge_min", "##combat_dodge_max", delayLabels,
+                () => cfg.CombatDodgeDelayMin, v => cfg.CombatDodgeDelayMin = v,
+                () => cfg.CombatDodgeDelayMax, v => cfg.CombatDodgeDelayMax = v));
+
+        SettingsRow.Draw(Loc.T(L.Settings.MoveDelay),
+            Loc.T(L.Settings.MoveDelayHelp),
+            SettingsControls.ComboRangeWidth(),
+            () => SettingsControls.DrawComboRange(cfg, "##combat_move_min", "##combat_move_max", delayLabels,
+                () => cfg.CombatMoveDelayMin, v => cfg.CombatMoveDelayMin = v,
+                () => cfg.CombatMoveDelayMax, v => cfg.CombatMoveDelayMax = v));
+
+        SettingsRow.Draw(Loc.T(L.Settings.DangerRoom),
+            Loc.T(L.Settings.DangerRoomHelp),
+            SettingsControls.ComboRangeWidth(),
+            () => SettingsControls.DrawComboRange(cfg, "##combat_room_min", "##combat_room_max", roomLabels,
+                () => cfg.CombatCushionMin, v => cfg.CombatCushionMin = v,
+                () => cfg.CombatCushionMax, v => cfg.CombatCushionMax = v));
+
+        if (PresetLacksMovementModule(cfg.CombatPresetName))
+        {
+            SettingsRow.Note(Loc.T(L.Settings.CombatMovementNoModule, cfg.CombatPresetName), Styling.AccentAmber);
+        }
+    }
+
+    // Fetching the preset serializes it on BossMod's side, so the check is only refreshed every few seconds.
+    private static bool PresetLacksMovementModule(string preset)
+    {
+        var now = Environment.TickCount64;
+        if (preset != moduleCheckPreset || now - moduleCheckTick >= ModuleCheckIntervalMs)
+        {
+            moduleCheckPreset = preset;
+            moduleCheckTick = now;
+            moduleMissing = BossModMovementTuning.PresetHasModule(preset) == false;
+        }
+
+        return moduleMissing;
     }
 
     private static void DrawBreaksGroup(Configuration cfg)

@@ -156,6 +156,7 @@ public sealed partial class AutoFate
         SyncToFate(fateId);
         AssertPresetActive(preset);
         ResetEngageOverrides(preset);
+        BossModMovementTuning.Apply(preset, fateId);
 
         await EnsureObstacleMapForEngage(fate);
 
