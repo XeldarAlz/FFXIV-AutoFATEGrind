@@ -431,6 +431,7 @@ internal static class L
             new("changelog.r22000.2", "Fixed the trade, repair and break hand-offs starting while the character was still in combat, which left it standing in a follow-up FATE with the rotation off; the grind now plays that FATE first and hands off after it"),
             new("changelog.r22000.3", "Fixed a trade whose teleport could not be cast skipping its items for the rest of the run; the next FATE retries it once"),
             new("changelog.r22000.4", "Fixed melee jobs parking on the edge of the FATE ring in escort FATEs such as Mascot March, where the mobs walk out of the ring"),
+            new("changelog.r22000.5", "Added Teleport out when stuck under Settings > General: when the run makes no progress for a set time, such as after landing on water where the yo-kai minion cannot be summoned, the character teleports to the nearest aetheryte and carries on. Reported in issue #87"),
         ];
 
         public static readonly LocString[] Release21900 =
@@ -634,6 +635,10 @@ internal static class L
         public static readonly LocString AutoPauseHelp = new("settings.general.autoPauseHelp", "Pause the run while you are inside a duty, trial, raid, or any other instanced content, then resume it once you are back outside. Your zones, goal, and session stats are kept, and paused time does not count toward a time-based goal.");
         public static readonly LocString AutoResume = new("settings.general.autoResume", "Auto-resume on fault");
         public static readonly LocString AutoResumeHelp = new("settings.general.autoResumeHelp", "If the grind hits an unrecoverable error and stops, automatically restart it (up to 3 times in a row) instead of ending the run. Leave off if you want faults to surface.");
+        public static readonly LocString StuckRescue = new("settings.general.stuckRescue", "Teleport out when stuck");
+        public static readonly LocString StuckRescueHelp = new("settings.general.stuckRescueHelp", "If the run makes no progress for this long (no FATE finished, no zone change, no combat, and the character stays within 15 m of one spot), teleport to the nearest aetheryte in the zone and carry on from there. Catches cases like landing on water, where the yo-kai minion cannot be summoned. Stops after 3 teleports with no FATE finished in between.");
+        public static readonly LocString StuckRescueAfter = new("settings.general.stuckRescueAfter", "Stuck after");
+        public static readonly LocString StuckRescueAfterHelp = new("settings.general.stuckRescueAfterHelp", "How long the run must make no progress before AFG teleports out.");
         public static readonly LocString TravelFatePlay = new("settings.travel.fatePlay", "FATE play");
         public static readonly LocString CollectHandIn = new("settings.general.collectHandIn", "Hand in items yourself");
         public static readonly LocString CollectHandInHelp = new("settings.general.collectHandInHelp", "AFG walks to the hand-in NPC as soon as you hold a batch, and turns in any leftovers once the FATE hits 100%. Off leaves turn-ins to BossMod's FATE helper, which only hands in at 10 items.");

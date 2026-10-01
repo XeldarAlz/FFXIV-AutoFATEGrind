@@ -1,5 +1,6 @@
 using AutoFateGrind.Core.Game.Fates;
 using AutoFateGrind.Core.Localization;
+using AutoFateGrind.Core.Tasks;
 using AutoFateGrind.Windows.Components;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Utility;
@@ -80,5 +81,24 @@ internal static class GeneralSettings
             SettingsControls.ToggleWidth,
             () => SettingsControls.DrawToggle(cfg, () => cfg.AutoResumeOnFault, v => cfg.AutoResumeOnFault = v, "##gen_autoresume"),
             SettingsRow.ToggleHeight);
+
+        SettingsRow.Draw(Loc.T(L.Settings.StuckRescue),
+            Loc.T(L.Settings.StuckRescueHelp),
+            SettingsControls.ToggleWidth,
+            () => SettingsControls.DrawToggle(cfg, () => cfg.StuckRescueEnabled, v => cfg.StuckRescueEnabled = v, "##gen_stuckrescue"),
+            SettingsRow.ToggleHeight);
+
+        using (Motion.PushSwitch("##gen_stuckrescue_body", cfg.StuckRescueEnabled))
+        {
+            if (cfg.StuckRescueEnabled)
+            {
+                SettingsRow.Draw(Loc.T(L.Settings.StuckRescueAfter),
+                    Loc.T(L.Settings.StuckRescueAfterHelp),
+                    SettingsControls.RowSliderWidth,
+                    () => SettingsControls.DrawIntSlider(cfg, "##gen_stuckrescue_after",
+                        () => cfg.StuckRescueMinutes, v => cfg.StuckRescueMinutes = v,
+                        AutoFate.StuckRescueMinMinutes, AutoFate.StuckRescueMaxMinutes, Loc.T(L.Settings.MinutesFormat)));
+            }
+        }
     }
 }

@@ -49,7 +49,7 @@ Lists every FATE zone from A Realm Reborn through Dawntrail in one window. Tick 
 - **Pause & resume**: park a run without losing your zones, goal, or session stats, and auto-pause while you're in a duty so you can queue for content mid-grind.
 - **Party invites**: auto-declines incoming invites during a run after a random delay, with an optional reply message.
 - **GM alert**: stops the bot when a GM is near, with optional toast, beeps, or custom commands.
-- **Resilient**: cancellable mid-run, and your selection persists across reloads.
+- **Resilient**: cancellable mid-run, your selection persists across reloads, and a run that makes no progress for 5 minutes (adjustable; for example parked on water where a yo-kai minion cannot be summoned) teleports to the nearest aetheryte and carries on.
 
 ## Install
 
