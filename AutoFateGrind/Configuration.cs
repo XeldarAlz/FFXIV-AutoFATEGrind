@@ -76,6 +76,10 @@ public sealed class Configuration : IPluginConfiguration
     // Auto-restart on fault, bounded by MaxConsecutiveStateErrors.
     public bool AutoResumeOnFault { get; set; } = true;
 
+    // Teleport to the zone's nearest aetheryte after this many minutes with no progress (issue #87).
+    public bool StuckRescueEnabled { get; set; } = true;
+    public int StuckRescueMinutes { get; set; } = 5;
+
     public bool AutoPauseInContent { get; set; } = true;
 
     // Off leaves Collect turn-ins to BossMod's FATE helper, which only hands in at 10 items.
