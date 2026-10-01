@@ -244,6 +244,12 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
                 LogHeartbeat(state);
             }
 
+            if (await RescueIfStuck(state))
+            {
+                await NextFrame();
+                continue;
+            }
+
             switch (state)
             {
                 case GrindState.AllDone:
@@ -348,7 +354,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
         var nav = NavmeshIPC.Instance;
         var navStr = $"run={nav.IsRunning()} busy={nav.IsBusy()}";
         Diag($"HEARTBEAT state={state} ({inState}s) terr={Svc.ClientState.TerritoryType} zone={zone.Name} pos={posStr} fate={fateStr} {navStr} cond={ConditionTag()} " +
-             $"done={session.CompletedCount} ret={returnToFateId?.ToString() ?? "-"} followUp={followUpFateId?.ToString() ?? "-"} collectReward={(CollectRewardPending ? pendingRewardSpawn.FateId.ToString() : "-")} stuckBL={sessionStuckFateIds.Count}{SharedFateHeartbeat()}");
+             $"done={session.CompletedCount} ret={returnToFateId?.ToString() ?? "-"} followUp={followUpFateId?.ToString() ?? "-"} collectReward={(CollectRewardPending ? pendingRewardSpawn.FateId.ToString() : "-")} stuckBL={sessionStuckFateIds.Count}{SharedFateHeartbeat()}{StuckWatchHeartbeat()}");
 
         if (state is not GrindState.Engaging and not GrindState.WaitingForFates and not GrindState.WaitingForCollectReward and not GrindState.WaitingForYokaiMinion && inState >= 180)
             Diag($"STALL WARNING: state {state} held {inState}s — see prior heartbeats for context.");
@@ -377,8 +383,10 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
             return;
         }
 
-        ErrorIf(now - noProgressSinceMs >= NoProgressFaultMs,
-            $"No forward progress for {NoProgressFaultMs / 60000}m in state {state}; surfacing fault for recovery.");
+        // With the stuck rescue on, it gets the first try; the fault is the fallback when the teleport did not help.
+        var faultMs = NoProgressFaultMsFor(Plugin.Cfg);
+        ErrorIf(now - noProgressSinceMs >= faultMs,
+            $"No forward progress for {faultMs / 60000}m in state {state}; surfacing fault for recovery.");
     }
 
     private GrindState ComputeState()
