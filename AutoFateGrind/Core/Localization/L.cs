@@ -422,6 +422,11 @@ internal static class L
         public static readonly LocString New = new("changelog.new", "New");
         public static readonly LocPlural Changes = new("changelog.changes", "{0} change", "{0} changes");
 
+        public static readonly LocString[] Release21900 =
+        [
+            new("changelog.r21900.1", "Fixed the run stopping when gemstones reach the auto-trade threshold instead of going to the trader"),
+        ];
+
         public static readonly LocString[] Release21800 =
         [
             new("changelog.r21800.1", "Added a Mount option under Settings > Travel to pick which flying mount to ride instead of the mount roulette"),
