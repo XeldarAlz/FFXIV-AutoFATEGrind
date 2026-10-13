@@ -393,6 +393,7 @@
   "changelog.new": "Neu",
   "changelog.changes.one": "{0} Änderung",
   "changelog.changes.other": "{0} Änderungen",
+  "changelog.r21900.1": "Behoben: Der Lauf hielt an, wenn die Steine die Tausch-Schwelle erreichten, statt zum Händler zu gehen",
   "changelog.r21800.1": "Hinzugefügt: Option „Reittier“ unter Einstellungen > Reisen, um statt des Reittier-Roulettes ein fliegendes Reittier zu wählen",
   "changelog.r21800.2": "Hinzugefügt: Option „Ausweichen im Kampf variieren“ unter Einstellungen > Humanizer, die jedem FATE ein eigenes Ausweich-Timing aus deinen Bereichen gibt. Beigetragen von blackappleD",
   "changelog.r21800.3": "Hinzugefügt: „Eine Anzahl Stufen“ bei „Wie lange“ auf der Grind-Seite: Der Lauf endet, sobald deine Klasse so viele Stufen aufgestiegen ist. Beigetragen von mmkhatib",

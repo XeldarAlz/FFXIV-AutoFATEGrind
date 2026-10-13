@@ -393,6 +393,7 @@
   "changelog.new": "Novo",
   "changelog.changes.one": "{0} mudança",
   "changelog.changes.other": "{0} mudanças",
+  "changelog.r21900.1": "Corrigida a sessão que parava quando as gemas atingiam o limite da troca automática em vez de ir ao comerciante",
   "changelog.r21800.1": "Adicionada a opção Montaria em Configurações > Viagem para escolher qual montaria voadora usar em vez da roleta de montarias",
   "changelog.r21800.2": "Adicionada a opção Variar as esquivas em combate em Configurações > Humanizador, que dá a cada FATE seu próprio ritmo de esquiva dentro das suas faixas. Contribuição de blackappleD",
   "changelog.r21800.3": "Adicionado Um número de níveis a Por quanto tempo na página de farm: a sessão termina quando sua classe sobe essa quantidade de níveis. Contribuição de mmkhatib",

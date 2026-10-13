@@ -393,6 +393,7 @@
   "changelog.new": "New",
   "changelog.changes.one": "{0} change",
   "changelog.changes.other": "{0} changes",
+  "changelog.r21900.1": "Fixed the run stopping when gemstones reach the auto-trade threshold instead of going to the trader",
   "changelog.r21800.1": "Added a Mount option under Settings > Travel to pick which flying mount to ride instead of the mount roulette",
   "changelog.r21800.2": "Added Vary dodging in combat under Settings > Humanizer, giving each FATE its own dodge timing from ranges you set. Contributed by blackappleD",
   "changelog.r21800.3": "Added A number of levels to How long on the Grind page: the run ends once your job gains that many levels. Contributed by mmkhatib",

@@ -393,6 +393,7 @@
   "changelog.new": "Yeni",
   "changelog.changes.one": "{0} değişiklik",
   "changelog.changes.other": "{0} değişiklik",
+  "changelog.r21900.1": "Düzeltildi: Bicolor Gemstone sayısı otomatik takas eşiğine ulaşınca çalışma tüccara gitmek yerine duruyordu",
   "changelog.r21800.1": "Eklendi: Ayarlar > Seyahat altında Binek seçeneği; binek ruleti yerine hangi uçan bineğin kullanılacağını seçebilirsiniz",
   "changelog.r21800.2": "Eklendi: Ayarlar > İnsanlaştırıcı altında Savaşta kaçınmayı çeşitlendir seçeneği; her FATE, belirlediğiniz aralıklardan kendi kaçınma zamanlamasını seçer. Katkı: blackappleD",
   "changelog.r21800.3": "Eklendi: Farm sayfasındaki Ne kadar sorusuna Belirli sayıda seviye; sınıfınız bu kadar seviye atlayınca çalışma sona erer. Katkı: mmkhatib",

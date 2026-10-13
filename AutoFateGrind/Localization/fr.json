@@ -393,6 +393,7 @@
   "changelog.new": "Nouveau",
   "changelog.changes.one": "{0} changement",
   "changelog.changes.other": "{0} changements",
+  "changelog.r21900.1": "Correction de la session qui s'arrêtait quand les gemmes atteignaient le seuil d'échange automatique au lieu d'aller chez le marchand",
   "changelog.r21800.1": "Ajout de l'option Monture dans Réglages > Déplacement pour choisir sa monture volante au lieu de la monture aléatoire",
   "changelog.r21800.2": "Ajout de l'option Varier les esquives en combat dans Réglages > Humaniseur : chaque ALÉA a son propre rythme d'esquive dans vos plages. Contribution de blackappleD",
   "changelog.r21800.3": "Ajout de Un nombre de niveaux à Combien de temps sur la page de farm : la session s'arrête quand votre classe a gagné autant de niveaux. Contribution de mmkhatib",

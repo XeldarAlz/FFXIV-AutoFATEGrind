@@ -393,6 +393,7 @@
   "changelog.new": "Nuevo",
   "changelog.changes.one": "{0} cambio",
   "changelog.changes.other": "{0} cambios",
+  "changelog.r21900.1": "Corregido que la sesión se detuviera al llegar las gemas al umbral de canje automático en lugar de ir al comerciante",
   "changelog.r21800.1": "Añadida la opción Montura en Ajustes > Viaje para elegir qué montura voladora usar en lugar de la ruleta de monturas",
   "changelog.r21800.2": "Añadida la opción Variar las esquivas en combate en Ajustes > Humanizador, que da a cada FATE su propio ritmo de esquiva dentro de tus rangos. Contribución de blackappleD",
   "changelog.r21800.3": "Añadido Un número de niveles a Cuánto tiempo en la página de farmeo: la sesión termina cuando tu clase sube esa cantidad de niveles. Contribución de mmkhatib",
