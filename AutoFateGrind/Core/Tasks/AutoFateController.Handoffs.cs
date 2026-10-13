@@ -10,18 +10,33 @@ internal sealed partial class AutoFateController
     private AutoCommon? currentTask;
     private AutoFate? grindTask;
 
+    // clib calls OnCompleted from a thread-pool thread, where Dalamud's object table throws, and nothing observes that
+    // exception: the trade hand-off's trader pick died there and the run stopped without a word (issue #97).
     private void RunTask(AutoCommon task, Action onCompleted)
     {
         currentTask = task;
         Svc.Automation.Start(task, OnCompleted: () =>
+            ECommons.DalamudServices.Svc.Framework.RunOnFrameworkThread(() => CompleteTask(task, onCompleted)));
+    }
+
+    private void CompleteTask(AutoCommon task, Action onCompleted)
+    {
+        if (!ReferenceEquals(currentTask, task))
         {
-            if (!ReferenceEquals(currentTask, task))
-            {
-                Diag($"{task.GetType().Name} finished but is no longer the current task (stopped, paused, or superseded); skipping hand-off.");
-                return;
-            }
+            Diag($"{task.GetType().Name} finished but is no longer the current task (stopped, paused, or superseded); skipping hand-off.");
+            return;
+        }
+
+        try
+        {
             onCompleted();
-        });
+        }
+        catch (Exception exception)
+        {
+            RunLog.Error(exception, $"Hand-off after {task.GetType().Name} failed; the run ends.");
+            ECommons.DalamudServices.Svc.Chat.PrintError($"[AFG] The run stopped after {task.GetType().Name}: {exception.Message}. /xllog has the details.");
+            EndRun(session);
+        }
     }
 
     // clib.Automation buffers only one queued task; multi-step handoffs chain via OnCompleted.
