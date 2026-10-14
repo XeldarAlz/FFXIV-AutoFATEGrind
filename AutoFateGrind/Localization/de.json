@@ -397,6 +397,7 @@
   "changelog.changes.one": "{0} Änderung",
   "changelog.changes.other": "{0} Änderungen",
   "changelog.r22100.1": "Hinzugefügt: Option „So viele Gegner wie möglich ziehen“ unter Einstellungen > Reisen: Ein Tank markiert jeden untätigen Gegner des FATEs in Reichweite mit seinem Fernangriff und lässt BossMod die Gruppe mit Flächenangriffen erledigen, mit Reichweite, Höchstzahl an Gegnern und LP-Werten zum Stoppen und Fortsetzen. Beigetragen von blackappleD",
+  "changelog.r22100.2": "Behoben: Verbündete NPCs, die im FATE an deiner Seite kämpfen, wurden als FATE-Gegner gezählt, sodass der Charakter zu einem Verbündeten lief oder weiter nach Gegnern suchte, die schon weg waren. Beigetragen von blackappleD",
   "changelog.r22000.1": "Hinzugefügt: Jedes Gebiet auf der Grind-Seite: eine Anzahl FATEs für jedes ausgewählte Gebiet, danach zieht der Grind weiter, und der Lauf endet, sobald jedes Gebiet seinen Anteil hatte",
   "changelog.r22000.2": "Behoben: Die Übergaben für Tausch, Reparatur und Pause starteten, während der Charakter noch im Kampf war, und ließen ihn mit abgeschalteter Rotation in einem Folge-FATE stehen; der Grind spielt dieses FATE jetzt zuerst und übergibt danach",
   "changelog.r22000.3": "Behoben: Ein Tausch, dessen Teleport nicht gezaubert werden konnte, übersprang seine Gegenstände für den Rest des Laufs; das nächste FATE versucht ihn jetzt einmal erneut",

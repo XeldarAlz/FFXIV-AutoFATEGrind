@@ -397,6 +397,7 @@
   "changelog.changes.one": "{0} mudança",
   "changelog.changes.other": "{0} mudanças",
   "changelog.r22100.1": "Adicionada a opção Puxar o máximo de inimigos possível em Configurações > Viagem: um tanque puxa todo inimigo ocioso do FATE ao alcance com seu ataque à distância e deixa o BossMod derrubar o grupo em área, com alcance, máximo de inimigos e PV para parar e retomar a puxada. Contribuição de blackappleD",
+  "changelog.r22100.2": "Corrigidos os NPCs aliados que lutam ao seu lado em um FATE sendo contados como inimigos do FATE, o que podia levar o personagem até um aliado ou fazê-lo procurar inimigos que já não estavam lá. Contribuição de blackappleD",
   "changelog.r22000.1": "Adicionado Cada zona na página Grind: um número de FATEs para cada zona selecionada, após o qual a sessão passa à próxima e termina quando todas tiveram sua parte",
   "changelog.r22000.2": "Corrigido o repasse para troca, reparo e pausa que começava com o personagem ainda em combate, deixando-o parado em um FATE encadeado com a rotação desligada; a sessão agora joga esse FATE primeiro e repassa depois",
   "changelog.r22000.3": "Corrigida a troca cujo teleporte não podia ser conjurado e que pulava seus itens pelo resto da sessão; o próximo FATE tenta de novo uma vez",

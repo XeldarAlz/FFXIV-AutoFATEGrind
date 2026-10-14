@@ -397,6 +397,7 @@
   "changelog.changes.one": "{0} change",
   "changelog.changes.other": "{0} changes",
   "changelog.r22100.1": "Added Pull as many mobs as possible under Settings > Travel: a tank tags every idle mob of the FATE in reach with its ranged attack, then lets BossMod AoE the pack down, with a reach, a mob cap and HP points to stop and resume pulling. Contributed by blackappleD",
+  "changelog.r22100.2": "Fixed allied NPCs that fight alongside you in a FATE being counted as FATE mobs, which could walk the character to an ally or keep it searching for mobs that were already gone. Contributed by blackappleD",
   "changelog.r22000.1": "Added Each zone on the Grind page: a number of FATEs for every selected zone, after which the grind moves on and the run ends once each zone has had its share",
   "changelog.r22000.2": "Fixed the trade, repair and break hand-offs starting while the character was still in combat, which left it standing in a follow-up FATE with the rotation off; the grind now plays that FATE first and hands off after it",
   "changelog.r22000.3": "Fixed a trade whose teleport could not be cast skipping its items for the rest of the run; the next FATE retries it once",

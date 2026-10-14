@@ -397,6 +397,7 @@
   "changelog.changes.one": "{0} changement",
   "changelog.changes.other": "{0} changements",
   "changelog.r22100.1": "Ajout de l'option Attirer le plus d'ennemis possible dans Réglages > Déplacement : un tank attire chaque ennemi inactif de l'ALÉA à portée avec son attaque à distance, puis laisse BossMod éliminer le groupe en zone, avec une portée, un nombre maximum d'ennemis et des seuils de PV pour arrêter et reprendre. Contribution de blackappleD",
+  "changelog.r22100.2": "Correction des PNJ alliés qui combattent à vos côtés dans un ALÉA comptés comme des ennemis de l'ALÉA, ce qui pouvait mener le personnage vers un allié ou lui faire chercher des ennemis déjà disparus. Contribution de blackappleD",
   "changelog.r22000.1": "Ajout de Chaque zone sur la page Grind : un nombre d'ALÉA par zone sélectionnée, après quoi la session passe à la suivante et se termine quand chaque zone a eu sa part",
   "changelog.r22000.2": "Correction des passages à l'échange, à la réparation et à la pause qui démarraient alors que le personnage était encore en combat, le laissant immobile dans un ALÉA enchaîné avec la rotation coupée ; la session joue d'abord cet ALÉA et passe la main ensuite",
   "changelog.r22000.3": "Correction d'un échange dont la téléportation ne pouvait pas être lancée et qui ignorait ses objets pour le reste de la session ; l'ALÉA suivant le retente une fois",

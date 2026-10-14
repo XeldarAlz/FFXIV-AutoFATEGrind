@@ -397,6 +397,7 @@
   "changelog.changes.one": "{0} değişiklik",
   "changelog.changes.other": "{0} değişiklik",
   "changelog.r22100.1": "Eklendi: Ayarlar > Seyahat altında Mümkün olduğunca çok düşman çek seçeneği; tank, menzildeki her boştaki FATE düşmanını menzilli saldırısıyla çeker, ardından BossMod grubu alan saldırılarıyla temizler; menzil, en fazla düşman ve çekmeyi durdurma ve sürdürme canı ayarlanabilir. Katkı: blackappleD",
+  "changelog.r22100.2": "Düzeltildi: FATE'te yanınızda savaşan dost NPC'ler FATE düşmanı sayılıyordu; bu da karakterin bir dosta yürümesine ya da artık olmayan düşmanları aramaya devam etmesine yol açabiliyordu. Katkı: blackappleD",
   "changelog.r22000.1": "Eklendi: Grind sayfasında Her bölge: seçili her bölge için belirli sayıda FATE; sonra sıradaki bölgeye geçilir ve her bölge payını alınca çalışma biter",
   "changelog.r22000.2": "Düzeltildi: Takas, tamir ve mola devirleri karakter hâlâ savaştayken başlıyor ve onu rotasyon kapalı hâlde zincir FATE'in içinde dikilir bırakıyordu; artık önce o FATE oynanır, devir sonra yapılır",
   "changelog.r22000.3": "Düzeltildi: Işınlanması başlatılamayan bir takas, eşyalarını çalışmanın kalanı boyunca atlıyordu; sonraki FATE bir kez daha dener",

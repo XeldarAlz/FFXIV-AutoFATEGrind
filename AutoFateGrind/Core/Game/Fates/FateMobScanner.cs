@@ -3,11 +3,13 @@ using DalamudStatusFlags = Dalamud.Game.ClientState.Objects.Enums.StatusFlags;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.ClientState.Objects.Types;
 using ECommons.DalamudServices;
+using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using CSCharacter = FFXIVClientStructs.FFXIV.Client.Game.Character.Character;
 using CSGameObject = FFXIVClientStructs.FFXIV.Client.Game.Object.GameObject;
 
 namespace AutoFateGrind.Core.Game.Fates;
@@ -328,7 +330,13 @@ internal static unsafe class FateMobScanner
         {
             return false;
         }
-        return native->BattleNpcSubKind == BattleNpcSubKind.Combatant;
+        if (native->BattleNpcSubKind != BattleNpcSubKind.Combatant)
+        {
+            return false;
+        }
+        // FATE allies (escorts, the hunters fighting alongside you) carry the FATE id and the Combatant sub-kind too;
+        // the game's own target classification is what tells them from the mobs, the same check BossMod uses.
+        return ActionManager.ClassifyTarget((CSCharacter*)npc.Address) == ActionManager.TargetCategory.Enemy;
     }
 
     private static float DistanceToHitbox(Vector3 from, IBattleNpc npc)

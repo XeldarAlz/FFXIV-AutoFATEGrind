@@ -428,6 +428,7 @@ internal static class L
         public static readonly LocString[] Release22100 =
         [
             new("changelog.r22100.1", "Added Pull as many mobs as possible under Settings > Travel: a tank tags every idle mob of the FATE in reach with its ranged attack, then lets BossMod AoE the pack down, with a reach, a mob cap and HP points to stop and resume pulling. Contributed by blackappleD"),
+            new("changelog.r22100.2", "Fixed allied NPCs that fight alongside you in a FATE being counted as FATE mobs, which could walk the character to an ally or keep it searching for mobs that were already gone. Contributed by blackappleD"),
         ];
 
         public static readonly LocString[] Release22000 =
