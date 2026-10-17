@@ -633,7 +633,7 @@ internal static class L
         public static readonly LocString AutoPause = new("settings.general.autoPause", "Auto-pause in content");
         public static readonly LocString AutoPauseHelp = new("settings.general.autoPauseHelp", "Pause the run while you are inside a duty, trial, raid, or any other instanced content, then resume it once you are back outside. Your zones, goal, and session stats are kept, and paused time does not count toward a time-based goal.");
         public static readonly LocString AutoResume = new("settings.general.autoResume", "Auto-resume on fault");
-        public static readonly LocString AutoResumeHelp = new("settings.general.autoResumeHelp", "If the grind hits an unrecoverable error and stops, automatically restart it (up to 3 times in 5 minutes) instead of ending the run. Leave off if you want faults to surface.");
+        public static readonly LocString AutoResumeHelp = new("settings.general.autoResumeHelp", "If the grind hits an unrecoverable error and stops, automatically restart it (up to 3 times in a row) instead of ending the run. Leave off if you want faults to surface.");
         public static readonly LocString TravelFatePlay = new("settings.travel.fatePlay", "FATE play");
         public static readonly LocString CollectHandIn = new("settings.general.collectHandIn", "Hand in items yourself");
         public static readonly LocString CollectHandInHelp = new("settings.general.collectHandInHelp", "AFG walks to the hand-in NPC as soon as you hold a batch, and turns in any leftovers once the FATE hits 100%. Off leaves turn-ins to BossMod's FATE helper, which only hands in at 10 items.");

@@ -547,7 +547,7 @@
   "settings.general.autoPause": "Im Inhalt automatisch pausieren",
   "settings.general.autoPauseHelp": "Pausiert den Durchlauf, während du in einem Dungeon, einer Prüfung, einem Raid oder anderem Instanzinhalt bist, und setzt ihn draußen fort. Gebiete, Ziel und Sitzungsstatistik bleiben erhalten, und pausierte Zeit zählt nicht für ein Zeitziel.",
   "settings.general.autoResume": "Nach Fehler automatisch fortsetzen",
-  "settings.general.autoResumeHelp": "Wenn der Grind auf einen nicht behebbaren Fehler stößt und stoppt, wird er automatisch neu gestartet (bis zu 3-mal in 5 Minuten), statt den Durchlauf zu beenden. Lass es aus, wenn Fehler sichtbar werden sollen.",
+  "settings.general.autoResumeHelp": "Wenn der Grind auf einen nicht behebbaren Fehler stößt und stoppt, wird er automatisch neu gestartet (bis zu 3-mal hintereinander), statt den Durchlauf zu beenden. Lass es aus, wenn Fehler sichtbar werden sollen.",
   "settings.travel.fatePlay": "FATE-Ablauf",
   "settings.general.collectHandIn": "Gegenstände selbst abgeben",
   "settings.general.collectHandInHelp": "AFG läuft zum Abgabe-NPC, sobald du einen Stapel hältst, und gibt Reste ab, sobald das FATE 100 % erreicht. Aus überlässt die Abgabe dem FATE-Helfer von BossMod, der erst ab 10 Gegenständen abgibt.",
