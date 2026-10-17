@@ -29,7 +29,7 @@
 
 ## What it does
 
-Lists every FATE zone from A Realm Reborn through Dawntrail in one window. Tick the zones you want, press **Run selected**, and the plugin teleports to each one, scans for active FATEs, flies to them, engages, and rotates to the next selected zone when the current one runs dry.
+Lists every FATE zone from A Realm Reborn through Dawntrail in one window. Tick the zones you want, press **Run selected**, and the plugin teleports to each one, scans for active FATEs, flies to them, engages, and rotates to the next selected zone when the current one runs dry. Set **Each zone** on the Grind page to a number of FATEs and it moves on after that many in every zone, ending the run once each zone has had its share.
 
 ## Features
 

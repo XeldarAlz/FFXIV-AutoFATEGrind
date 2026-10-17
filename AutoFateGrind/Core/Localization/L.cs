@@ -111,6 +111,8 @@ internal static class L
         public static readonly LocString ALengthOfTime = new("grind.aLengthOfTime", "A length of time");
         public static readonly LocString ANumberOfLevels = new("grind.aNumberOfLevels", "A number of levels");
         public static readonly LocString Afterwards = new("grind.afterwards", "Afterwards");
+        public static readonly LocString EachZone = new("grind.eachZone", "Each zone");
+        public static readonly LocString ZoneAsManyAsItFinds = new("grind.zoneAsManyAsItFinds", "As many as it finds");
         public static readonly LocString AfterStayShort = new("grind.after.stay.short", "Stay put");
         public static readonly LocString AfterInnShort = new("grind.after.inn.short", "Go to the inn");
         public static readonly LocString AfterLogoutShort = new("grind.after.logout.short", "Log out");
@@ -130,6 +132,7 @@ internal static class L
         public static readonly LocString GoalFates = new("grind.goal.fates", "{0} FATEs");
         public static readonly LocString GoalMinutes = new("grind.goal.minutes", "{0} minutes");
         public static readonly LocString GoalLevels = new("grind.goal.levels", "{0} levels");
+        public static readonly LocString GoalPerZone = new("grind.goal.perZone", "{0} per zone");
         public static readonly LocString GoalYokai = new("grind.goal.yokai", "{0} medals per yo-kai");
         public static readonly LocString GoalSharedFates = new("grind.goal.sharedFates", "every Shared FATE rank is maxed");
         public static readonly LocString GoalAtma = new("grind.goal.atma", "your Atma are collected");

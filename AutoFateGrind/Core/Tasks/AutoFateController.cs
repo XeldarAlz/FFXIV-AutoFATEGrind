@@ -43,6 +43,7 @@ internal sealed partial class AutoFateController
     public void RunAll(IEnumerable<ZoneInfo> zones)
     {
         activeZones = zones.ToList();
+        ResetZoneShares();
         if (activeZones.Count == 0)
         {
             Diag("Start aborted: no zones selected.");
@@ -98,6 +99,15 @@ internal sealed partial class AutoFateController
         StartFateGrind(startIndex, s);
     }
 
+    // The registry hands out one ZoneInfo per zone for the plugin's lifetime, so each run starts its own count.
+    private void ResetZoneShares()
+    {
+        for (var zoneIndex = 0; zoneIndex < activeZones.Count; zoneIndex++)
+        {
+            activeZones[zoneIndex].CompletedThisRun = 0;
+        }
+    }
+
     private bool PlanYokaiZones(AutoFateSession owningSession)
     {
         var targetIndex = YokaiProgress.ResolveTargetIndex(Plugin.Cfg, owningSession.YokaiTargetMinionId);
@@ -110,6 +120,7 @@ internal sealed partial class AutoFateController
 
         owningSession.YokaiTargetMinionId = YokaiCatalog.Entries[targetIndex].MinionId;
         activeZones = zones;
+        ResetZoneShares();
         Diag($"Yo-kai target: {YokaiProgress.MinionName(targetIndex)} ({YokaiProgress.Statuses[targetIndex].Medals}/{YokaiProgress.MedalTarget(Plugin.Cfg)} medals), {zones.Count} zone(s).");
         return true;
     }

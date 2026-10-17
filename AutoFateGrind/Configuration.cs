@@ -44,6 +44,10 @@ public sealed class Configuration : IPluginConfiguration
     public bool StopAfterMinutesEnabled { get; set; } = false;
     public bool StopAfterLevelsEnabled { get; set; } = false;
 
+    // A share of FATEs per zone moves the run on to the next zone instead of ending it (issue #91).
+    public bool FatesPerZoneEnabled { get; set; } = false;
+    public int TargetFatesPerZone { get; set; } = 5;
+
     public string CombatPresetName { get; set; } = Core.AfgConstants.BundledCombatPresetName;
     public int BundledCombatPresetRevision { get; set; } = 0;
 

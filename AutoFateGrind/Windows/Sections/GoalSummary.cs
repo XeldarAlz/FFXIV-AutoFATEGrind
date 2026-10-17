@@ -49,6 +49,11 @@ internal static class GoalSummary
             Join(Loc.T(L.Grind.GoalLevels, RunLimits.LevelCap(cfg)));
         }
 
+        if (cfg.FatesPerZoneEnabled)
+        {
+            Join(Loc.T(L.Grind.GoalPerZone, RunLimits.FatesPerZoneCap(cfg)));
+        }
+
         return builder.Length == 0 ? Loc.T(L.Grind.GoalEndless) : builder.ToString();
     }
 

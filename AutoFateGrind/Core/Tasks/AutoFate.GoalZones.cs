@@ -1,6 +1,7 @@
 using AutoFateGrind.Core.Game.Items;
 using AutoFateGrind.Core.Game.Player;
 using AutoFateGrind.Core.Modes;
+using AutoFateGrind.Core.Zones;
 using ECommons.DalamudServices;
 using System.Threading.Tasks;
 
@@ -8,14 +9,22 @@ namespace AutoFateGrind.Core.Tasks;
 
 public sealed partial class AutoFate
 {
-    private bool GoalZoneDone() => Plugin.Cfg.ActiveMode.IsZoneDone(zone.TerritoryId);
+    private bool GoalZoneDone() => ZoneDone(zone);
 
-    private bool GoalZoneDoneAt(int candidateIndex) => Plugin.Cfg.ActiveMode.IsZoneDone(zones[candidateIndex].TerritoryId);
+    private bool GoalZoneDoneAt(int candidateIndex) => ZoneDone(zones[candidateIndex]);
+
+    private static bool ZoneDone(ZoneInfo candidate)
+        => RunLimits.ZoneShareDone(Plugin.Cfg, candidate) || Plugin.Cfg.ActiveMode.IsZoneDone(candidate.TerritoryId);
+
+    private static string ZoneDoneReason(ZoneInfo done)
+        => RunLimits.ZoneShareDone(Plugin.Cfg, done)
+            ? $"{done.CompletedThisRun} of {RunLimits.FatesPerZoneCap(Plugin.Cfg)} FATEs done here"
+            : Plugin.Cfg.ActiveMode.ZoneDoneReason(done.TerritoryId);
 
     private async Task<ExitReason> LeaveDoneZone()
     {
         var done = zone;
-        var reason = Plugin.Cfg.ActiveMode.ZoneDoneReason(done.TerritoryId);
+        var reason = ZoneDoneReason(done);
         Status = $"{done.Name} is done; moving on";
         await HoldForCollectReward();
         await WaitOutSettle();

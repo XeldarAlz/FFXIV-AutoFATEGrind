@@ -9,12 +9,17 @@ using System.Numerics;
 
 namespace AutoFateGrind.Windows.Sections;
 
-// Two questions, each answered with one segmented row: how long the run goes, and what happens afterwards.
+// Three questions, each answered with one segmented row: how long the run goes, how many FATEs each zone gets, and
+// what happens afterwards.
 internal static class StopRow
 {
     private enum Limit { GoalOnly, Fates, Minutes, Levels }
 
+    private enum ZoneShare { AsManyAsItFinds, ANumberOfFates }
+
     private readonly record struct Columns(float Label, float Control, float Right, float SegmentedWidth);
+
+    private readonly record struct StepperSpec(string Id, int Step, int Max, string Unit);
 
     private const float PadX = 18f;
     private const float PadY = 14f;
@@ -26,6 +31,7 @@ internal static class StopRow
     private const int FateStep = 5;
     private const int MinuteStep = 5;
     private const int LevelStep = 1;
+    private const int ZoneFateStep = 1;
 
     private static readonly AfterRunAction[] afterOrder =
         [AfterRunAction.StayLoggedIn, AfterRunAction.ReturnToInn, AfterRunAction.Logout, AfterRunAction.CloseGame];
@@ -39,6 +45,7 @@ internal static class StopRow
     ];
 
     private static readonly Segmented.Item[] limitItems = new Segmented.Item[4];
+    private static readonly Segmented.Item[] zoneItems = new Segmented.Item[2];
     private static readonly Segmented.Item[] afterItems = new Segmented.Item[4];
 
     public static void Draw(Configuration cfg, AutoFateController ctrl)
@@ -55,7 +62,8 @@ internal static class StopRow
 
         FillItems(cfg);
         var controlX = left + LabelColumnWidth();
-        var segmentedWidth = MathF.Min(MathF.Max(Segmented.PreferredWidth(limitItems), Segmented.PreferredWidth(afterItems)), right - controlX);
+        var preferredWidth = MathF.Max(Segmented.PreferredWidth(limitItems), MathF.Max(Segmented.PreferredWidth(zoneItems), Segmented.PreferredWidth(afterItems)));
+        var segmentedWidth = MathF.Min(preferredWidth, right - controlX);
         var columns = new Columns(left, controlX, right, segmentedWidth);
 
         dl.ChannelsSplit(2);
@@ -63,6 +71,8 @@ internal static class StopRow
 
         var y = origin.Y + padY;
         y = DrawLimitRow(cfg, editable, columns, y);
+        y += RowGap * scale;
+        y = DrawZoneRow(cfg, editable, columns, y);
         y += RowGap * scale;
         y = DrawAfterRow(cfg, editable, columns, y);
 
@@ -90,6 +100,9 @@ internal static class StopRow
         limitItems[(int)Limit.Minutes] = new Segmented.Item(FontAwesomeIcon.Stopwatch, Loc.T(L.Grind.ALengthOfTime));
         limitItems[(int)Limit.Levels] = new Segmented.Item(FontAwesomeIcon.LevelUpAlt, Loc.T(L.Grind.ANumberOfLevels));
 
+        zoneItems[(int)ZoneShare.AsManyAsItFinds] = new Segmented.Item(FontAwesomeIcon.Infinity, Loc.T(L.Grind.ZoneAsManyAsItFinds));
+        zoneItems[(int)ZoneShare.ANumberOfFates] = new Segmented.Item(FontAwesomeIcon.ListOl, Loc.T(L.Grind.ANumberOfFates));
+
         afterItems[0] = new Segmented.Item(FontAwesomeIcon.MapMarkerAlt, Loc.T(afterChoices[0].Short));
         afterItems[1] = new Segmented.Item(FontAwesomeIcon.Bed, Loc.T(afterChoices[1].Short));
         afterItems[2] = new Segmented.Item(FontAwesomeIcon.SignOutAlt, Loc.T(afterChoices[2].Short));
@@ -114,52 +127,95 @@ internal static class StopRow
 
         if (limit == Limit.GoalOnly) return y + rowHeight;
 
-        var besideX = columns.Control + columns.SegmentedWidth + Gap * scale;
-        if (besideX + LimitValueWidth(limit) <= columns.Right)
+        var spec = limit switch
         {
-            DrawLimitValue(cfg, editable, limit, besideX, y, rowHeight);
+            Limit.Fates   => new StepperSpec("##afg_limit_fates", FateStep, RunLimits.MaxFates, Loc.T(L.Grind.UnitFates)),
+            Limit.Minutes => new StepperSpec("##afg_limit_minutes", MinuteStep, RunLimits.MaxMinutes, Loc.T(L.Grind.UnitMinutes)),
+            _             => new StepperSpec("##afg_limit_levels", LevelStep, RunLimits.MaxLevels, Loc.T(L.Grind.UnitLevels)),
+        };
+        var value = limit switch
+        {
+            Limit.Fates   => cfg.TargetFateCount,
+            Limit.Minutes => cfg.TargetMinutes,
+            _             => cfg.TargetLevels,
+        };
+        var bottom = PlaceStepper(columns, y, rowHeight, in spec, ref value, editable, out var changed);
+        if (!changed) return bottom;
+
+        switch (limit)
+        {
+            case Limit.Fates:   cfg.TargetFateCount = value; break;
+            case Limit.Minutes: cfg.TargetMinutes = value; break;
+            default:            cfg.TargetLevels = value; break;
+        }
+
+        cfg.SaveDebounced();
+        return bottom;
+    }
+
+    private static float DrawZoneRow(Configuration cfg, bool editable, Columns columns, float y)
+    {
+        var scale = ImGuiHelpers.GlobalScale;
+        var rowHeight = SegmentHeight * scale;
+        DrawRowLabel(Loc.T(L.Grind.EachZone), columns.Label, y, rowHeight);
+
+        ImGui.SetCursorScreenPos(new Vector2(columns.Control, y));
+        var selected = (int)(cfg.FatesPerZoneEnabled ? ZoneShare.ANumberOfFates : ZoneShare.AsManyAsItFinds);
+        if (Segmented.Draw("##afg_zone_share", zoneItems, ref selected, editable, SegmentHeight, columns.SegmentedWidth) && editable)
+        {
+            cfg.FatesPerZoneEnabled = selected == (int)ZoneShare.ANumberOfFates;
+            cfg.SaveDebounced();
+        }
+
+        if (!cfg.FatesPerZoneEnabled) return y + rowHeight;
+
+        var spec = new StepperSpec("##afg_zone_fates", ZoneFateStep, RunLimits.MaxFatesPerZone, Loc.T(L.Grind.UnitFates));
+        var value = cfg.TargetFatesPerZone;
+        var bottom = PlaceStepper(columns, y, rowHeight, in spec, ref value, editable, out var changed);
+        if (!changed) return bottom;
+
+        cfg.TargetFatesPerZone = value;
+        cfg.SaveDebounced();
+        return bottom;
+    }
+
+    // The stepper sits beside the segmented row when the panel is wide enough, else on a line of its own below it.
+    private static float PlaceStepper(Columns columns, float y, float rowHeight, in StepperSpec spec, ref int value, bool editable, out bool changed)
+    {
+        var scale = ImGuiHelpers.GlobalScale;
+        var besideX = columns.Control + columns.SegmentedWidth + Gap * scale;
+        if (besideX + StepperRowWidth(spec.Unit) <= columns.Right)
+        {
+            changed = DrawStepper(in spec, ref value, editable, besideX, y, rowHeight);
             return y + rowHeight;
         }
 
         var belowY = y + rowHeight + RowGap * scale;
         var frameHeight = ImGui.GetFrameHeight();
-        DrawLimitValue(cfg, editable, limit, columns.Control, belowY, frameHeight);
+        changed = DrawStepper(in spec, ref value, editable, columns.Control, belowY, frameHeight);
         return belowY + frameHeight;
     }
 
-    private static float LimitValueWidth(Limit limit) =>
-        (StepperWidth + Gap) * ImGuiHelpers.GlobalScale + TextDraw.Measure(UnitFor(limit)).X;
+    private static float StepperRowWidth(string unit) =>
+        (StepperWidth + Gap) * ImGuiHelpers.GlobalScale + TextDraw.Measure(unit).X;
 
-    private static void DrawLimitValue(Configuration cfg, bool editable, Limit limit, float x, float y, float rowHeight)
+    private static bool DrawStepper(in StepperSpec spec, ref int value, bool editable, float x, float y, float rowHeight)
     {
         var scale = ImGuiHelpers.GlobalScale;
         var frameHeight = ImGui.GetFrameHeight();
         var midY = y + rowHeight * 0.5f;
-        var (id, step, max, current) = limit switch
-        {
-            Limit.Fates   => ("##afg_limit_fates", FateStep, RunLimits.MaxFates, cfg.TargetFateCount),
-            Limit.Minutes => ("##afg_limit_minutes", MinuteStep, RunLimits.MaxMinutes, cfg.TargetMinutes),
-            _             => ("##afg_limit_levels", LevelStep, RunLimits.MaxLevels, cfg.TargetLevels),
-        };
-        var value = Math.Clamp(current, 1, max);
+        value = Math.Clamp(value, 1, spec.Max);
 
         ImGui.SetCursorScreenPos(new Vector2(x, midY - frameHeight * 0.5f));
-        if (Stepper.Draw(id, ref value, step, 1, max, "%d", StepperWidth) && editable)
+        var changed = Stepper.Draw(spec.Id, ref value, spec.Step, 1, spec.Max, "%d", StepperWidth) && editable;
+        if (changed)
         {
-            var clamped = Math.Clamp(value, 1, max);
-            switch (limit)
-            {
-                case Limit.Fates:   cfg.TargetFateCount = clamped; break;
-                case Limit.Minutes: cfg.TargetMinutes = clamped; break;
-                default:            cfg.TargetLevels = clamped; break;
-            }
-
-            cfg.SaveDebounced();
+            value = Math.Clamp(value, 1, spec.Max);
         }
 
-        var unit = UnitFor(limit);
-        var unitSize = TextDraw.Measure(unit);
-        TextDraw.At(unit, new Vector2(x + StepperWidth * scale + Gap * scale, midY - unitSize.Y * 0.5f), Styling.TextDim);
+        var unitSize = TextDraw.Measure(spec.Unit);
+        TextDraw.At(spec.Unit, new Vector2(x + StepperWidth * scale + Gap * scale, midY - unitSize.Y * 0.5f), Styling.TextDim);
+        return changed;
     }
 
     private static float DrawAfterRow(Configuration cfg, bool editable, Columns columns, float y)
@@ -189,7 +245,8 @@ internal static class StopRow
     private static float LabelColumnWidth()
     {
         var scale = ImGuiHelpers.GlobalScale;
-        var widest = MathF.Max(TextDraw.Measure(Loc.T(L.Grind.HowLong)).X, TextDraw.Measure(Loc.T(L.Grind.Afterwards)).X);
+        var widest = MathF.Max(TextDraw.Measure(Loc.T(L.Grind.HowLong)).X,
+            MathF.Max(TextDraw.Measure(Loc.T(L.Grind.EachZone)).X, TextDraw.Measure(Loc.T(L.Grind.Afterwards)).X));
         return MathF.Max(LabelWidth * scale, widest + Gap * scale);
     }
 
@@ -198,13 +255,6 @@ internal static class StopRow
         var labelSize = TextDraw.Measure(label);
         TextDraw.At(label, new Vector2(left, y + (rowHeight - labelSize.Y) * 0.5f), Styling.TextSecondary);
     }
-
-    private static string UnitFor(Limit limit) => limit switch
-    {
-        Limit.Minutes => Loc.T(L.Grind.UnitMinutes),
-        Limit.Levels  => Loc.T(L.Grind.UnitLevels),
-        _             => Loc.T(L.Grind.UnitFates),
-    };
 
     // One cap at a time keeps the row a single choice; a config that has several on (older versions) reads as the FATE count.
     private static Limit CurrentLimit(Configuration cfg)
