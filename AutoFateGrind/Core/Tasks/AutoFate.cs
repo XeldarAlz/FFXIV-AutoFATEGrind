@@ -64,6 +64,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private const float EngageMeleeRingGoalMeters = 3f;
     private const float EngageRingEdgeMarginMeters = 0.5f;
     private const float EngageChaseRepathMeters = 3f;
+    private const float EngageChaseProgressMeters = 1f;
     // With no live FATE mob loaded, walk to the ring centre from further out than this to load the rest.
     private const float EngageCentreSeekMinMeters = 20f;
     private const float EngageCentreSeekToleranceMeters = 10f;

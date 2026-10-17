@@ -523,7 +523,8 @@ public sealed partial class AutoFate
         }
 
         Status = "Closing on a mob outside the FATE ring";
-        if (await ChaseRingTarget(fateId, target, goalMeters))
+        var distanceBefore = target.DistanceToHitbox;
+        if (await ChaseRingTarget(fateId, target, goalMeters) || ClosedOnRingTarget(fateId, target.GameObjectId, distanceBefore))
         {
             ringChaseFailures = 0;
             return true;
@@ -560,7 +561,18 @@ public sealed partial class AutoFate
             return false;
         }
         ringChaseGivenUpTargetId = 0;
-        return IsBeyondBossModRing(fate.Position, fate.Radius, target, RingGoalMeters(reachMeters));
+        return IsBeyondBossModRing(fate.Position, fate.Radius, target, RingGoalMeters(reachMeters), player.Position);
+    }
+
+    // A walking parade mob moves on by less than the repath distance while the character closes in, so the walk ends
+    // at a stale spot without reaching it. Ground gained toward the live mob is progress, not a failed walk (issue #98).
+    private static bool ClosedOnRingTarget(uint fateId, ulong targetId, float distanceBefore)
+    {
+        if (Svc.Objects.LocalPlayer is not { } player || !FateMobScanner.TryGetTarget(fateId, player.Position, out var live))
+        {
+            return false;
+        }
+        return live.GameObjectId == targetId && distanceBefore - live.DistanceToHitbox >= EngageChaseProgressMeters;
     }
 
     // While AFG holds movement nothing else closes the last metre, so the chase aims at the distance BossMod's own
@@ -568,14 +580,27 @@ public sealed partial class AutoFate
     private static float RingGoalMeters(float reachMeters)
         => reachMeters <= EngageMeleeReachMeters ? EngageMeleeRingGoalMeters : EngageRangedReachMeters;
 
-    private static bool IsBeyondBossModRing(Vector3 centre, float radius, in FateMobTarget target, float goalMeters)
+    // A target whose hitbox pokes only a little past the ring is still out of a melee's reach when BossMod's grid
+    // leaves the character a cell or two inside the edge, so a character already standing at the edge counts any
+    // hitbox outside the ring as beyond it (issue #98).
+    private static bool IsBeyondBossModRing(Vector3 centre, float radius, in FateMobTarget target, float goalMeters, Vector3 playerPosition)
     {
         if (radius <= 0f)
         {
             return false;
         }
         var offset = new Vector2(target.Position.X - centre.X, target.Position.Z - centre.Z);
-        return offset.Length() - target.HitboxRadius - goalMeters > radius - EngageRingEdgeMarginMeters;
+        var outsideMeters = offset.Length() - target.HitboxRadius - (radius - EngageRingEdgeMarginMeters);
+        if (outsideMeters > goalMeters)
+        {
+            return true;
+        }
+        if (outsideMeters <= 0f || target.DistanceToHitbox <= goalMeters)
+        {
+            return false;
+        }
+        var playerOffset = new Vector2(playerPosition.X - centre.X, playerPosition.Z - centre.Z);
+        return playerOffset.Length() >= radius - goalMeters - EngageRingEdgeMarginMeters;
     }
 
     // True when the walk got somewhere: into reach, or the target moved, changed, or died on the way.
