@@ -269,6 +269,7 @@ public sealed partial class AutoFate
         AssertPresetActive(preset);
 
         var deadline = Environment.TickCount64 + CombatClearTimeoutMs;
+        uint? runningFateId = null;
         try
         {
             while (Environment.TickCount64 < deadline)
@@ -278,7 +279,11 @@ public sealed partial class AutoFate
                 if (IsPlayerKO()) break;
                 // A real FATE may have started on top of us; let the state machine take over. A ring it
                 // left (blacklisted or abandoned) is not one, so the aggro from it still gets cleared.
-                if (PublicEvent.CurrentFate is { State: FateState.Running } current && current.Id != abandonedFateId) break;
+                if (PublicEvent.CurrentFate is { State: FateState.Running } current && current.Id != abandonedFateId)
+                {
+                    runningFateId = current.Id;
+                    break;
+                }
                 if (Svc.Condition[ConditionFlag.Mounted]) { BossModIPC.Instance.ClearActive(); await SafeDismount("dismount-clearcombat"); }
                 AssertPresetActive(preset);
                 await NextFrame(30);
@@ -289,8 +294,18 @@ public sealed partial class AutoFate
             BossModIPC.Instance.ClearActive();
         }
 
-        if (Svc.Condition[ConditionFlag.InCombat])
-            Diag($"Still in combat after {CombatClearTimeoutMs / 1000}s of fighting; will retry travel");
+        if (!Svc.Condition[ConditionFlag.InCombat]) return;
+        if (runningFateId is { } fateId)
+        {
+            Diag($"FATE {fateId} is running on top of us; leaving its combat to the state machine");
+            return;
+        }
+        if (IsPlayerKO())
+        {
+            Diag("KO'd while fighting free; leaving the recovery to the state machine");
+            return;
+        }
+        Diag($"Still in combat after {CombatClearTimeoutMs / 1000}s of fighting");
     }
 
     private void EnsureCombatPreset(string preset)

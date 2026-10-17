@@ -90,6 +90,9 @@ public sealed class AutoFateSession
     public ZoneInfo? PendingTradeFromZone;
     // Items a trade failed to buy; the wallet stays over the threshold, so retrying would re-fire after every FATE.
     public readonly HashSet<uint> TradeSkippedItemIds = [];
+    // Trades that never reached the trader because the character's own state stalled every teleport cast. The first
+    // one is retried after the next FATE; from the second on the items are skipped like any other failed buy.
+    public int TradeTransportBlocks;
     public bool PendingRepair;
     public ZoneInfo? PendingRepairFromZone;
     public int FatesSinceLastBreak;
@@ -113,6 +116,17 @@ public sealed class AutoFateSession
     {
         FatesSinceLastBreak = 0;
         fatesBeforeNextBreak = 0;
+    }
+
+    // Undoes HandoffTriggers.QueueIfDue. Its triggers are state checks (gear condition, wallet, break counter), so a
+    // dropped hand-off queues itself again after the next FATE.
+    public void ClearQueuedHandoffs()
+    {
+        PendingRepair = false;
+        PendingRepairFromZone = null;
+        PendingTradeFromZone = null;
+        PendingHumanize = false;
+        PendingHumanizeFromZone = null;
     }
 
     public IdleSpot? LastIdleSpot;

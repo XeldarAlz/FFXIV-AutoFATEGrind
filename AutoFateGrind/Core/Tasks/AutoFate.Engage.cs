@@ -302,12 +302,21 @@ public sealed partial class AutoFate
             if (AdvanceClassQueueIfCapHit()) return ExitReason.Quit;
 
             // Hand-off tasks run with the rotation off, and their teleport is rejected for as long as a stray
-            // add keeps the character in combat, so the grind fights free before it quits.
+            // add keeps the character in combat, so the grind fights free before it quits. When it cannot,
+            // mostly because a follow-up FATE spawned on top of the character (issue #99), the hand-off is
+            // dropped and the state machine plays on; the trigger queues it again after the next FATE.
             if (HandoffTriggers.QueueIfDue(session, zone))
             {
                 await HoldForCollectReward();
                 await WaitOutSettle();
                 await ClearBlockingCombat();
+                if (CancelToken.IsCancellationRequested) return ExitReason.Quit;
+                if (Svc.Condition[ConditionFlag.InCombat])
+                {
+                    session.ClearQueuedHandoffs();
+                    Diag("Hand-off deferred: still in combat after fighting free; the grind plays on and queues it again after the next FATE");
+                    return ExitReason.Continue;
+                }
                 return ExitReason.Quit;
             }
         }

@@ -164,6 +164,17 @@ internal sealed partial class AutoFateController
 
     private static void SkipFailedTradeItems(AutoFateSession owningSession, TradePlan plan, AutoTrade trade)
     {
+        if (trade.TransportBlocked)
+        {
+            owningSession.TradeTransportBlocks++;
+            if (owningSession.TradeTransportBlocks == 1)
+            {
+                Diag($"AutoTrade never reached {plan.Trader.Name}: the character's own state stalled every teleport cast. The shopping list is kept and the next FATE retries the trade (issue #99).");
+                ECommons.DalamudServices.Svc.Chat.Print($"[AFG] Auto-trade could not teleport to {plan.Trader.Name}; it retries after the next FATE.");
+                return;
+            }
+        }
+
         var failedNames = new List<string>(plan.Orders.Length);
         for (var orderIndex = 0; orderIndex < plan.Orders.Length; orderIndex++)
         {

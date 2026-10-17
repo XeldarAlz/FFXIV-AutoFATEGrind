@@ -12,6 +12,7 @@ public sealed class AutoTrade(TradePlan plan) : AutoCommon
     private readonly HashSet<uint> boughtItemIds = [];
     private readonly HashSet<uint> passedOverItemIds = [];
     private int spentGems;
+    private bool transportBlocked;
 
     private const int TeleportWatchdogMs = 60_000;
     private const int MoveWatchdogMs = 120_000;
@@ -27,6 +28,10 @@ public sealed class AutoTrade(TradePlan plan) : AutoCommon
     private const int MenuRetryMs = 500;
 
     public bool BoughtAny => boughtItemIds.Count > 0;
+
+    // The character's own state (combat, a stuck teleport lock) stalled every cast toward the trader, which says
+    // nothing about the shopping list itself.
+    public bool TransportBlocked => transportBlocked;
 
     // Anything neither bought nor passed over for budget failed, including every order a fault cut short, since clib
     // still runs OnCompleted after an exception.
@@ -59,10 +64,11 @@ public sealed class AutoTrade(TradePlan plan) : AutoCommon
         var traderTerr = trader.TerritoryId;
         if (Svc.ClientState.TerritoryType != traderTerr)
         {
-            var reached = false;
+            var result = TerritoryTeleportResult.Unreachable;
             await RunWithStatusPinned($"Teleporting to {trader.Name}",
-                async () => reached = await TeleportToTerritory(traderTerr, traderPos, "trade-teleport", TeleportWatchdogMs));
-            ErrorIf(!reached,
+                async () => result = await AttemptTerritoryTeleport(traderTerr, traderPos, "trade-teleport", TeleportWatchdogMs));
+            transportBlocked = result == TerritoryTeleportResult.Blocked;
+            ErrorIf(result != TerritoryTeleportResult.Reached,
                 $"Could not reach {trader.Name}'s zone (still in {Svc.ClientState.TerritoryType}); aborting trade.");
         }
 
