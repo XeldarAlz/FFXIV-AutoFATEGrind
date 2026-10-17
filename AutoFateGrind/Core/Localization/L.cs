@@ -425,6 +425,12 @@ internal static class L
         public static readonly LocString New = new("changelog.new", "New");
         public static readonly LocPlural Changes = new("changelog.changes", "{0} change", "{0} changes");
 
+        public static readonly LocString[] Release22100 =
+        [
+            new("changelog.r22100.1", "Added Pull as many mobs as possible under Settings > Travel: a tank tags every idle mob of the FATE in reach with its ranged attack, then lets BossMod AoE the pack down, with a reach, a mob cap and HP points to stop and resume pulling. Contributed by blackappleD"),
+            new("changelog.r22100.2", "Fixed allied NPCs that fight alongside you in a FATE being counted as FATE mobs, which could walk the character to an ally or keep it searching for mobs that were already gone. Contributed by blackappleD"),
+        ];
+
         public static readonly LocString[] Release22000 =
         [
             new("changelog.r22000.1", "Added Each zone on the Grind page: a number of FATEs for every selected zone, after which the grind moves on and the run ends once each zone has had its share"),
@@ -635,6 +641,17 @@ internal static class L
         public static readonly LocString AutoResume = new("settings.general.autoResume", "Auto-resume on fault");
         public static readonly LocString AutoResumeHelp = new("settings.general.autoResumeHelp", "If the grind hits an unrecoverable error and stops, automatically restart it (up to 3 times in a row) instead of ending the run. Leave off if you want faults to surface.");
         public static readonly LocString TravelFatePlay = new("settings.travel.fatePlay", "FATE play");
+        public static readonly LocString PullMany = new("settings.travel.pullMany", "Pull as many mobs as possible");
+        public static readonly LocString PullManyHelp = new("settings.travel.pullManyHelp", "Tanks only. Instead of fighting whatever walks up, AFG tags every idle mob of the FATE in reach with your ranged attack, then lets BossMod AoE the pack down.");
+        public static readonly LocString PullReach = new("settings.travel.pullReach", "Pull reach");
+        public static readonly LocString PullReachHelp = new("settings.travel.pullReachHelp", "Only idle mobs this close to you, and inside the FATE ring, are pulled. Tank ranged attacks reach 20 m; farther mobs are walked to first.");
+        public static readonly LocString PullMaxMobs = new("settings.travel.pullMaxMobs", "Max mobs on you");
+        public static readonly LocString PullMaxMobsHelp = new("settings.travel.pullMaxMobsHelp", "Pulling stops once this many mobs have you on their enmity list, and picks up again as they die.");
+        public static readonly LocString PullMaxMobsFormat = new("settings.travel.pullMaxMobsFormat", "%d mobs");
+        public static readonly LocString PullStopHp = new("settings.travel.pullStopHp", "Stop pulling below HP");
+        public static readonly LocString PullStopHpHelp = new("settings.travel.pullStopHpHelp", "Below this HP the current pull ends and BossMod fights what is already on you.");
+        public static readonly LocString PullResumeHp = new("settings.travel.pullResumeHp", "Resume pulling at HP");
+        public static readonly LocString PullResumeHpHelp = new("settings.travel.pullResumeHpHelp", "After a low-HP stop, pulling waits until HP is back up to this. Never set below the stop point.");
         public static readonly LocString CollectHandIn = new("settings.general.collectHandIn", "Hand in items yourself");
         public static readonly LocString CollectHandInHelp = new("settings.general.collectHandInHelp", "AFG walks to the hand-in NPC as soon as you hold a batch, and turns in any leftovers once the FATE hits 100%. Off leaves turn-ins to BossMod's FATE helper, which only hands in at 10 items.");
         public static readonly LocString CollectHandInBatch = new("settings.general.collectHandInBatch", "Hand in every");

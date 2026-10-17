@@ -38,6 +38,7 @@ Lists every FATE zone from A Realm Reborn through Dawntrail in one window. Tick 
 - **Yo-kai Watch event**: its own card on the Grind page. Switch it on and AFG farms Legendary Medals for every yo-kai minion you own. Picks each minion's zones, summons it, keeps the Yo-kai Watch on, and moves to the next yo-kai at your medal target (default 10), skipping weapons you already have. A FATE without the right minion out pays nothing, so the run waits and keeps re-summoning instead of fighting blind, puts a deployed umbrella away first, and tells you in chat when the summon keeps failing.
 - **FATE filters & priority**: skip by type, time left, or progress, and reorder how the next FATE is chosen.
 - **Collect hand-ins**: turns in FATE items in small batches (default 5), hands in any leftovers at 100%, then moves straight on to the next FATE in the zone; the reward lands when the FATE clears, so zone swaps and hand-offs wait for it.
+- **Tank multi-pull**: optional for tanks. Instead of fighting whatever walks up, AFG tags every idle FATE mob in reach with your ranged attack and lets BossMod AoE the pack down, with a configurable reach, mob cap, and HP points to stop and resume pulling.
 - **Live FATE tracker**: shown inline, or as a separate HUD overlay.
 - **Class queue**: cycle gearsets in order with per-class level caps.
 - **Auto-trade**: spends Bicolor Gemstones at the trader once you hit your threshold.
