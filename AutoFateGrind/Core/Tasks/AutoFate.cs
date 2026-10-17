@@ -367,7 +367,8 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private void GuardForwardProgress(GrindState state)
     {
         // A rescue that gave up hands over here, even in the states exempt below, so the bounded fault resume decides what happens next.
-        ErrorIf(stuckRescueFault is not null, stuckRescueFault ?? "");
+        if (stuckRescueFault is { } stuckFault)
+            ErrorIf(true, stuckFault);
 
         var now = Environment.TickCount64;
         var terr = Svc.ClientState.TerritoryType;

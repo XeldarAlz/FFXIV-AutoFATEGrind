@@ -16,7 +16,7 @@ public sealed partial class AutoFate
     private const int StuckRescueFaultGraceMs = 60_000;
     private const string StuckRescueScope = "stuck-rescue";
 
-    private long stuckWatchSinceMs;
+    private long stuckWatchSinceMs = Environment.TickCount64;
     private Vector3 stuckWatchAnchor;
     private uint stuckWatchTerritory;
     private int stuckWatchCompleted = -1;
@@ -105,7 +105,11 @@ public sealed partial class AutoFate
         }
         else if (!CancelToken.IsCancellationRequested)
         {
-            Warn($"Stuck rescue teleport to {aetheryte.Name} did not go through ({ConditionTag()}); trying again after another window");
+            // BetweenFates has its no-progress fault due a grace period after the rescue; the yo-kai wait has none.
+            var next = state == GrindState.BetweenFates
+                ? $"the no-progress fault follows in {StuckRescueFaultGraceMs / 1000}s"
+                : "trying again after another window";
+            Warn($"Stuck rescue teleport to {aetheryte.Name} did not go through ({ConditionTag()}); {next}");
         }
 
         if (Svc.Objects.LocalPlayer is { } landed)
