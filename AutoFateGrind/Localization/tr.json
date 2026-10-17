@@ -550,7 +550,7 @@
   "settings.general.autoResume": "Hatadan sonra otomatik devam et",
   "settings.general.autoResumeHelp": "Farm kurtarılamaz bir hatayla durursa oturumu bitirmek yerine otomatik yeniden başlatır (art arda en fazla 3 kez). Hataları görmek istiyorsanız kapalı bırakın.",
   "settings.general.stuckRescue": "Takılınca ışınlan",
-  "settings.general.stuckRescueHelp": "Oturum bu süre boyunca ilerlemezse (hiç FATE tamamlanmaz, bölge değişmez, savaş olmaz ve karakter aynı noktanın 15 m yakınında kalırsa), bölgedeki en yakın aetheryte'a ışınlanır ve oradan devam eder. Suya inip yo-kai minion'unun çağrılamadığı gibi durumları yakalar. Arada hiç FATE tamamlanmadan 3 ışınlanmadan sonra durur.",
+  "settings.general.stuckRescueHelp": "Oturum bu süre boyunca ilerlemezse (hiç FATE tamamlanmaz, bölge değişmez, savaş olmaz ve karakter aynı noktanın 15 m yakınında kalırsa), bölgedeki en yakın aetheryte'a ışınlanır ve oradan devam eder. Suya inip yo-kai minion'unun çağrılamadığı gibi durumları yakalar. Arada hiç FATE tamamlanmadan 3 ışınlanmadan sonra oturum hata olarak değerlendirilir (bkz. Hatadan sonra otomatik devam et).",
   "settings.general.stuckRescueAfter": "Takılma süresi",
   "settings.general.stuckRescueAfterHelp": "AFG ışınlanmadan önce oturumun ne kadar süre ilerlemeden kalması gerektiği.",
   "settings.travel.fatePlay": "FATE oynanışı",

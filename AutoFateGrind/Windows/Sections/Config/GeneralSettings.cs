@@ -1,6 +1,5 @@
 using AutoFateGrind.Core.Game.Fates;
 using AutoFateGrind.Core.Localization;
-using AutoFateGrind.Core.Tasks;
 using AutoFateGrind.Windows.Components;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Utility;
@@ -97,7 +96,7 @@ internal static class GeneralSettings
                     SettingsControls.RowSliderWidth,
                     () => SettingsControls.DrawIntSlider(cfg, "##gen_stuckrescue_after",
                         () => cfg.StuckRescueMinutes, v => cfg.StuckRescueMinutes = v,
-                        AutoFate.StuckRescueMinMinutes, AutoFate.StuckRescueMaxMinutes, Loc.T(L.Settings.MinutesFormat)));
+                        Configuration.StuckRescueMinMinutes, Configuration.StuckRescueMaxMinutes, Loc.T(L.Settings.MinutesFormat)));
             }
         }
     }

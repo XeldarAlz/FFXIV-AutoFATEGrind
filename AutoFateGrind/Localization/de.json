@@ -550,7 +550,7 @@
   "settings.general.autoResume": "Nach Fehler automatisch fortsetzen",
   "settings.general.autoResumeHelp": "Wenn der Grind auf einen nicht behebbaren Fehler stößt und stoppt, wird er automatisch neu gestartet (bis zu 3-mal hintereinander), statt den Durchlauf zu beenden. Lass es aus, wenn Fehler sichtbar werden sollen.",
   "settings.general.stuckRescue": "Bei Festhängen wegteleportieren",
-  "settings.general.stuckRescueHelp": "Macht der Durchlauf so lange keinen Fortschritt (kein FATE abgeschlossen, kein Zonenwechsel, kein Kampf und der Charakter bleibt im Umkreis von 15 m um eine Stelle), teleportiert AFG zum nächsten Ätheryten der Zone und macht dort weiter. Hilft etwa nach einer Landung auf Wasser, wo der Yo-kai-Begleiter nicht gerufen werden kann. Hört nach 3 Teleports ohne abgeschlossenes FATE dazwischen auf.",
+  "settings.general.stuckRescueHelp": "Macht der Durchlauf so lange keinen Fortschritt (kein FATE abgeschlossen, kein Zonenwechsel, kein Kampf und der Charakter bleibt im Umkreis von 15 m um eine Stelle), teleportiert AFG zum nächsten Ätheryten der Zone und macht dort weiter. Hilft etwa nach einer Landung auf Wasser, wo der Yo-kai-Begleiter nicht gerufen werden kann. Nach 3 Teleports ohne abgeschlossenes FATE dazwischen gilt der Durchlauf stattdessen als fehlerhaft (siehe Nach Fehler automatisch fortsetzen).",
   "settings.general.stuckRescueAfter": "Festhängen nach",
   "settings.general.stuckRescueAfterHelp": "Wie lange der Durchlauf ohne Fortschritt sein muss, bevor AFG wegteleportiert.",
   "settings.travel.fatePlay": "FATE-Ablauf",

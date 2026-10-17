@@ -550,7 +550,7 @@
   "settings.general.autoResume": "Reanudar automáticamente tras un fallo",
   "settings.general.autoResumeHelp": "Si el farmeo encuentra un error irrecuperable y se detiene, lo reinicia automáticamente (hasta 3 veces seguidas) en lugar de terminar la sesión. Déjalo apagado si quieres ver los fallos.",
   "settings.general.stuckRescue": "Teletransportarse al atascarse",
-  "settings.general.stuckRescueHelp": "Si la sesión no avanza durante este tiempo (ningún FATE completado, ningún cambio de zona, ningún combate y el personaje sigue a menos de 15 m del mismo punto), se teletransporta al eterito más cercano de la zona y continúa desde allí. Cubre casos como aterrizar sobre el agua, donde no se puede invocar la mascota yo-kai. Se detiene tras 3 teletransportes sin completar ningún FATE entre ellos.",
+  "settings.general.stuckRescueHelp": "Si la sesión no avanza durante este tiempo (ningún FATE completado, ningún cambio de zona, ningún combate y el personaje sigue a menos de 15 m del mismo punto), se teletransporta al eterito más cercano de la zona y continúa desde allí. Cubre casos como aterrizar sobre el agua, donde no se puede invocar la mascota yo-kai. Tras 3 teletransportes sin completar ningún FATE entre ellos, la sesión se trata como un fallo (ver Reanudar automáticamente tras un fallo).",
   "settings.general.stuckRescueAfter": "Atascado tras",
   "settings.general.stuckRescueAfterHelp": "Cuánto tiempo debe pasar la sesión sin avanzar antes de que AFG se teletransporte.",
   "settings.travel.fatePlay": "Juego de FATE",

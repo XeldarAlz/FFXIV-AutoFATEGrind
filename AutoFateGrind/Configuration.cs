@@ -85,6 +85,8 @@ public sealed class Configuration : IPluginConfiguration
     // Teleport to the zone's nearest aetheryte after this many minutes with no progress (issue #87).
     public bool StuckRescueEnabled { get; set; } = true;
     public int StuckRescueMinutes { get; set; } = 5;
+    public const int StuckRescueMinMinutes = 2;
+    public const int StuckRescueMaxMinutes = 30;
 
     public bool AutoPauseInContent { get; set; } = true;
 

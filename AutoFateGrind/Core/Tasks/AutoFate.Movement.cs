@@ -232,15 +232,23 @@ public sealed partial class AutoFate
 
         Status = $"Teleporting to {fate.Name}";
         Diag($"Teleport recovery to FATE {fateId} via {aetheryte.Name}");
+        return await TeleportToZoneAetheryte(aetheryte, $"teleport-recovery-{fateId}");
+    }
 
-        await PrepareForTeleport($"teleport-recovery-{fateId}");
+    // Same-zone teleport used to get unstuck: true only once the character has actually been moved.
+    private async Task<bool> TeleportToZoneAetheryte(ZoneAetheryte aetheryte, string scope)
+    {
+        await PrepareForTeleport(scope);
         if (CancelToken.IsCancellationRequested) return false;
 
         // Captured after PrepareForTeleport so climbing out of the water isn't mistaken for teleport progress.
         var before = Svc.Objects.LocalPlayer?.Position;
-        var outcome = await RunTeleport(zone.TerritoryId, aetheryte.Position, allowSameZoneTeleport: true, TeleportWatchdogMs, $"teleport-recovery-{fateId}");
+        var outcome = await RunTeleport(zone.TerritoryId, aetheryte.Position, allowSameZoneTeleport: true, TeleportWatchdogMs, scope);
         if (!outcome.Succeeded)
+        {
+            Diag($"{scope}: teleport to {aetheryte.Name} did not go through ({outcome.Fault?.Message ?? "timed out"})");
             return false;
+        }
 
         var after = Svc.Objects.LocalPlayer?.Position;
         if (before is null || after is null) return false;
@@ -248,7 +256,7 @@ public sealed partial class AutoFate
         var moved = Vector3.Distance(before.Value, after.Value);
         if (moved < TeleportRetryProgressMeters)
         {
-            Diag($"Teleport moved only {moved:F1}m; treating as failed");
+            Diag($"{scope}: teleport moved only {moved:F1}m; treating as failed");
             return false;
         }
         return true;

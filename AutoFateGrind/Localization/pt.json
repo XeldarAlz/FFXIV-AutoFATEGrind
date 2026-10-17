@@ -550,7 +550,7 @@
   "settings.general.autoResume": "Retomar automaticamente após falha",
   "settings.general.autoResumeHelp": "Se o farm encontrar um erro irrecuperável e parar, reinicia automaticamente (até 3 vezes seguidas) em vez de encerrar a sessão. Deixe desligado se quiser ver as falhas.",
   "settings.general.stuckRescue": "Teleportar ao ficar preso",
-  "settings.general.stuckRescueHelp": "Se a sessão não progredir por esse tempo (nenhuma FATE concluída, nenhuma troca de zona, nenhum combate e o personagem continua a menos de 15 m do mesmo ponto), teleporta para o etérito mais próximo da zona e continua a partir dali. Cobre casos como pousar na água, onde o mascote yo-kai não pode ser invocado. Para após 3 teleportes sem nenhuma FATE concluída entre eles.",
+  "settings.general.stuckRescueHelp": "Se a sessão não progredir por esse tempo (nenhuma FATE concluída, nenhuma troca de zona, nenhum combate e o personagem continua a menos de 15 m do mesmo ponto), teleporta para o etérito mais próximo da zona e continua a partir dali. Cobre casos como pousar na água, onde o mascote yo-kai não pode ser invocado. Após 3 teleportes sem nenhuma FATE concluída entre eles, a sessão é tratada como uma falha (veja Retomar automaticamente após falha).",
   "settings.general.stuckRescueAfter": "Preso após",
   "settings.general.stuckRescueAfterHelp": "Quanto tempo a sessão precisa ficar sem progresso antes de o AFG se teleportar.",
   "settings.travel.fatePlay": "Jogo de FATE",

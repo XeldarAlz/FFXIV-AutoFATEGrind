@@ -550,7 +550,7 @@
   "settings.general.autoResume": "故障后自动恢复",
   "settings.general.autoResumeHelp": "如果刷取遇到无法恢复的错误而停止，自动重启（最多连续3次）而不是结束运行。想看到故障的话请关闭。",
   "settings.general.stuckRescue": "卡住时传送脱困",
-  "settings.general.stuckRescueHelp": "如果运行在这段时间内没有任何进展（没有完成FATE、没有切换区域、没有战斗，且角色一直在同一位置15米范围内），就传送到本区域最近的以太之光并继续运行。可以处理降落在水面上导致无法召唤妖怪宠物之类的情况。连续传送3次仍未完成任何FATE时将不再传送。",
+  "settings.general.stuckRescueHelp": "如果运行在这段时间内没有任何进展（没有完成FATE、没有切换区域、没有战斗，且角色一直在同一位置15米范围内），就传送到本区域最近的以太之光并继续运行。可以处理降落在水面上导致无法召唤妖怪宠物之类的情况。连续传送3次仍未完成任何FATE时，改为视为运行故障（参见“故障后自动恢复”）。",
   "settings.general.stuckRescueAfter": "卡住判定时间",
   "settings.general.stuckRescueAfterHelp": "运行没有进展持续多久后，AFG才会传送脱困。",
   "settings.travel.fatePlay": "FATE进行",

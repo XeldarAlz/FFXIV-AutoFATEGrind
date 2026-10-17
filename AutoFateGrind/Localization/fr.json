@@ -550,7 +550,7 @@
   "settings.general.autoResume": "Reprise automatique après erreur",
   "settings.general.autoResumeHelp": "Si le farm rencontre une erreur irrécupérable et s'arrête, le relance automatiquement (jusqu'à 3 fois de suite) au lieu de terminer la session. Laissez désactivé si vous voulez voir les erreurs.",
   "settings.general.stuckRescue": "Se téléporter en cas de blocage",
-  "settings.general.stuckRescueHelp": "Si la session ne progresse pas pendant ce délai (aucun ALÉA terminé, aucun changement de zone, aucun combat et le personnage reste à moins de 15 m du même point), se téléporte vers l'éthérite le plus proche de la zone et reprend à partir de là. Couvre des cas comme un atterrissage sur l'eau, où la mascotte yo-kai ne peut pas être invoquée. S'arrête après 3 téléportations sans ALÉA terminé entre elles.",
+  "settings.general.stuckRescueHelp": "Si la session ne progresse pas pendant ce délai (aucun ALÉA terminé, aucun changement de zone, aucun combat et le personnage reste à moins de 15 m du même point), se téléporte vers l'éthérite le plus proche de la zone et reprend à partir de là. Couvre des cas comme un atterrissage sur l'eau, où la mascotte yo-kai ne peut pas être invoquée. Après 3 téléportations sans ALÉA terminé entre elles, la session est traitée comme une erreur (voir Reprise automatique après erreur).",
   "settings.general.stuckRescueAfter": "Bloqué après",
   "settings.general.stuckRescueAfterHelp": "Durée sans progression avant que AFG ne se téléporte.",
   "settings.travel.fatePlay": "Déroulement des ALÉA",

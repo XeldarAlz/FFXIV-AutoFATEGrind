@@ -366,6 +366,9 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     // state that shouldn't sit still (i.e. not fighting / idle-waiting) surfaces a fault for recovery.
     private void GuardForwardProgress(GrindState state)
     {
+        // A rescue that gave up hands over here, even in the states exempt below, so the bounded fault resume decides what happens next.
+        ErrorIf(stuckRescueFault is not null, stuckRescueFault ?? "");
+
         var now = Environment.TickCount64;
         var terr = Svc.ClientState.TerritoryType;
         var pos = Svc.Objects.LocalPlayer?.Position ?? noProgressPos;
@@ -385,8 +388,8 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
             return;
         }
 
-        // With the stuck rescue on, it gets the first try; the fault is the fallback when the teleport did not help.
-        var faultMs = NoProgressFaultMsFor(Plugin.Cfg);
+        // In BetweenFates the stuck rescue gets the first try; every other state keeps the plain delay.
+        var faultMs = state == GrindState.BetweenFates ? NoProgressFaultMsFor(Plugin.Cfg) : NoProgressFaultMs;
         ErrorIf(now - noProgressSinceMs >= faultMs,
             $"No forward progress for {faultMs / 60000}m in state {state}; surfacing fault for recovery.");
     }
