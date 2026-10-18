@@ -396,6 +396,7 @@
   "changelog.new": "Nuevo",
   "changelog.changes.one": "{0} cambio",
   "changelog.changes.other": "{0} cambios",
+  "changelog.r22110.1": "Corregido que el canje automático no pudiera comprar objetos que no se apilan, como el mobiliario: se pedían varios al comerciante en un solo canje, algo que el juego rechaza, así que ahora se compran de uno en uno",
   "changelog.r22100.1": "Añadido Teletransportarse al atascarse en Ajustes > General: si la sesión no avanza durante un tiempo establecido, por ejemplo tras aterrizar sobre el agua donde no se puede invocar la mascota yo-kai, el personaje se teletransporta al eterito más cercano y continúa. Contribución de blackappleD",
   "changelog.r22100.2": "Añadida la opción Atraer tantos enemigos como sea posible en Ajustes > Viaje: un tanque atrae a cada enemigo inactivo del FATE a su alcance con su ataque a distancia y deja que BossMod acabe con el grupo en área, con alcance, máximo de enemigos y PV para dejar de atraer y reanudar. Contribución de blackappleD",
   "changelog.r22100.3": "Corregido que los PNJ aliados que luchan a tu lado en un FATE contaran como enemigos del FATE, lo que podía llevar al personaje hacia un aliado o hacerle buscar enemigos que ya no estaban. Contribución de blackappleD",

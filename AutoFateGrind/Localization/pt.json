@@ -396,6 +396,7 @@
   "changelog.new": "Novo",
   "changelog.changes.one": "{0} mudança",
   "changelog.changes.other": "{0} mudanças",
+  "changelog.r22110.1": "Corrigida a troca automática que não conseguia comprar itens que não empilham, como móveis: vários eram pedidos ao comerciante em uma única troca, o que o jogo recusa, e agora são comprados um de cada vez",
   "changelog.r22100.1": "Adicionado Teleportar ao ficar preso em Configurações > Geral: se a sessão não progredir por um tempo definido, por exemplo após pousar na água onde o mascote yo-kai não pode ser invocado, o personagem teleporta para o etérito mais próximo e continua. Contribuição de blackappleD",
   "changelog.r22100.2": "Adicionada a opção Puxar o máximo de inimigos possível em Configurações > Viagem: um tanque puxa todo inimigo ocioso do FATE ao alcance com seu ataque à distância e deixa o BossMod derrubar o grupo em área, com alcance, máximo de inimigos e PV para parar e retomar a puxada. Contribuição de blackappleD",
   "changelog.r22100.3": "Corrigidos os NPCs aliados que lutam ao seu lado em um FATE sendo contados como inimigos do FATE, o que podia levar o personagem até um aliado ou fazê-lo procurar inimigos que já não estavam lá. Contribuição de blackappleD",

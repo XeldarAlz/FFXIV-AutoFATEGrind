@@ -425,6 +425,11 @@ internal static class L
         public static readonly LocString New = new("changelog.new", "New");
         public static readonly LocPlural Changes = new("changelog.changes", "{0} change", "{0} changes");
 
+        public static readonly LocString[] Release22110 =
+        [
+            new("changelog.r22110.1", "Fixed auto-trade failing to buy items that do not stack, such as furnishings: the trader was asked for several in one exchange, which the game refuses, so they are now bought one at a time"),
+        ];
+
         public static readonly LocString[] Release22100 =
         [
             new("changelog.r22100.1", "Added Teleport out when stuck under Settings > General: when the run makes no progress for a set time, such as after landing on water where the yo-kai minion cannot be summoned, the character teleports to the nearest aetheryte and carries on. Contributed by blackappleD"),

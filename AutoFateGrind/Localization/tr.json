@@ -396,6 +396,7 @@
   "changelog.new": "Yeni",
   "changelog.changes.one": "{0} değişiklik",
   "changelog.changes.other": "{0} değişiklik",
+  "changelog.r22110.1": "Düzeltildi: Otomatik takas, mobilya gibi yığılmayan eşyaları satın alamıyordu: tüccardan tek takasta birden fazla isteniyordu ve oyun bunu reddediyor; artık tek tek satın alınıyor",
   "changelog.r22100.1": "Ayarlar > Genel altına Takılınca ışınlan eklendi: oturum belirlenen süre boyunca ilerlemezse, örneğin suya inip yo-kai minion'unun çağrılamadığı durumlarda, karakter en yakın aetheryte'a ışınlanır ve devam eder. Katkı: blackappleD",
   "changelog.r22100.2": "Eklendi: Ayarlar > Seyahat altında Mümkün olduğunca çok düşman çek seçeneği; tank, menzildeki her boştaki FATE düşmanını menzilli saldırısıyla çeker, ardından BossMod grubu alan saldırılarıyla temizler; menzil, en fazla düşman ve çekmeyi durdurma ve sürdürme canı ayarlanabilir. Katkı: blackappleD",
   "changelog.r22100.3": "Düzeltildi: FATE'te yanınızda savaşan dost NPC'ler FATE düşmanı sayılıyordu; bu da karakterin bir dosta yürümesine ya da artık olmayan düşmanları aramaya devam etmesine yol açabiliyordu. Katkı: blackappleD",

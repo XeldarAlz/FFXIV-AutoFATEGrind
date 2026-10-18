@@ -396,6 +396,7 @@
   "changelog.new": "New",
   "changelog.changes.one": "{0} change",
   "changelog.changes.other": "{0} changes",
+  "changelog.r22110.1": "Fixed auto-trade failing to buy items that do not stack, such as furnishings: the trader was asked for several in one exchange, which the game refuses, so they are now bought one at a time",
   "changelog.r22100.1": "Added Teleport out when stuck under Settings > General: when the run makes no progress for a set time, such as after landing on water where the yo-kai minion cannot be summoned, the character teleports to the nearest aetheryte and carries on. Contributed by blackappleD",
   "changelog.r22100.2": "Added Pull as many mobs as possible under Settings > Travel: a tank tags every idle mob of the FATE in reach with its ranged attack, then lets BossMod AoE the pack down, with a reach, a mob cap and HP points to stop and resume pulling. Contributed by blackappleD",
   "changelog.r22100.3": "Fixed allied NPCs that fight alongside you in a FATE being counted as FATE mobs, which could walk the character to an ally or keep it searching for mobs that were already gone. Contributed by blackappleD",
