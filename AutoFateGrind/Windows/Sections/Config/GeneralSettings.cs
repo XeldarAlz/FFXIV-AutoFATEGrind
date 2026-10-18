@@ -80,5 +80,24 @@ internal static class GeneralSettings
             SettingsControls.ToggleWidth,
             () => SettingsControls.DrawToggle(cfg, () => cfg.AutoResumeOnFault, v => cfg.AutoResumeOnFault = v, "##gen_autoresume"),
             SettingsRow.ToggleHeight);
+
+        SettingsRow.Draw(Loc.T(L.Settings.StuckRescue),
+            Loc.T(L.Settings.StuckRescueHelp),
+            SettingsControls.ToggleWidth,
+            () => SettingsControls.DrawToggle(cfg, () => cfg.StuckRescueEnabled, v => cfg.StuckRescueEnabled = v, "##gen_stuckrescue"),
+            SettingsRow.ToggleHeight);
+
+        using (Motion.PushSwitch("##gen_stuckrescue_body", cfg.StuckRescueEnabled))
+        {
+            if (cfg.StuckRescueEnabled)
+            {
+                SettingsRow.Draw(Loc.T(L.Settings.StuckRescueAfter),
+                    Loc.T(L.Settings.StuckRescueAfterHelp),
+                    SettingsControls.RowSliderWidth,
+                    () => SettingsControls.DrawIntSlider(cfg, "##gen_stuckrescue_after",
+                        () => cfg.StuckRescueMinutes, v => cfg.StuckRescueMinutes = v,
+                        Configuration.StuckRescueMinMinutes, Configuration.StuckRescueMaxMinutes, Loc.T(L.Settings.MinutesFormat)));
+            }
+        }
     }
 }

@@ -27,6 +27,10 @@ public sealed class AutoFateSession
     private int segmentBaselineLevel;
     private bool startCaptured;
 
+    // Stuck-rescue teleports since the last finished FATE; lives here so a fault resume does not reset it.
+    public int StuckRescuesWithoutFate;
+    public int StuckRescueCompletedMark = -1;
+
     public bool Recorded;
     public bool CompletedByStopCondition;
     public bool AfterActionDispatched;

@@ -80,7 +80,10 @@ internal sealed partial class AutoFateController
     }
 
     private const int  MaxFaultResumes     = 3;
-    private const long FaultResumeWindowMs = (MaxFaultResumes + 2) * (long)AutoFate.NoProgressFaultMs;
+
+    // Sized from the no-progress fault delay actually in force (longer while the stuck rescue is on), so it always spans
+    // more of them than the budget holds.
+    private static long FaultResumeWindowMs => (MaxFaultResumes + 2) * (long)AutoFate.NoProgressFaultMsFor(Plugin.Cfg);
 
     // Bounded restart after the grind task ended by throwing (gated on AutoResumeOnFault). The window
     // resets once it lapses, so sparse faults over a long run each get a fresh budget. It spans more

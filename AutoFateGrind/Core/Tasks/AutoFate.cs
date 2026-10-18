@@ -246,6 +246,12 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
                 LogHeartbeat(state);
             }
 
+            if (await RescueIfStuck(state))
+            {
+                await NextFrame();
+                continue;
+            }
+
             switch (state)
             {
                 case GrindState.AllDone:
@@ -350,7 +356,7 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
         var nav = NavmeshIPC.Instance;
         var navStr = $"run={nav.IsRunning()} busy={nav.IsBusy()}";
         Diag($"HEARTBEAT state={state} ({inState}s) terr={Svc.ClientState.TerritoryType} zone={zone.Name} pos={posStr} fate={fateStr} {navStr} cond={ConditionTag()} " +
-             $"done={session.CompletedCount} ret={returnToFateId?.ToString() ?? "-"} followUp={followUpFateId?.ToString() ?? "-"} collectReward={(CollectRewardPending ? pendingRewardSpawn.FateId.ToString() : "-")} stuckBL={sessionStuckFateIds.Count}{SharedFateHeartbeat()}");
+             $"done={session.CompletedCount} ret={returnToFateId?.ToString() ?? "-"} followUp={followUpFateId?.ToString() ?? "-"} collectReward={(CollectRewardPending ? pendingRewardSpawn.FateId.ToString() : "-")} stuckBL={sessionStuckFateIds.Count}{SharedFateHeartbeat()}{StuckWatchHeartbeat()}");
 
         if (state is not GrindState.Engaging and not GrindState.WaitingForFates and not GrindState.WaitingForCollectReward and not GrindState.WaitingForYokaiMinion && inState >= 180)
             Diag($"STALL WARNING: state {state} held {inState}s — see prior heartbeats for context.");
@@ -360,6 +366,10 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     // state that shouldn't sit still (i.e. not fighting / idle-waiting) surfaces a fault for recovery.
     private void GuardForwardProgress(GrindState state)
     {
+        // A rescue that gave up hands over here, even in the states exempt below, so the bounded fault resume decides what happens next.
+        if (stuckRescueFault is { } stuckFault)
+            ErrorIf(true, stuckFault);
+
         var now = Environment.TickCount64;
         var terr = Svc.ClientState.TerritoryType;
         var pos = Svc.Objects.LocalPlayer?.Position ?? noProgressPos;
@@ -379,8 +389,10 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
             return;
         }
 
-        ErrorIf(now - noProgressSinceMs >= NoProgressFaultMs,
-            $"No forward progress for {NoProgressFaultMs / 60000}m in state {state}; surfacing fault for recovery.");
+        // In BetweenFates the stuck rescue gets the first try; every other state keeps the plain delay.
+        var faultMs = state == GrindState.BetweenFates ? NoProgressFaultMsFor(Plugin.Cfg) : NoProgressFaultMs;
+        ErrorIf(now - noProgressSinceMs >= faultMs,
+            $"No forward progress for {faultMs / 60000}m in state {state}; surfacing fault for recovery.");
     }
 
     private GrindState ComputeState()
