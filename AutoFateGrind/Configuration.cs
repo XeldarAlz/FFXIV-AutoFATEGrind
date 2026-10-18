@@ -94,6 +94,13 @@ public sealed class Configuration : IPluginConfiguration
     public bool CollectHandInEnabled { get; set; } = true;
     public int CollectHandInBatch { get; set; } = 5;
 
+    // Tanks only: AFG tags every idle FATE mob in reach before BossMod fights the pack.
+    public bool PullAsManyAsPossible { get; set; } = false;
+    public int PullReachMeters { get; set; } = 25;
+    public int PullMaxMobs { get; set; } = 10;
+    public int PullStopHpPercent { get; set; } = 50;
+    public int PullResumeHpPercent { get; set; } = 70;
+
     public HashSet<uint> BlacklistedFateIds { get; set; } = [1831, 1832, 1914, 1915];
 
     // Per-FateType blacklist (augments BlacklistedFateIds); key is (int)FateType for stability.

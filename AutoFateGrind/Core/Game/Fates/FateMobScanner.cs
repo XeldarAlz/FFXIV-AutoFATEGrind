@@ -1,10 +1,15 @@
 using DalamudObjectKind = Dalamud.Game.ClientState.Objects.Enums.ObjectKind;
 using DalamudStatusFlags = Dalamud.Game.ClientState.Objects.Enums.StatusFlags;
+using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.ClientState.Objects.Types;
 using ECommons.DalamudServices;
+using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
+using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using System;
+using System.Collections.Generic;
 using System.Numerics;
+using CSCharacter = FFXIVClientStructs.FFXIV.Client.Game.Character.Character;
 using CSGameObject = FFXIVClientStructs.FFXIV.Client.Game.Object.GameObject;
 
 namespace AutoFateGrind.Core.Game.Fates;
@@ -27,8 +32,28 @@ internal readonly record struct FateMobTarget(
     float HitboxRadius,
     float DistanceToHitbox);
 
+internal readonly record struct FatePullSurvey(int OnPlayer, int Candidates, FateMobTarget Next)
+{
+    public bool HasCandidate => Candidates > 0;
+}
+
+internal enum FatePullTagState { Waiting, OnPlayer, Gone }
+
 internal static unsafe class FateMobScanner
 {
+    // A pull candidate with others idling this close is worth this many metres of extra walk, so the pull
+    // sweeps a pack instead of zig-zagging between strays.
+    private const float PullPackMeters = 8f;
+    private const float PullPackBonusMeters = 3f;
+    private const float PullMaxVerticalMeters = 8f;
+
+    // UIState.Hater holds this many entries; the pull cap in the settings stops at the same number.
+    public const int EnmityListCapacity = 32;
+
+    private static readonly List<IBattleNpc> pullCandidates = [];
+    private static readonly uint[] enmityIds = new uint[EnmityListCapacity];
+    private static int enmityCount;
+
     public static FateMobSurvey Survey(uint fateId, Vector3 from)
     {
         var liveCount = 0;
@@ -107,6 +132,129 @@ internal static unsafe class FateMobScanner
         Svc.Targets.Target = null;
     }
 
+    // OnPlayer counts every live mob on the character's enmity list, FATE or not: it is what the character has to survive.
+    // Candidates are this FATE's mobs nobody has on them yet (a mob fighting an NPC still counts), inside the ring.
+    public static FatePullSurvey SurveyPull(uint fateId, Vector3 from, Vector3 ringCentre, float ringRadius, float maxMeters, IReadOnlyDictionary<ulong, long> skipped)
+    {
+        SnapshotEnmityList();
+        var onPlayer = 0;
+        pullCandidates.Clear();
+
+        var objects = Svc.Objects;
+        for (var objectIndex = 0; objectIndex < objects.Length; objectIndex++)
+        {
+            if (objects[objectIndex] is not IBattleNpc npc || npc.CurrentHp == 0)
+            {
+                continue;
+            }
+            if (IsOnPlayer(npc.EntityId))
+            {
+                onPlayer++;
+                continue;
+            }
+            if (!IsLiveMobOfFate(npc, fateId) || skipped.ContainsKey(npc.GameObjectId))
+            {
+                continue;
+            }
+            if (npc.TargetObject is IPlayerCharacter)
+            {
+                continue;
+            }
+            if (DistanceToHitbox(from, npc) > maxMeters || MathF.Abs(npc.Position.Y - from.Y) > PullMaxVerticalMeters)
+            {
+                continue;
+            }
+            if (ringRadius > 0f && FlatDistance(npc.Position, ringCentre) > ringRadius)
+            {
+                continue;
+            }
+            pullCandidates.Add(npc);
+        }
+
+        if (pullCandidates.Count == 0)
+        {
+            return new FatePullSurvey(onPlayer, 0, default);
+        }
+
+        var bestIndex = 0;
+        var bestScore = float.MaxValue;
+        var bestDistance = 0f;
+        for (var index = 0; index < pullCandidates.Count; index++)
+        {
+            var candidate = pullCandidates[index];
+            var distance = DistanceToHitbox(from, candidate);
+            var score = distance - PullPackBonusMeters * PackNeighbours(candidate, index);
+            if (score >= bestScore)
+            {
+                continue;
+            }
+            bestScore = score;
+            bestDistance = distance;
+            bestIndex = index;
+        }
+
+        var best = pullCandidates[bestIndex];
+        var next = new FateMobTarget(best.GameObjectId, best.Position, best.HitboxRadius, bestDistance);
+        return new FatePullSurvey(onPlayer, pullCandidates.Count, next);
+    }
+
+    public static FatePullTagState PullTagState(uint fateId, ulong gameObjectId)
+    {
+        if (Svc.Objects.SearchById(gameObjectId) is not IBattleNpc npc || !IsLiveMobOfFate(npc, fateId))
+        {
+            return FatePullTagState.Gone;
+        }
+        SnapshotEnmityList();
+        if (IsOnPlayer(npc.EntityId))
+        {
+            return FatePullTagState.OnPlayer;
+        }
+        // Someone else got to it first; it is theirs to hold.
+        return npc.TargetObject is IPlayerCharacter ? FatePullTagState.Gone : FatePullTagState.Waiting;
+    }
+
+    public static bool TryGetPullTarget(uint fateId, ulong gameObjectId, out IBattleNpc npc)
+    {
+        npc = null!;
+        if (Svc.Objects.SearchById(gameObjectId) is not IBattleNpc found || !IsLiveMobOfFate(found, fateId))
+        {
+            return false;
+        }
+        npc = found;
+        return true;
+    }
+
+    private static int PackNeighbours(IBattleNpc candidate, int candidateIndex)
+    {
+        var packSquared = PullPackMeters * PullPackMeters;
+        var neighbours = 0;
+        for (var index = 0; index < pullCandidates.Count; index++)
+        {
+            if (index != candidateIndex && Vector3.DistanceSquared(candidate.Position, pullCandidates[index].Position) <= packSquared)
+            {
+                neighbours++;
+            }
+        }
+        return neighbours;
+    }
+
+    // Read once per survey, so the per-object check below is a scan of a small id array.
+    private static void SnapshotEnmityList()
+    {
+        var hater = &UIState.Instance()->Hater;
+        enmityCount = Math.Clamp(hater->HaterCount, 0, EnmityListCapacity);
+        for (var index = 0; index < enmityCount; index++)
+        {
+            enmityIds[index] = hater->Haters[index].EntityId;
+        }
+    }
+
+    private static bool IsOnPlayer(uint entityId)
+        => Array.IndexOf(enmityIds, entityId, 0, enmityCount) >= 0;
+
+    private static float FlatDistance(Vector3 a, Vector3 b)
+        => Vector2.Distance(new Vector2(a.X, a.Z), new Vector2(b.X, b.Z));
+
     public static bool HasPickupWithin(uint fateId, Vector3 from, float maxMeters)
     {
         var maxSquared = maxMeters * maxMeters;
@@ -182,7 +330,13 @@ internal static unsafe class FateMobScanner
         {
             return false;
         }
-        return native->BattleNpcSubKind == BattleNpcSubKind.Combatant;
+        if (native->BattleNpcSubKind != BattleNpcSubKind.Combatant)
+        {
+            return false;
+        }
+        // FATE allies (escorts, the hunters fighting alongside you) carry the FATE id and the Combatant sub-kind too;
+        // the game's own target classification is what tells them from the mobs, the same check BossMod uses.
+        return ActionManager.ClassifyTarget((CSCharacter*)npc.Address) == ActionManager.TargetCategory.Enemy;
     }
 
     private static float DistanceToHitbox(Vector3 from, IBattleNpc npc)

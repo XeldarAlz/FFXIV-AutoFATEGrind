@@ -221,6 +221,7 @@ public sealed partial class AutoFate
                 }
                 else if (Environment.TickCount64 - lastProgressAtMs > EngageCombatStallMs
                       && Environment.TickCount64 - lastBounceAtMs > EngageCombatStallMs
+                      && !pullActive
                       && !(Svc.Condition[ConditionFlag.InCombat] && HasTargetInReach(fateId, idle.Meters)))
                 {
                     lastBounceAtMs = Environment.TickCount64;
@@ -259,8 +260,15 @@ public sealed partial class AutoFate
                     }
                 }
 
-                var chasing = await TickRingChase(fateId, idle, preset);
-                if (!chasing && !isCollect && await TickEngagementWatchdog(fateId, fate, idle))
+                // Pulling walks the character from mob to mob on purpose; neither the ring chase nor the idle watchdog may step in.
+                var pulling = !isCollect && TickPull(fateId, fate, preset);
+                if (pulling)
+                {
+                    EndRingChase(preset);
+                    idle.Restart();
+                }
+                var chasing = !pulling && await TickRingChase(fateId, idle, preset);
+                if (!pulling && !chasing && !isCollect && await TickEngagementWatchdog(fateId, fate, idle))
                 {
                     break;
                 }
@@ -273,6 +281,7 @@ public sealed partial class AutoFate
         }
         finally
         {
+            EndPull(preset, fateId, null);
             EndRingChase(preset);
             ReleaseCollectPullHold(preset);
             BossModIPC.Instance.ClearActive();
@@ -645,6 +654,7 @@ public sealed partial class AutoFate
     // Overrides live on BossMod's in-memory preset and outlast AFG, so a crash or unload mid-FATE would leave them behind.
     private void ResetEngageOverrides(string preset)
     {
+        ResetPullOverrides(preset);
         ringChaseParked = false;
         ringChaseTargetId = 0;
         ringChaseFailures = 0;
