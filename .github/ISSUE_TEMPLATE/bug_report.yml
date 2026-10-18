@@ -41,11 +41,11 @@ body:
       label: Plugin version
       description: Shown in `/xlplugins` next to "Auto FATE Grind".
       options:
+        - 2.21.0.0
         - 2.20.0.0
         - 2.19.0.0
         - 2.18.0.0
         - 2.17.0.0
-        - 2.16.0.0
         - Older / not sure
     validations:
       required: true
