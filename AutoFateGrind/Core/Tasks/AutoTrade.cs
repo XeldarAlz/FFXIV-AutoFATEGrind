@@ -103,12 +103,39 @@ public sealed class AutoTrade(TradePlan plan) : AutoCommon
         }
 
         Status = $"Buying {qty} × {item.ItemName}";
-        Diag($"Shop open. Wallet={wallet}, cost={item.CostPerOne}, mode={Plugin.Cfg.SpendMode}, need={need}, qty={qty}");
+        Diag($"Shop open. Wallet={wallet}, cost={item.CostPerOne}, mode={Plugin.Cfg.SpendMode}, need={need}, qty={qty}, stack={item.StackSize}");
 
-        if (!await WaitUntilTimed(() => ShopInteraction.BuyFromCurrencyShop(item.ItemId, qty), ConfirmWaitMs, "buy-select"))
+        // The shop hands over at most one stack per exchange, so an item that does not stack (furnishings) is
+        // bought one exchange at a time; asking for more in one exchange is silently refused.
+        var exchangeSize = (int)item.StackSize;
+        var boughtCount = 0;
+        while (boughtCount < qty)
+        {
+            var batch = Math.Min(exchangeSize, qty - boughtCount);
+            if (!await ExchangeOnce(item, batch))
+            {
+                break;
+            }
+
+            boughtCount += batch;
+        }
+
+        if (boughtCount == 0)
+        {
+            return;
+        }
+
+        boughtItemIds.Add(item.ItemId);
+        Diag($"Bought {boughtCount} × {item.ItemName}; wallet now {GemstoneCount()}g, {spentGems}g spent this trade.");
+    }
+
+    private async Task<bool> ExchangeOnce(GemstoneTradeItem item, int quantity)
+    {
+        var wallet = GemstoneCount();
+        if (!await WaitUntilTimed(() => ShopInteraction.BuyFromCurrencyShop(item.ItemId, quantity), ConfirmWaitMs, "buy-select"))
         {
             Diag($"Could not select {item.ItemName} in the open shop.");
-            return;
+            return false;
         }
 
         if (!await WaitUntilTimed(
@@ -123,14 +150,13 @@ public sealed class AutoTrade(TradePlan plan) : AutoCommon
 
         if (!await WaitUntilTimed(() => GemstoneCount() < wallet, SpendWaitMs, "wait-spend"))
         {
-            Diag($"Wallet unchanged after {SpendWaitMs / 1000}s (was {wallet}, now {GemstoneCount()}); {item.ItemName} was not bought.");
-            return;
+            Diag($"Wallet unchanged after {SpendWaitMs / 1000}s (was {wallet}, now {GemstoneCount()}); {quantity} × {item.ItemName} was not bought.");
+            return false;
         }
 
         spentGems += wallet - GemstoneCount();
-        boughtItemIds.Add(item.ItemId);
-        Diag($"Bought {qty} × {item.ItemName}; wallet now {GemstoneCount()}g, {spentGems}g spent this trade.");
         await DelayMs(PurchaseSettleMs);
+        return true;
     }
 
     // Each sub-shop of a trader's menu holds part of the stock, so a later order may need the menu again, or a fresh

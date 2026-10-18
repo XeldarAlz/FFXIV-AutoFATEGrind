@@ -10,7 +10,8 @@ public sealed record GemstoneTradeItem(
     string ItemName,
     uint CostPerOne,
     uint[] ShopRowIds,
-    bool IsCollectible);
+    bool IsCollectible,
+    uint StackSize);
 
 public static class GemstoneCatalog
 {
@@ -59,7 +60,7 @@ public static class GemstoneCatalog
         var items = Svc.Data.GetExcelSheet<Item>();
         if (shops is null || items is null) return [];
 
-        var byItem = new Dictionary<uint, (uint cost, string name, List<uint> shopIds, bool collectible)>(capacity: 128);
+        var byItem = new Dictionary<uint, (uint cost, string name, List<uint> shopIds, bool collectible, uint stackSize)>(capacity: 128);
 
         foreach (var shop in shops)
         {
@@ -90,7 +91,7 @@ public static class GemstoneCatalog
                         if (items.GetRowOrDefault(rowId) is not { } row) continue;
                         var name = row.Name.ExtractText();
                         if (string.IsNullOrWhiteSpace(name)) continue;
-                        data = (bicolorCost, name, new List<uint>(), row.IsUnique || Svc.UnlockState.IsItemUnlockable(row));
+                        data = (bicolorCost, name, new List<uint>(), row.IsUnique || Svc.UnlockState.IsItemUnlockable(row), Math.Max(1u, row.StackSize));
                         byItem[rowId] = data;
                     }
                     if (!data.shopIds.Contains(shop.RowId))
@@ -105,7 +106,8 @@ public static class GemstoneCatalog
                 ItemName: kv.Value.name,
                 CostPerOne: kv.Value.cost,
                 ShopRowIds: [.. kv.Value.shopIds],
-                IsCollectible: kv.Value.collectible))
+                IsCollectible: kv.Value.collectible,
+                StackSize: kv.Value.stackSize))
             .OrderBy(i => i.CostPerOne)
             .ThenBy(i => i.ItemName, StringComparer.OrdinalIgnoreCase)];
     }
