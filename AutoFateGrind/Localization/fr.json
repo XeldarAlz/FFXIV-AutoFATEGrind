@@ -396,6 +396,7 @@
   "changelog.new": "Nouveau",
   "changelog.changes.one": "{0} changement",
   "changelog.changes.other": "{0} changements",
+  "changelog.r22120.1": "Correction des longs trajets vers un ALÉA dans la même zone, par exemple de la surface de Yak T'el jusqu'à Mamook, pris pour un blocage au bout de 60 secondes et terminés par une téléportation vers un éthérite même avec le Mode économie activé ; le délai repart désormais à zéro tant que le personnage se rapproche",
   "changelog.r22110.1": "Correction de l'échange automatique qui ne parvenait pas à acheter les objets non empilables, comme le mobilier : plusieurs étaient demandés au marchand en un seul échange, ce que le jeu refuse ; ils sont désormais achetés un par un",
   "changelog.r22100.1": "Ajout de Se téléporter en cas de blocage dans Réglages > Général : si la session ne progresse pas pendant un délai défini, par exemple après un atterrissage sur l'eau où la mascotte yo-kai ne peut pas être invoquée, le personnage se téléporte vers l'éthérite le plus proche et continue. Contribution de blackappleD",
   "changelog.r22100.2": "Ajout de l'option Attirer le plus d'ennemis possible dans Réglages > Déplacement : un tank attire chaque ennemi inactif de l'ALÉA à portée avec son attaque à distance, puis laisse BossMod éliminer le groupe en zone, avec une portée, un nombre maximum d'ennemis et des seuils de PV pour arrêter et reprendre. Contribution de blackappleD",

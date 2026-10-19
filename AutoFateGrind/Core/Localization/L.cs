@@ -425,6 +425,11 @@ internal static class L
         public static readonly LocString New = new("changelog.new", "New");
         public static readonly LocPlural Changes = new("changelog.changes", "{0} change", "{0} changes");
 
+        public static readonly LocString[] Release22120 =
+        [
+            new("changelog.r22120.1", "Fixed long trips to a FATE in the same zone, such as from the surface of Yak T'el down to Mamook, being taken for stuck after 60 seconds and ending in a teleport to an aetheryte even with Economy mode on; the time limit now starts over while the character keeps getting closer"),
+        ];
+
         public static readonly LocString[] Release22110 =
         [
             new("changelog.r22110.1", "Fixed auto-trade failing to buy items that do not stack, such as furnishings: the trader was asked for several in one exchange, which the game refuses, so they are now bought one at a time"),

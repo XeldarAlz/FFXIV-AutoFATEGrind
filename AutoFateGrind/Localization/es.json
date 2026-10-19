@@ -396,6 +396,7 @@
   "changelog.new": "Nuevo",
   "changelog.changes.one": "{0} cambio",
   "changelog.changes.other": "{0} cambios",
+  "changelog.r22120.1": "Corregido que los trayectos largos hacia un FATE en la misma zona, como desde la superficie de Yak T'el hasta Mamook, se tomaran por atascos a los 60 segundos y acabaran en un teletransporte a un eterito incluso con el Modo ahorro activado; el límite de tiempo ahora vuelve a empezar mientras el personaje siga acercándose",
   "changelog.r22110.1": "Corregido que el canje automático no pudiera comprar objetos que no se apilan, como el mobiliario: se pedían varios al comerciante en un solo canje, algo que el juego rechaza, así que ahora se compran de uno en uno",
   "changelog.r22100.1": "Añadido Teletransportarse al atascarse en Ajustes > General: si la sesión no avanza durante un tiempo establecido, por ejemplo tras aterrizar sobre el agua donde no se puede invocar la mascota yo-kai, el personaje se teletransporta al eterito más cercano y continúa. Contribución de blackappleD",
   "changelog.r22100.2": "Añadida la opción Atraer tantos enemigos como sea posible en Ajustes > Viaje: un tanque atrae a cada enemigo inactivo del FATE a su alcance con su ataque a distancia y deja que BossMod acabe con el grupo en área, con alcance, máximo de enemigos y PV para dejar de atraer y reanudar. Contribución de blackappleD",
