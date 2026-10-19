@@ -34,6 +34,11 @@ public sealed partial class AutoFate(IReadOnlyList<ZoneInfo> zones, AutoFateSess
     private const float TeleportRetryProgressMeters = 3.0f;
     private const float TeleportShortcutMinSavingMeters = 300f;
     private const int   MoveToFateWatchdogMs = 60_000;
+    // Each time the trip gets this much closer the watchdog window starts over, so a long trip that is still
+    // closing in (Yak T'el's surface down to the Mamook layer, issue #104) is not mistaken for a stuck one.
+    private const float MoveToFateProgressMeters = 20f;
+    // Ends a slow drift that keeps creeping closer; four windows covers a ground-mount crossing of the largest zones.
+    private const int   MoveToFateHardCapMs = 240_000;
     private const int   FlightReplanGroundGraceMs = 3_000;
     private const float FlightReplanMinDistanceMeters = 40f;
     private const int   MaxFlightReplans = 2;

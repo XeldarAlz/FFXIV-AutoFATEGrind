@@ -34,6 +34,7 @@ public sealed partial class AutoFate
             Diag($"Could not project FATE {fate.Id} dest {rnd} or its centre onto the navmesh; vnav may struggle");
 
         var targetId = fate.Id;
+        var fateName = fate.Name;
         // Mounting is refused in combat and clib's Mount() retries until the idle abort, so aggro (e.g. from a
         // blacklisted ring the character stands in) is walked away from; the move re-plans once combat drops.
         var walkingInCombat = Svc.Condition[ConditionFlag.InCombat];
@@ -55,8 +56,13 @@ public sealed partial class AutoFate
         await TryTeleportShortcut(fate.Position, targetId, fate.Name);
         if (CancelToken.IsCancellationRequested) return MoveStopReason.None;
 
-        // Keep the original fixed deadline for the whole move, including any flight re-plan.
-        var deadline = Environment.TickCount64 + MoveToFateWatchdogMs;
+        // One deadline spans the whole move, including any flight re-plan. It moves out only while the trip
+        // keeps getting closer, and never past the hard cap.
+        var startedAtMs = Environment.TickCount64;
+        var hardDeadline = startedAtMs + MoveToFateHardCapMs;
+        var deadline = startedAtMs + MoveToFateWatchdogMs;
+        var closestMeters = Svc.Objects.LocalPlayer is { } starter ? Vector3.Distance(starter.Position, dest) : float.MaxValue;
+        var extensionLogged = false;
         var lastRetargetAtMs = Environment.TickCount64;
         var nextProgressLogMs = Environment.TickCount64 + MoveProgressLogMs;
         var stopReason = MoveStopReason.None;
@@ -69,8 +75,8 @@ public sealed partial class AutoFate
         {
             Status = label;
 
-            if (Environment.TickCount64 >= deadline) { stopReason = MoveStopReason.StuckTeleport; return true; }
             if (stopReason != MoveStopReason.None) return true;
+            if (Environment.TickCount64 >= deadline) { stopReason = DeadlineExpired(); return true; }
             if (walkingInCombat && !Svc.Condition[ConditionFlag.InCombat]) { stopReason = MoveStopReason.CombatDropped; return true; }
 
             var refreshed = PublicEvent.GetFateById(targetId);
@@ -117,6 +123,25 @@ public sealed partial class AutoFate
             return false;
         }
 
+        MoveStopReason DeadlineExpired()
+        {
+            Diag(deadline >= hardDeadline
+                ? $"Move to FATE {targetId} ({fateName}) still not there after the {MoveToFateHardCapMs / 1000}s cap ({closestMeters:F0}m left at best); escalating to teleport"
+                : $"Move to FATE {targetId} ({fateName}) got no closer than {closestMeters:F0}m in {MoveToFateWatchdogMs / 1000}s; escalating to teleport");
+            return MoveStopReason.StuckTeleport;
+        }
+
+        void ExtendDeadlineOnProgress(long now)
+        {
+            if (now >= deadline || Svc.Objects.LocalPlayer is not { } player) return;
+
+            var remainingMeters = Vector3.Distance(player.Position, dest);
+            if (remainingMeters > closestMeters - MoveToFateProgressMeters) return;
+
+            closestMeters = remainingMeters;
+            deadline = Math.Min(now + MoveToFateWatchdogMs, hardDeadline);
+        }
+
         // Progress-or-recover: poll every frame across ALL of clib's phases (teleport, aethernet, mount,
         // pathfind, follow) and abort the move the moment forward progress stalls in a way that isn't a
         // legitimate wait. The tracker distinguishes a vnav terrain wedge from a fully-idle pre-pathfind
@@ -134,6 +159,21 @@ public sealed partial class AutoFate
                 Diag($"Still moving to FATE {targetId}: pos={pStr} navRun={NavmeshIPC.Instance.IsRunning()} busy={NavmeshIPC.Instance.IsBusy()} inCombat={Svc.Condition[ConditionFlag.InCombat]}");
             }
 
+            var now = Environment.TickCount64;
+            // clib only reads the deadline in StopCondition; a phase that stops polling it (e.g. a mount loop)
+            // is cancelled from here once the unwind slack has also run out.
+            if (now >= deadline + MoveOpUnwindSlackMs)
+            {
+                stopReason = DeadlineExpired();
+                return true;
+            }
+            ExtendDeadlineOnProgress(now);
+            if (!extensionLogged && deadline > now && now - startedAtMs >= MoveToFateWatchdogMs)
+            {
+                extensionLogged = true;
+                Diag($"Move to FATE {targetId} ({fateName}) still closing in after {MoveToFateWatchdogMs / 1000}s ({closestMeters:F0}m left); keeping it going, cap {MoveToFateHardCapMs / 1000}s");
+            }
+
             var kind = stuck.Check();
             if (kind == StallKind.None) return false;
 
@@ -149,7 +189,7 @@ public sealed partial class AutoFate
         var op = new MoveOp(o => o.MoveInZoneWithFlightRecovery(dest, config, StopCondition,
             flightReplanPolicy, message => Diag(message)));
 
-        var completed = await RunCancellable(op, MoveToFateWatchdogMs + MoveOpUnwindSlackMs, label, AbortIfFrozen);
+        var completed = await RunCancellable(op, MoveToFateHardCapMs + MoveOpUnwindSlackMs, label, AbortIfFrozen);
         if (CancelToken.IsCancellationRequested) return MoveStopReason.None;
 
         if (Svc.ClientState.TerritoryType != zone.TerritoryId)
