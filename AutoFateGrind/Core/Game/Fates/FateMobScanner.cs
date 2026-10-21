@@ -102,6 +102,37 @@ internal static unsafe class FateMobScanner
     public static bool IsTargetingMobOf(uint fateId)
         => Svc.Targets.Target is IBattleNpc npc && IsLiveMobOfFate(npc, fateId);
 
+    public static bool TargetNearest(uint fateId, Vector3 from)
+    {
+        IBattleNpc? nearest = null;
+        var nearestDistance = float.MaxValue;
+        var objects = Svc.Objects;
+        for (var objectIndex = 0; objectIndex < objects.Length; objectIndex++)
+        {
+            if (objects[objectIndex] is not IBattleNpc npc || !IsLiveMobOfFate(npc, fateId))
+            {
+                continue;
+            }
+
+            var distance = DistanceToHitbox(from, npc);
+            if (distance >= nearestDistance)
+            {
+                continue;
+            }
+
+            nearestDistance = distance;
+            nearest = npc;
+        }
+
+        if (nearest is null)
+        {
+            return false;
+        }
+
+        Svc.Targets.Target = nearest;
+        return true;
+    }
+
     public static bool TryGetTarget(uint fateId, Vector3 from, out FateMobTarget target)
     {
         target = default;

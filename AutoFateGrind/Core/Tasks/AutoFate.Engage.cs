@@ -416,6 +416,13 @@ public sealed partial class AutoFate
         Status = $"Closing on {fateName}";
         Diag($"Engagement idle on FATE {fateId} ({fateName}) for {EngageIdleStallMs / 1000}s with nothing in reach; walking to the nearest mob with vnav (attempt {idle.Repositions}/{MaxEngageRepositions}; {DescribeEngageSituation(fateId, idle.Meters)})");
 
+        // Nothing picks a mob standing outside the FATE ring, so a FATE whose adds spawn out there leaves the character
+        // idle beside them; with one targeted the ring chase walks to it while the rotation attacks.
+        if (!FateMobScanner.IsTargetingMobOf(fateId) && Svc.Objects.LocalPlayer is { } player && FateMobScanner.TargetNearest(fateId, player.Position))
+        {
+            Diag($"No mob of FATE {fateId} ({fateName}) was targeted; targeted the nearest one");
+        }
+
         var dest = survey.NearestPosition.OnMesh();
         // Already inside the ranged approach distance and still not fighting means the ground in between is the
         // problem, so close in like a melee; clib ends a move that starts within its tolerance without moving.
