@@ -425,6 +425,13 @@ internal static class L
         public static readonly LocString New = new("changelog.new", "New");
         public static readonly LocPlural Changes = new("changelog.changes", "{0} change", "{0} changes");
 
+        public static readonly LocString[] Release22200 =
+        [
+            new("changelog.r22200.1", "Added Chat commands to the settings: list your own commands, one per line (such as /li home or /ays m), and they run when a run finishes on its own, before the after-run action, never after Stop or a failure"),
+            new("changelog.r22200.2", "Fixed the character standing idle beside FATE enemies that spawn outside the FATE area, as in Mascot Murder: when nothing has a target, the nearest FATE enemy is now targeted"),
+            new("changelog.r22200.3", "The main window now moves only when you drag its top bar, so a drag inside it no longer moves it by accident; turn on Drag from anywhere in the settings for the old behaviour"),
+        ];
+
         public static readonly LocString[] Release22130 =
         [
             new("changelog.r22130.1", "Fixed long sessions ending in a crash or a Start button that stops working; moving around no longer sets up new game hooks each time"),
