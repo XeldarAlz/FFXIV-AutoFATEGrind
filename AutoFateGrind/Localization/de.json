@@ -396,6 +396,8 @@
   "changelog.new": "Neu",
   "changelog.changes.one": "{0} Änderung",
   "changelog.changes.other": "{0} Änderungen",
+  "changelog.r22130.1": "Behoben: Lange Sitzungen endeten in einem Absturz oder einem Start-Knopf, der nicht mehr reagierte; Bewegungen richten nicht mehr jedes Mal neue Spiel-Hooks ein",
+  "changelog.r22130.2": "Behoben: Die Einkaufsliste für Steine hielt nach dem ersten Händler an: Ein Tausch arbeitet jetzt die ganze Liste ab und reist zum nächsten Händler weiter, wenn ein Gegenstand nur anderswo verkauft wird, im Rahmen deiner Ausgabe-Einstellungen",
   "changelog.r22120.1": "Behoben: Lange Wege zu einem FATE im selben Gebiet, etwa von der Oberfläche von Yak T'el hinunter nach Mamook, galten nach 60 Sekunden als festgefahren und endeten auch mit aktivem Sparmodus in einem Teleport zu einem Ätheryten; das Zeitlimit beginnt jetzt neu, solange der Charakter näher kommt",
   "changelog.r22110.1": "Behoben: Der automatische Tausch konnte nicht stapelbare Gegenstände wie Einrichtungsgegenstände nicht kaufen: Der Händler wurde in einem Tausch um mehrere gebeten, was das Spiel ablehnt, daher werden sie jetzt einzeln gekauft",
   "changelog.r22100.1": "Bei Festhängen wegteleportieren unter Einstellungen > Allgemein hinzugefügt: macht der Durchlauf eine einstellbare Zeit lang keinen Fortschritt, etwa nach einer Landung auf Wasser, wo der Yo-kai-Begleiter nicht gerufen werden kann, teleportiert der Charakter zum nächsten Ätheryten und macht weiter. Beigetragen von blackappleD",

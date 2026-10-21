@@ -396,6 +396,8 @@
   "changelog.new": "New",
   "changelog.changes.one": "{0} change",
   "changelog.changes.other": "{0} changes",
+  "changelog.r22130.1": "Fixed long sessions ending in a crash or a Start button that stops working; moving around no longer sets up new game hooks each time",
+  "changelog.r22130.2": "Fixed the gemstone shopping list stopping after the first trader: a trade now buys down the whole list, travelling on to the next trader when an item is only sold elsewhere, within your spend settings",
   "changelog.r22120.1": "Fixed long trips to a FATE in the same zone, such as from the surface of Yak T'el down to Mamook, being taken for stuck after 60 seconds and ending in a teleport to an aetheryte even with Economy mode on; the time limit now starts over while the character keeps getting closer",
   "changelog.r22110.1": "Fixed auto-trade failing to buy items that do not stack, such as furnishings: the trader was asked for several in one exchange, which the game refuses, so they are now bought one at a time",
   "changelog.r22100.1": "Added Teleport out when stuck under Settings > General: when the run makes no progress for a set time, such as after landing on water where the yo-kai minion cannot be summoned, the character teleports to the nearest aetheryte and carries on. Contributed by blackappleD",

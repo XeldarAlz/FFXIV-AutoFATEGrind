@@ -396,6 +396,8 @@
   "changelog.new": "Nuevo",
   "changelog.changes.one": "{0} cambio",
   "changelog.changes.other": "{0} cambios",
+  "changelog.r22130.1": "Corregido que las sesiones largas acabaran en un cierre del juego o en un botón Iniciar que dejaba de funcionar; moverse ya no instala nuevos hooks del juego cada vez",
+  "changelog.r22130.2": "Corregido que la lista de compras de gemas se detuviera tras el primer comerciante: un canje ahora compra toda la lista y viaja al siguiente comerciante cuando un objeto solo se vende en otro lugar, dentro de tus ajustes de gasto",
   "changelog.r22120.1": "Corregido que los trayectos largos hacia un FATE en la misma zona, como desde la superficie de Yak T'el hasta Mamook, se tomaran por atascos a los 60 segundos y acabaran en un teletransporte a un eterito incluso con el Modo ahorro activado; el límite de tiempo ahora vuelve a empezar mientras el personaje siga acercándose",
   "changelog.r22110.1": "Corregido que el canje automático no pudiera comprar objetos que no se apilan, como el mobiliario: se pedían varios al comerciante en un solo canje, algo que el juego rechaza, así que ahora se compran de uno en uno",
   "changelog.r22100.1": "Añadido Teletransportarse al atascarse en Ajustes > General: si la sesión no avanza durante un tiempo establecido, por ejemplo tras aterrizar sobre el agua donde no se puede invocar la mascota yo-kai, el personaje se teletransporta al eterito más cercano y continúa. Contribución de blackappleD",

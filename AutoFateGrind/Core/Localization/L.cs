@@ -425,6 +425,12 @@ internal static class L
         public static readonly LocString New = new("changelog.new", "New");
         public static readonly LocPlural Changes = new("changelog.changes", "{0} change", "{0} changes");
 
+        public static readonly LocString[] Release22130 =
+        [
+            new("changelog.r22130.1", "Fixed long sessions ending in a crash or a Start button that stops working; moving around no longer sets up new game hooks each time"),
+            new("changelog.r22130.2", "Fixed the gemstone shopping list stopping after the first trader: a trade now buys down the whole list, travelling on to the next trader when an item is only sold elsewhere, within your spend settings"),
+        ];
+
         public static readonly LocString[] Release22120 =
         [
             new("changelog.r22120.1", "Fixed long trips to a FATE in the same zone, such as from the surface of Yak T'el down to Mamook, being taken for stuck after 60 seconds and ending in a teleport to an aetheryte even with Economy mode on; the time limit now starts over while the character keeps getting closer"),

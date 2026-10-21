@@ -396,6 +396,8 @@
   "changelog.new": "Yeni",
   "changelog.changes.one": "{0} değişiklik",
   "changelog.changes.other": "{0} değişiklik",
+  "changelog.r22130.1": "Düzeltildi: Uzun oturumlar bir çökmeyle ya da çalışmayı bırakan bir Başlat düğmesiyle bitiyordu; hareket artık her seferinde yeni oyun kancaları kurmuyor",
+  "changelog.r22130.2": "Düzeltildi: Taş alışveriş listesi ilk tüccardan sonra duruyordu: takas artık listenin tamamını alıyor ve bir eşya yalnızca başka yerde satılıyorsa harcama ayarlarınız dahilinde sıradaki tüccara gidiyor",
   "changelog.r22120.1": "Düzeltildi: Aynı bölgedeki bir FATE'e giden uzun yolculuklar, örneğin Yak T'el yüzeyinden Mamook'a inerken, 60 saniye sonra takılma sanılıyor ve Ekonomi modu açıkken bile bir aetheryte'a ışınlanmayla bitiyordu; karakter yaklaşmaya devam ettiği sürece süre sınırı artık yeniden başlıyor",
   "changelog.r22110.1": "Düzeltildi: Otomatik takas, mobilya gibi yığılmayan eşyaları satın alamıyordu: tüccardan tek takasta birden fazla isteniyordu ve oyun bunu reddediyor; artık tek tek satın alınıyor",
   "changelog.r22100.1": "Ayarlar > Genel altına Takılınca ışınlan eklendi: oturum belirlenen süre boyunca ilerlemezse, örneğin suya inip yo-kai minion'unun çağrılamadığı durumlarda, karakter en yakın aetheryte'a ışınlanır ve devam eder. Katkı: blackappleD",

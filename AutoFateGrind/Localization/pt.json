@@ -396,6 +396,8 @@
   "changelog.new": "Novo",
   "changelog.changes.one": "{0} mudança",
   "changelog.changes.other": "{0} mudanças",
+  "changelog.r22130.1": "Corrigidas as sessões longas que terminavam em um crash ou em um botão Iniciar que parava de funcionar; os deslocamentos não instalam mais novos hooks no jogo a cada vez",
+  "changelog.r22130.2": "Corrigida a lista de compras de gemas que parava após o primeiro comerciante: uma troca agora compra a lista inteira, seguindo para o próximo comerciante quando um item só é vendido em outro lugar, dentro das suas configurações de gasto",
   "changelog.r22120.1": "Corrigidos os trajetos longos até um FATE na mesma zona, como da superfície de Yak T'el até Mamook, que eram tomados por travamento após 60 segundos e terminavam em um teleporte para um etérito mesmo com o Modo econômico ativado; o limite de tempo agora recomeça enquanto o personagem continuar se aproximando",
   "changelog.r22110.1": "Corrigida a troca automática que não conseguia comprar itens que não empilham, como móveis: vários eram pedidos ao comerciante em uma única troca, o que o jogo recusa, e agora são comprados um de cada vez",
   "changelog.r22100.1": "Adicionado Teleportar ao ficar preso em Configurações > Geral: se a sessão não progredir por um tempo definido, por exemplo após pousar na água onde o mascote yo-kai não pode ser invocado, o personagem teleporta para o etérito mais próximo e continua. Contribuição de blackappleD",
