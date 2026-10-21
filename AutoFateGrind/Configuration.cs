@@ -129,6 +129,9 @@ public sealed class Configuration : IPluginConfiguration
     // What to do once the run's stop condition is met (never fires on manual Stop or a fault).
     public AfterRunAction AfterRun { get; set; } = AfterRunAction.StayLoggedIn;
 
+    // One chat command per line, sent before the after-run action under the same gate (never after Stop or a fault).
+    public string PostRunCommands { get; set; } = string.Empty;
+
     public GemstoneSpendMode SpendMode { get; set; } = GemstoneSpendMode.SpendAll;
     public int SpendGemsAmount { get; set; } = 1000;
     public int BuyQuantityAmount { get; set; } = 10;

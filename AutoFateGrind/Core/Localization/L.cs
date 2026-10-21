@@ -663,6 +663,10 @@ internal static class L
         public static readonly LocString StuckRescueHelp = new("settings.general.stuckRescueHelp", "If the run makes no progress for this long (no FATE finished, no zone change, no combat, and the character stays within 15 m of one spot), teleport to the nearest aetheryte in the zone and carry on from there. Catches cases like landing on water, where the yo-kai minion cannot be summoned. After 3 teleports with no FATE finished in between, the run is treated as faulted instead (see Auto-resume on fault).");
         public static readonly LocString StuckRescueAfter = new("settings.general.stuckRescueAfter", "Stuck after");
         public static readonly LocString StuckRescueAfterHelp = new("settings.general.stuckRescueAfterHelp", "How long the run must make no progress before AFG teleports out.");
+        public static readonly LocString PostRunGroup = new("settings.postRun.group", "Chat commands");
+        public static readonly LocString PostRunLabel = new("settings.postRun.label", "Run when the run finishes");
+        public static readonly LocString PostRunHelp = new("settings.postRun.help", "One command per line, each starting with a slash. They run when a run ends on its own, before the after-run action, and never after Stop or a failure.");
+        public static readonly LocString PostRunCaption = new("settings.postRun.caption", "Lines that do not start with a slash are skipped, so nothing is ever said in chat. Try /li home to head home or /ays m to hand off to AutoRetainer.");
         public static readonly LocString TravelFatePlay = new("settings.travel.fatePlay", "FATE play");
         public static readonly LocString PullMany = new("settings.travel.pullMany", "Pull as many mobs as possible");
         public static readonly LocString PullManyHelp = new("settings.travel.pullManyHelp", "Tanks only. Instead of fighting whatever walks up, AFG tags every idle mob of the FATE in reach with your ranged attack, then lets BossMod AoE the pack down.");

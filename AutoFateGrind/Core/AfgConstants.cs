@@ -17,6 +17,9 @@ internal static class AfgConstants
     public const int BicolorCap = 1500;
     public const int FollowUpWaitMs = 15_000;
 
+    // Some plugin commands misbehave when several arrive in the same frame, so post-run commands are spaced out.
+    public const int PostRunCommandSpacingMs = 500;
+
     // Shared throttle for game-addon interactions; distinct from SaveThrottleMs even though both equal 500.
     public const int AddonInteractThrottleMs = 500;
 

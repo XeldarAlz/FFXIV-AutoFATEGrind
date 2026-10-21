@@ -21,26 +21,44 @@ internal sealed partial class AutoFateController
         s.AfterActionDispatched = true;
 
         var action = Plugin.Cfg.AfterRun;
-        if (action == AfterRunAction.StayLoggedIn)
+        var commandBlock = Plugin.Cfg.PostRunCommands;
+        var hasCommands = !string.IsNullOrWhiteSpace(commandBlock);
+        if (action == AfterRunAction.StayLoggedIn && !hasCommands)
         {
-            Diag("Run completed by stop condition; after-run action = StayLoggedIn (no-op).");
+            Diag("Run completed by stop condition; after-run action = StayLoggedIn and no chat commands (no-op).");
             return;
         }
 
         if (s.DidNothing)
         {
-            Diag($"Run ended by stop condition without doing any work; skipping after-run action {action}.");
+            Diag($"Run ended by stop condition without doing any work; skipping chat commands and after-run action {action}.");
             return;
         }
 
         Diag($"Run completed by stop condition; starting after-run action {action}.");
         Phase = AutoPhase.Finishing;
-        AutoCommon task = action == AfterRunAction.ReturnToInn ? new AutoReturnToInn() : new AutoAfterRun(action);
-        RunTask(task, () =>
+        if (!hasCommands && action == AfterRunAction.ReturnToInn)
         {
-            Diag($"After-run action {action} finished.");
-            Phase = AutoPhase.Idle;
+            RunTask(new AutoReturnToInn(), () => FinishAfterAction(action));
+            return;
+        }
+
+        RunTask(new AutoAfterRun(action, commandBlock), () =>
+        {
+            if (action != AfterRunAction.ReturnToInn)
+            {
+                FinishAfterAction(action);
+                return;
+            }
+
+            RunTask(new AutoReturnToInn(), () => FinishAfterAction(action));
         });
+    }
+
+    private void FinishAfterAction(AfterRunAction action)
+    {
+        Diag($"After-run action {action} finished.");
+        Phase = AutoPhase.Idle;
     }
 
     // Writes a finished run to history exactly once. Idempotent (guarded by session.Recorded) so the many
