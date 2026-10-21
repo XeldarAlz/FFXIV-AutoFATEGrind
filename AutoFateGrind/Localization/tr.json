@@ -686,7 +686,7 @@
   "settings.gems.traderMissing": "{0} satan bilinen bir Bicolor tüccarı yok. Başka bir eşya seçin.",
   "settings.gems.alreadyListed": "Zaten listede.",
   "settings.gems.list": "Alışveriş listesi",
-  "settings.gems.listHelp": "Yukarıdan aşağıya doğru alınır. Her takas, hâlâ gereken ilk eşyanın tüccarına gider ve aynı tüccarın sattığı daha aşağıdaki eşyaları da alır. Minion ve orchestrion roll gibi koleksiyon eşyaları bir kez alınır, sahip olduğunuzda ya da öğrendiğinizde atlanır.",
+  "settings.gems.listHelp": "Yukarıdan aşağıya doğru alınır. Her takas, hâlâ gereken ilk eşyanın tüccarına gider ve aynı tüccarın sattığı daha aşağıdaki eşyaları da alır. Ardından hâlâ gereken bir sonraki eşyanın tüccarında da aynısını yapar ve listede alınabilecek bir şey kalmayana kadar devam eder. Minion ve orchestrion roll gibi koleksiyon eşyaları bir kez alınır, sahip olduğunuzda ya da öğrendiğinizde atlanır.",
   "settings.gems.listEmpty": "Liste boş, bu yüzden otomatik takasın alacağı bir şey yok. Yukarıdan bir eşya ekleyin.",
   "settings.gems.unknownItem": "Bilinmeyen eşya ({0})",
   "settings.gems.statusLearned": "Öğrenildi",

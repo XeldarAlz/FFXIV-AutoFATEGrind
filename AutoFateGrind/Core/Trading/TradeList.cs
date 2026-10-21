@@ -56,7 +56,7 @@ public static class TradeList
 
     // The first entry that is still needed, affordable and reachable picks the trader. Every entry below it that the
     // same trader sells is bought on the same trip, as far as the budget stretches once the shop is open.
-    public static TradePlan? Plan(int wallet, uint? preferTerritoryId, ExpansionKind? preferExpansion, IReadOnlySet<uint> skippedItemIds)
+    public static TradePlan? Plan(int wallet, uint? preferTerritoryId, ExpansionKind? preferExpansion, IReadOnlySet<uint> skippedItemIds, int spentThisTrade = 0)
     {
         var entries = Plugin.Cfg.TradeList;
         for (var leadIndex = 0; leadIndex < entries.Count; leadIndex++)
@@ -66,7 +66,7 @@ public static class TradeList
                 continue;
             }
 
-            if (GemstoneCatalog.ComputeBuyQuantity(wallet, lead.Item.CostPerOne, need, 0) <= 0)
+            if (GemstoneCatalog.ComputeBuyQuantity(wallet, lead.Item.CostPerOne, need, spentThisTrade) <= 0)
             {
                 continue;
             }

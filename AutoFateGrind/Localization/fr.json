@@ -686,7 +686,7 @@
   "settings.gems.traderMissing": "Aucun marchand Bicolor connu ne vend {0}. Choisissez un autre objet.",
   "settings.gems.alreadyListed": "Déjà dans la liste.",
   "settings.gems.list": "Liste d'achats",
-  "settings.gems.listHelp": "Achetés de haut en bas. Chaque échange se rend chez le marchand du premier objet encore nécessaire et achète aussi les objets plus bas que ce même marchand vend. Les objets de collection comme les mascottes et les rouleaux d'orchestrion sont achetés une fois, puis ignorés une fois possédés ou appris.",
+  "settings.gems.listHelp": "Achetés de haut en bas. Chaque échange se rend chez le marchand du premier objet encore nécessaire et achète aussi les objets plus bas que ce même marchand vend. Il fait ensuite de même chez le marchand du prochain objet encore nécessaire, jusqu'à ce que plus rien de la liste ne puisse être acheté. Les objets de collection comme les mascottes et les rouleaux d'orchestrion sont achetés une fois, puis ignorés une fois possédés ou appris.",
   "settings.gems.listEmpty": "La liste est vide, l'échange automatique n'a donc rien à acheter. Ajoutez un objet ci-dessus.",
   "settings.gems.unknownItem": "Objet inconnu ({0})",
   "settings.gems.statusLearned": "Appris",

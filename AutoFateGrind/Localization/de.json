@@ -686,7 +686,7 @@
   "settings.gems.traderMissing": "Kein bekannter Bicolor-Händler verkauft {0}. Wähle einen anderen Gegenstand.",
   "settings.gems.alreadyListed": "Bereits auf der Liste.",
   "settings.gems.list": "Einkaufsliste",
-  "settings.gems.listHelp": "Wird von oben nach unten gekauft. Jeder Tausch führt zum Händler des ersten noch benötigten Gegenstands und kauft dort auch die Gegenstände weiter unten, die derselbe Händler verkauft. Sammelobjekte wie Begleiter und Orchestrion-Notenrollen werden einmal gekauft und übersprungen, sobald du sie besitzt oder erlernt hast.",
+  "settings.gems.listHelp": "Wird von oben nach unten gekauft. Jeder Tausch führt zum Händler des ersten noch benötigten Gegenstands und kauft dort auch die Gegenstände weiter unten, die derselbe Händler verkauft. Danach geht es beim Händler des nächsten noch benötigten Gegenstands genauso weiter, bis nichts mehr auf der Liste gekauft werden kann. Sammelobjekte wie Begleiter und Orchestrion-Notenrollen werden einmal gekauft und übersprungen, sobald du sie besitzt oder erlernt hast.",
   "settings.gems.listEmpty": "Die Liste ist leer, daher kauft der automatische Tausch nichts. Füge oben einen Gegenstand hinzu.",
   "settings.gems.unknownItem": "Unbekannter Gegenstand ({0})",
   "settings.gems.statusLearned": "Erlernt",

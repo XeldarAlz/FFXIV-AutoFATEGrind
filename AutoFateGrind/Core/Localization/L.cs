@@ -787,7 +787,7 @@ internal static class L
         public static readonly LocString TraderMissing = new("settings.gems.traderMissing", "No known Bicolor trader sells {0}. Pick another item.");
         public static readonly LocString AlreadyListed = new("settings.gems.alreadyListed", "Already on the list.");
         public static readonly LocString ShoppingList = new("settings.gems.list", "Shopping list");
-        public static readonly LocString ShoppingListHelp = new("settings.gems.listHelp", "Bought from the top down. Each trade goes to a trader for the first item still needed and also buys the items below it that the same trader sells. Collectibles such as minions and orchestrion rolls are bought once and skipped after you own or learn them.");
+        public static readonly LocString ShoppingListHelp = new("settings.gems.listHelp", "Bought from the top down. Each trade goes to a trader for the first item still needed and also buys the items below it that the same trader sells, then does the same at the trader for the next item still needed until nothing more on the list can be bought. Collectibles such as minions and orchestrion rolls are bought once and skipped after you own or learn them.");
         public static readonly LocString ShoppingListEmpty = new("settings.gems.listEmpty", "The list is empty, so auto-trade has nothing to buy. Add an item above.");
         public static readonly LocString UnknownTradeItem = new("settings.gems.unknownItem", "Unknown item ({0})");
         public static readonly LocString StatusLearned = new("settings.gems.statusLearned", "Learned");

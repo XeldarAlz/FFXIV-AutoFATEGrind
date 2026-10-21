@@ -6,9 +6,11 @@ using System.Threading.Tasks;
 
 namespace AutoFateGrind.Core.Tasks;
 
-public sealed class AutoTrade(TradePlan plan) : AutoCommon
+public sealed class AutoTrade(TradePlan plan, IReadOnlySet<uint> skippedItemIds) : AutoCommon
 {
     private readonly TradePlan plan = plan;
+    private readonly HashSet<uint> excludedItemIds = [.. skippedItemIds];
+    private readonly List<TradeOrder> orders = [];
     private readonly HashSet<uint> boughtItemIds = [];
     private readonly HashSet<uint> passedOverItemIds = [];
     private int spentGems;
@@ -29,6 +31,10 @@ public sealed class AutoTrade(TradePlan plan) : AutoCommon
 
     public bool BoughtAny => boughtItemIds.Count > 0;
 
+    public IReadOnlyList<TradeOrder> Orders => orders;
+
+    public TraderLocation Trader { get; private set; } = plan.Trader;
+
     // The character's own state (combat, a stuck teleport lock) stalled every cast toward the trader, which says
     // nothing about the shopping list itself.
     public bool TransportBlocked => transportBlocked;
@@ -37,25 +43,43 @@ public sealed class AutoTrade(TradePlan plan) : AutoCommon
     // still runs OnCompleted after an exception.
     public bool Failed(uint itemId) => !boughtItemIds.Contains(itemId) && !passedOverItemIds.Contains(itemId);
 
+    // One trader rarely sells the whole list (Turali and older Bicolor vouchers sit with different traders), so the
+    // rest is planned again after each trader, skipping orders already taken on so the walk ends (issue #105).
     protected override async Task Execute()
     {
-        var trader = plan.Trader;
-        Diag($"AutoTrade start: trader={trader.Name} terr={trader.TerritoryId} items={plan.DescribeItems()}");
-        Svc.Chat.Print($"[AFG] Auto-trade at {trader.Name}: {plan.DescribeItems()}");
-
-        await ReachTrader(trader);
-
-        for (var orderIndex = 0; orderIndex < plan.Orders.Length; orderIndex++)
+        var trip = plan;
+        while (trip is not null)
         {
-            await BuyOrder(trader, plan.Orders[orderIndex]);
+            await Visit(trip);
+            trip = TradeList.Plan(GemstoneCount(), Trader.TerritoryId, Trader.Expansion, excludedItemIds, spentGems);
+        }
+
+        if (BoughtAny)
+            Svc.Chat.Print($"[AFG] Trade complete. Gemstones now: {GemstoneCount()}");
+    }
+
+    private async Task Visit(TradePlan trip)
+    {
+        Trader = trip.Trader;
+        for (var orderIndex = 0; orderIndex < trip.Orders.Length; orderIndex++)
+        {
+            orders.Add(trip.Orders[orderIndex]);
+            excludedItemIds.Add(trip.Orders[orderIndex].Item.ItemId);
+        }
+
+        Diag($"AutoTrade start: trader={Trader.Name} terr={Trader.TerritoryId} items={trip.DescribeItems()}");
+        Svc.Chat.Print($"[AFG] Auto-trade at {Trader.Name}: {trip.DescribeItems()}");
+
+        await ReachTrader(Trader);
+
+        for (var orderIndex = 0; orderIndex < trip.Orders.Length; orderIndex++)
+        {
+            await BuyOrder(Trader, trip.Orders[orderIndex]);
         }
 
         Status = "Closing shop";
         ShopInteraction.CloseShop();
         await DelayMs(ShopCloseSettleMs);
-
-        if (BoughtAny)
-            Svc.Chat.Print($"[AFG] Trade complete. Gemstones now: {GemstoneCount()}");
     }
 
     private async Task ReachTrader(TraderLocation trader)

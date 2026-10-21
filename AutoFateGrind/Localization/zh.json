@@ -686,7 +686,7 @@
   "settings.gems.traderMissing": "没有已知的双色宝石商人出售{0}。请改选其他物品。",
   "settings.gems.alreadyListed": "已在清单中。",
   "settings.gems.list": "购物清单",
-  "settings.gems.listHelp": "按从上到下的顺序购买。每次兑换会前往清单中第一个仍需购买的物品的商人处，并顺带购买同一商人出售的、位于其下方的物品。宠物、乐谱等收藏品只购买一次，拥有或学会后即跳过。",
+  "settings.gems.listHelp": "按从上到下的顺序购买。每次兑换会前往清单中第一个仍需购买的物品的商人处，并顺带购买同一商人出售的、位于其下方的物品，随后前往下一个仍需购买的物品的商人处照此购买，直到清单上没有可购买的物品为止。宠物、乐谱等收藏品只购买一次，拥有或学会后即跳过。",
   "settings.gems.listEmpty": "清单为空，自动兑换没有可购买的物品。请在上方添加物品。",
   "settings.gems.unknownItem": "未知物品（{0}）",
   "settings.gems.statusLearned": "已学会",

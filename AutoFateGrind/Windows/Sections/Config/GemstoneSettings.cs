@@ -436,10 +436,12 @@ internal static class GemstoneSettings
         SettingsRow.Note(previewText, previewColor);
     }
 
-    // Replays the shop's budget split at the threshold wallet, so the note matches what the next trade would buy.
+    // Replays the shop's budget split at the threshold wallet, trader by trader, so the note matches what the next
+    // trade would buy.
     private static (string Text, Vector4 Color) BuildPreview(Configuration cfg)
     {
-        var plan = TradeList.Plan(cfg.TradeThreshold, null, null, noSkippedItems);
+        var plannedItemIds = new HashSet<uint>();
+        var plan = TradeList.Plan(cfg.TradeThreshold, null, null, plannedItemIds);
         if (plan is null)
         {
             return (Loc.T(L.Settings.PreviewNothing, cfg.TradeThreshold, cfg.KeepGemstonesReserve), Styling.AccentRose);
@@ -447,21 +449,27 @@ internal static class GemstoneSettings
 
         var wallet = cfg.TradeThreshold;
         var spent = 0;
-        var parts = new List<string>(plan.Orders.Length);
-        for (var orderIndex = 0; orderIndex < plan.Orders.Length; orderIndex++)
+        var parts = new List<string>(cfg.TradeList.Count);
+        while (plan is not null)
         {
-            var item = plan.Orders[orderIndex].Item;
-            var need = TradeList.RemainingNeed(item, plan.Orders[orderIndex].StopAtCount);
-            var quantity = GemstoneCatalog.ComputeBuyQuantity(wallet, item.CostPerOne, need, spent);
-            if (quantity <= 0)
+            for (var orderIndex = 0; orderIndex < plan.Orders.Length; orderIndex++)
             {
-                continue;
+                var item = plan.Orders[orderIndex].Item;
+                plannedItemIds.Add(item.ItemId);
+                var need = TradeList.RemainingNeed(item, plan.Orders[orderIndex].StopAtCount);
+                var quantity = GemstoneCatalog.ComputeBuyQuantity(wallet, item.CostPerOne, need, spent);
+                if (quantity <= 0)
+                {
+                    continue;
+                }
+
+                var cost = quantity * (int)item.CostPerOne;
+                wallet -= cost;
+                spent += cost;
+                parts.Add(Loc.T(L.Settings.PreviewItem, quantity, item.ItemName));
             }
 
-            var cost = quantity * (int)item.CostPerOne;
-            wallet -= cost;
-            spent += cost;
-            parts.Add(Loc.T(L.Settings.PreviewItem, quantity, item.ItemName));
+            plan = TradeList.Plan(wallet, plan.Trader.TerritoryId, plan.Trader.Expansion, plannedItemIds, spent);
         }
 
         return (Loc.T(L.Settings.PreviewPlan, cfg.TradeThreshold, cfg.KeepGemstonesReserve, string.Join(", ", parts), spent), Styling.TextMuted);

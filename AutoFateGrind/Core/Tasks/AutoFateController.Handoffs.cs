@@ -130,7 +130,7 @@ internal sealed partial class AutoFateController
 
         Phase = AutoPhase.Trading;
         Diag($"Trade phase entering: {plan.Trader.Name} for {plan.DescribeItems()}, origin zone {origin.Name} ({origin.TerritoryId}).");
-        var trade = new AutoTrade(plan);
+        var trade = new AutoTrade(plan, owningSession.TradeSkippedItemIds);
         RunTask(
             trade,
             () =>
@@ -141,7 +141,7 @@ internal sealed partial class AutoFateController
                     EndRun(owningSession);
                     return;
                 }
-                SkipFailedTradeItems(owningSession, plan, trade);
+                SkipFailedTradeItems(owningSession, trade);
                 if (Plugin.Cfg.AfterTrade != AfterTradeAction.Resume)
                 {
                     Diag($"AutoTrade finished: AfterTrade = {Plugin.Cfg.AfterTrade}; not resuming.");
@@ -162,23 +162,23 @@ internal sealed partial class AutoFateController
             });
     }
 
-    private static void SkipFailedTradeItems(AutoFateSession owningSession, TradePlan plan, AutoTrade trade)
+    private static void SkipFailedTradeItems(AutoFateSession owningSession, AutoTrade trade)
     {
         if (trade.TransportBlocked)
         {
             owningSession.TradeTransportBlocks++;
             if (owningSession.TradeTransportBlocks == 1)
             {
-                Diag($"AutoTrade never reached {plan.Trader.Name}: the character's own state stalled every teleport cast. The shopping list is kept and the next FATE retries the trade (issue #99).");
-                ECommons.DalamudServices.Svc.Chat.Print($"[AFG] Auto-trade could not teleport to {plan.Trader.Name}; it retries after the next FATE.");
+                Diag($"AutoTrade never reached {trade.Trader.Name}: the character's own state stalled every teleport cast. The shopping list is kept and the next FATE retries the trade (issue #99).");
+                ECommons.DalamudServices.Svc.Chat.Print($"[AFG] Auto-trade could not teleport to {trade.Trader.Name}; it retries after the next FATE.");
                 return;
             }
         }
 
-        var failedNames = new List<string>(plan.Orders.Length);
-        for (var orderIndex = 0; orderIndex < plan.Orders.Length; orderIndex++)
+        var failedNames = new List<string>(trade.Orders.Count);
+        for (var orderIndex = 0; orderIndex < trade.Orders.Count; orderIndex++)
         {
-            var item = plan.Orders[orderIndex].Item;
+            var item = trade.Orders[orderIndex].Item;
             if (!trade.Failed(item.ItemId) || !owningSession.TradeSkippedItemIds.Add(item.ItemId))
             {
                 continue;

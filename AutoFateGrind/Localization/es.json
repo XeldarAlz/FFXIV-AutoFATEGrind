@@ -686,7 +686,7 @@
   "settings.gems.traderMissing": "Ningún comerciante de Bicolor conocido vende {0}. Elige otro objeto.",
   "settings.gems.alreadyListed": "Ya está en la lista.",
   "settings.gems.list": "Lista de compras",
-  "settings.gems.listHelp": "Se compra de arriba abajo. Cada canje va al comerciante del primer objeto que aún hace falta y compra también los objetos de más abajo que vende ese mismo comerciante. Los coleccionables como esbirros y rollos de orquestrión se compran una vez y se omiten cuando ya los tienes o los has aprendido.",
+  "settings.gems.listHelp": "Se compra de arriba abajo. Cada canje va al comerciante del primer objeto que aún hace falta y compra también los objetos de más abajo que vende ese mismo comerciante. Después hace lo mismo con el comerciante del siguiente objeto que aún hace falta, hasta que no se pueda comprar nada más de la lista. Los coleccionables como esbirros y rollos de orquestrión se compran una vez y se omiten cuando ya los tienes o los has aprendido.",
   "settings.gems.listEmpty": "La lista está vacía, así que el canje automático no tiene nada que comprar. Añade un objeto arriba.",
   "settings.gems.unknownItem": "Objeto desconocido ({0})",
   "settings.gems.statusLearned": "Aprendido",

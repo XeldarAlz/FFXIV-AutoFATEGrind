@@ -686,7 +686,7 @@
   "settings.gems.traderMissing": "Nenhum comerciante Bicolor conhecido vende {0}. Escolha outro item.",
   "settings.gems.alreadyListed": "Já está na lista.",
   "settings.gems.list": "Lista de compras",
-  "settings.gems.listHelp": "Comprados de cima para baixo. Cada troca vai até o comerciante do primeiro item ainda necessário e compra também os itens mais abaixo que o mesmo comerciante vende. Colecionáveis como minions e rolos de orquestrion são comprados uma vez e pulados depois que você os possui ou aprende.",
+  "settings.gems.listHelp": "Comprados de cima para baixo. Cada troca vai até o comerciante do primeiro item ainda necessário e compra também os itens mais abaixo que o mesmo comerciante vende. Depois faz o mesmo no comerciante do próximo item ainda necessário, até que nada mais da lista possa ser comprado. Colecionáveis como minions e rolos de orquestrion são comprados uma vez e pulados depois que você os possui ou aprende.",
   "settings.gems.listEmpty": "A lista está vazia, então a troca automática não tem nada para comprar. Adicione um item acima.",
   "settings.gems.unknownItem": "Item desconhecido ({0})",
   "settings.gems.statusLearned": "Aprendido",
