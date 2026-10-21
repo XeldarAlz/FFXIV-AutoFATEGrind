@@ -35,6 +35,12 @@ internal static class GeneralSettings
             () => SettingsControls.DrawToggle(cfg, () => cfg.AutoShowOnLogin, v => cfg.AutoShowOnLogin = v, "##gen_autoshow"),
             SettingsRow.ToggleHeight);
 
+        SettingsRow.Draw(Loc.T(L.Settings.DragAnywhere),
+            Loc.T(L.Settings.DragAnywhereHelp),
+            SettingsControls.ToggleWidth,
+            () => SettingsControls.DrawToggle(cfg, () => cfg.DragWindowFromAnywhere, v => cfg.DragWindowFromAnywhere = v, "##gen_draganywhere"),
+            SettingsRow.ToggleHeight);
+
         SettingsRow.Draw(Loc.T(L.Settings.LivePopout),
             Loc.T(L.Settings.LivePopoutHelp),
             SettingsControls.ToggleWidth,

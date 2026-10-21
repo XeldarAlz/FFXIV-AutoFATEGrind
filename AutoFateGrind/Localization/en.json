@@ -530,6 +530,8 @@
   "settings.general.window": "Window",
   "settings.general.openOnLogin": "Open on login",
   "settings.general.openOnLoginHelp": "Pop the main window automatically the next time you log in.",
+  "settings.general.dragAnywhere": "Drag from anywhere",
+  "settings.general.dragAnywhereHelp": "Move the window by dragging anywhere inside it. When off, only the top bar moves it.",
   "settings.general.livePopout": "Live FATE tracker popout",
   "settings.general.livePopoutHelp": "Show the live FATE tracker as a small overlay window so you can keep it visible while the main window is closed.",
   "settings.general.nameFormat": "FATE name format",

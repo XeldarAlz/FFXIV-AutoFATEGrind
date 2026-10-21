@@ -12,6 +12,8 @@ public sealed class Configuration : IPluginConfiguration
 
     public bool AutoShowOnLogin { get; set; } = false;
 
+    public bool DragWindowFromAnywhere { get; set; } = false;
+
     public string Language { get; set; } = "";
 
     public List<uint> SelectedZones { get; set; } = [];

@@ -530,6 +530,8 @@
   "settings.general.window": "Окно",
   "settings.general.openOnLogin": "Открывать при входе",
   "settings.general.openOnLoginHelp": "Автоматически открывать главное окно при следующем входе в игру.",
+  "settings.general.dragAnywhere": "Перетаскивать за любое место",
+  "settings.general.dragAnywhereHelp": "Окно перемещается при перетаскивании за любое его место. Если выключено, его двигает только верхняя панель.",
   "settings.general.livePopout": "Трекер FATE отдельным окном",
   "settings.general.livePopoutHelp": "Показывает трекер FATE в небольшом окне поверх игры, чтобы он оставался на виду при закрытом главном окне.",
   "settings.general.nameFormat": "Формат названия FATE",

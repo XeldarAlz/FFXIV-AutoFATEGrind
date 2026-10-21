@@ -632,6 +632,8 @@ internal static class L
         public static readonly LocString GeneralWindow = new("settings.general.window", "Window");
         public static readonly LocString OpenOnLogin = new("settings.general.openOnLogin", "Open on login");
         public static readonly LocString OpenOnLoginHelp = new("settings.general.openOnLoginHelp", "Pop the main window automatically the next time you log in.");
+        public static readonly LocString DragAnywhere = new("settings.general.dragAnywhere", "Drag from anywhere");
+        public static readonly LocString DragAnywhereHelp = new("settings.general.dragAnywhereHelp", "Move the window by dragging anywhere inside it. When off, only the top bar moves it.");
         public static readonly LocString LivePopout = new("settings.general.livePopout", "Live FATE tracker popout");
         public static readonly LocString LivePopoutHelp = new("settings.general.livePopoutHelp", "Show the live FATE tracker as a small overlay window so you can keep it visible while the main window is closed.");
         public static readonly LocString NameFormat = new("settings.general.nameFormat", "FATE name format");

@@ -530,6 +530,8 @@
   "settings.general.window": "ウィンドウ",
   "settings.general.openOnLogin": "ログイン時に開く",
   "settings.general.openOnLoginHelp": "次回ログイン時にメインウィンドウを自動で開きます。",
+  "settings.general.dragAnywhere": "どこでもドラッグで移動",
+  "settings.general.dragAnywhereHelp": "ウィンドウ内のどこをドラッグしても移動できます。オフにすると上部のバーでのみ移動します。",
   "settings.general.livePopout": "FATEライブトラッカーを別窓に",
   "settings.general.livePopoutHelp": "FATEライブトラッカーを小さなオーバーレイウィンドウとして表示し、メインウィンドウを閉じても見えるようにします。",
   "settings.general.nameFormat": "FATE名の表示形式",

@@ -530,6 +530,8 @@
   "settings.general.window": "Pencere",
   "settings.general.openOnLogin": "Girişte aç",
   "settings.general.openOnLoginHelp": "Bir sonraki girişinizde ana pencereyi otomatik açar.",
+  "settings.general.dragAnywhere": "Her yerden sürükle",
+  "settings.general.dragAnywhereHelp": "Pencereyi içinde herhangi bir yerden sürükleyerek taşır. Kapalıyken yalnızca üst çubuk taşır.",
   "settings.general.livePopout": "Canlı FATE takipçisi ayrı pencerede",
   "settings.general.livePopoutHelp": "Canlı FATE takipçisini küçük bir üst pencere olarak gösterir; ana pencere kapalıyken de görünür kalır.",
   "settings.general.nameFormat": "FATE adı biçimi",

@@ -108,6 +108,7 @@ public sealed class AppWindow : Window, IDisposable
         var wasSizeDriven = sizeDriven;
         sizeDriven = compact || collapse > 0f;
         Flags = sizeDriven ? BaseFlags | ImGuiWindowFlags.NoResize : BaseFlags;
+        if (!plugin.Configuration.DragWindowFromAnywhere) Flags |= ImGuiWindowFlags.NoMove;
         SizeConstraints = sizeDriven ? CompactConstraints : ExpandedConstraints;
 
         if (sizeDriven)

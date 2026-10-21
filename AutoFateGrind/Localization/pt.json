@@ -530,6 +530,8 @@
   "settings.general.window": "Janela",
   "settings.general.openOnLogin": "Abrir ao entrar",
   "settings.general.openOnLoginHelp": "Abre a janela principal automaticamente na próxima vez que você entrar.",
+  "settings.general.dragAnywhere": "Arrastar de qualquer lugar",
+  "settings.general.dragAnywhereHelp": "Move a janela ao arrastar de qualquer ponto dentro dela. Desativado, só a barra superior a move.",
   "settings.general.livePopout": "Rastreador de FATE em janela flutuante",
   "settings.general.livePopoutHelp": "Mostra o rastreador de FATE ao vivo como uma pequena janela sobreposta, visível mesmo com a janela principal fechada.",
   "settings.general.nameFormat": "Formato do nome do FATE",

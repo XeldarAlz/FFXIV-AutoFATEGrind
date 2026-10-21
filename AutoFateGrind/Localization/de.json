@@ -530,6 +530,8 @@
   "settings.general.window": "Fenster",
   "settings.general.openOnLogin": "Beim Einloggen öffnen",
   "settings.general.openOnLoginHelp": "Öffnet das Hauptfenster beim nächsten Einloggen automatisch.",
+  "settings.general.dragAnywhere": "Überall ziehen",
+  "settings.general.dragAnywhereHelp": "Verschiebt das Fenster beim Ziehen an einer beliebigen Stelle. Ist das aus, verschiebt nur die obere Leiste das Fenster.",
   "settings.general.livePopout": "Live-FATE-Tracker als Popout",
   "settings.general.livePopoutHelp": "Zeigt den Live-FATE-Tracker als kleines Overlay-Fenster, damit er sichtbar bleibt, während das Hauptfenster geschlossen ist.",
   "settings.general.nameFormat": "FATE-Namensformat",

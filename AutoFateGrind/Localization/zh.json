@@ -530,6 +530,8 @@
   "settings.general.window": "窗口",
   "settings.general.openOnLogin": "登录时打开",
   "settings.general.openOnLoginHelp": "下次登录时自动打开主窗口。",
+  "settings.general.dragAnywhere": "任意位置拖动",
+  "settings.general.dragAnywhereHelp": "在窗口内任意位置拖动即可移动窗口。关闭后只能通过顶部栏移动。",
   "settings.general.livePopout": "FATE实时追踪弹出窗口",
   "settings.general.livePopoutHelp": "以小型悬浮窗显示FATE实时追踪，关闭主窗口后也能看到。",
   "settings.general.nameFormat": "FATE名称格式",
