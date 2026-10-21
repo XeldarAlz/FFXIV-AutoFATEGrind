@@ -27,9 +27,15 @@ internal sealed class NavmeshIPC
     private readonly ICallGateSubscriber<object> pathStop;
     private readonly ICallGateSubscriber<List<Vector3>, bool, object> pathMoveTo;
     private readonly ICallGateSubscriber<Vector3, bool, object> simpleMovePathfindAndMoveTo;
+    private readonly ICallGateSubscriber<Vector3, bool, float, bool> simpleMovePathfindAndMoveCloseTo;
     private readonly ICallGateSubscriber<int> pathNumWaypoints;
     private readonly ICallGateSubscriber<List<Vector3>> pathListWaypoints;
     private readonly ICallGateSubscriber<float> pathGetTolerance;
+
+    // Cached once so the per-frame move and stall checks do not allocate a delegate on every call.
+    private readonly Func<bool> isRunningCall;
+    private readonly Func<bool> isMovePendingCall;
+    private readonly Func<bool> isPathfindingCall;
 
     public const int WaypointsUnavailable = -1;
 
@@ -47,12 +53,17 @@ internal sealed class NavmeshIPC
         pathStop                    = Svc.PluginInterface.GetIpcSubscriber<object>("vnavmesh.Path.Stop");
         pathMoveTo                  = Svc.PluginInterface.GetIpcSubscriber<List<Vector3>, bool, object>("vnavmesh.Path.MoveTo");
         simpleMovePathfindAndMoveTo = Svc.PluginInterface.GetIpcSubscriber<Vector3, bool, object>("vnavmesh.SimpleMove.PathfindAndMoveTo");
+        simpleMovePathfindAndMoveCloseTo = Svc.PluginInterface.GetIpcSubscriber<Vector3, bool, float, bool>("vnavmesh.SimpleMove.PathfindAndMoveCloseTo");
         pathNumWaypoints            = Svc.PluginInterface.GetIpcSubscriber<int>("vnavmesh.Path.NumWaypoints");
         pathListWaypoints           = Svc.PluginInterface.GetIpcSubscriber<List<Vector3>>("vnavmesh.Path.ListWaypoints");
         pathGetTolerance            = Svc.PluginInterface.GetIpcSubscriber<float>("vnavmesh.Path.GetTolerance");
+
+        isRunningCall = pathIsRunning.InvokeFunc;
+        isMovePendingCall = simpleMovePathfindInProgress.InvokeFunc;
+        isPathfindingCall = navPathfindInProgress.InvokeFunc;
     }
 
-    // Arrival radius vnav applies on top of a MoveTo's own tolerance; clib skips a move inside the larger of the two.
+    // Arrival radius vnav applies on top of a move's own tolerance; a MoveOp skips a move inside the larger of the two.
     public float GetTolerance()
         => IpcGate.Invoke(pathGetTolerance.HasFunction, pathGetTolerance.InvokeFunc, 0f, "GetTolerance failed");
 
@@ -66,23 +77,22 @@ internal sealed class NavmeshIPC
         => IpcGate.Invoke(navBuildProgress.HasFunction, navBuildProgress.InvokeFunc, BuildIdle, "BuildProgress failed");
 
     public bool IsRunning()
-        => IpcGate.Invoke(pathIsRunning.HasFunction, pathIsRunning.InvokeFunc, false, "IsRunning failed");
+        => IpcGate.Invoke(pathIsRunning.HasFunction, isRunningCall, false, "IsRunning failed");
 
-    public bool IsBusy()
-    {
-        if (IsRunning()) return true;
-        if (simpleMovePathfindInProgress.HasFunction)
-        {
-            try { if (simpleMovePathfindInProgress.InvokeFunc()) return true; }
-            catch (Exception ex) { RunLog.Warning(ex, "PathfindInProgress(SimpleMove) failed"); }
-        }
-        if (navPathfindInProgress.HasFunction)
-        {
-            try { if (navPathfindInProgress.InvokeFunc()) return true; }
-            catch (Exception ex) { RunLog.Warning(ex, "PathfindInProgress(Nav) failed"); }
-        }
-        return false;
-    }
+    public bool IsBusy() => IsRunning() || IsMovePending() || IsPathfinding();
+
+    // A SimpleMove request still searching for its route, before Path takes it over.
+    public bool IsMovePending()
+        => IpcGate.Invoke(simpleMovePathfindInProgress.HasFunction, isMovePendingCall, false, "PathfindInProgress(SimpleMove) failed");
+
+    public bool IsPathfinding()
+        => IpcGate.Invoke(navPathfindInProgress.HasFunction, isPathfindingCall, false, "PathfindInProgress(Nav) failed");
+
+    // Ends arriveWithin metres short of the destination, which is how a MoveOp parks beside a point.
+    public bool PathfindAndMoveCloseTo(Vector3 destination, bool fly, float arriveWithin)
+        => IpcGate.Invoke(simpleMovePathfindAndMoveCloseTo.HasFunction,
+            () => simpleMovePathfindAndMoveCloseTo.InvokeFunc(destination, fly, arriveWithin),
+            false, "SimpleMove.PathfindAndMoveCloseTo failed");
 
     // Queues a pathfind on vnavmesh's own worker without moving. The task faults when the mesh is not
     // loaded; null when this vnavmesh lacks the IPC or the call itself threw. vnav runs pathfinds one at a

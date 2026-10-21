@@ -24,7 +24,7 @@ public abstract partial class AutoCommon
     private const float LandingBackOffMeters = 8f;
     private const int LandingBackOffMs = 1_500;
     internal const uint JumpGeneralActionId = 2;
-    private const uint DismountGeneralActionId = 23;
+    internal const uint DismountGeneralActionId = 23;
     private const int VerticalDescentWatchdogMs = 15_000;
     private const int VerticalDescentReissueMs = 250;
 

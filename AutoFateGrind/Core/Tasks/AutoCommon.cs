@@ -1,13 +1,14 @@
 using AutoFateGrind.Core.Ipc;
-using clib.TaskSystem;
 using ECommons.DalamudServices;
 using System;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
+using AutoTask = clib.Services.AutoTask;
 
 namespace AutoFateGrind.Core.Tasks;
 
-public abstract partial class AutoCommon : TaskBase
+// The plain AutoTask, because every instance of the library's TaskBase installs two native movement hooks.
+public abstract partial class AutoCommon : AutoTask
 {
     protected static void Diag(string message, [CallerFilePath] string callerFile = "") => RunLog.Info(message, callerFile);
 

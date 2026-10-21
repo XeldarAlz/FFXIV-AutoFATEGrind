@@ -12,7 +12,7 @@ public abstract partial class AutoCommon
     // Unlike AwaitWatchdog (which could only NavmeshIPC.Stop and then abandon a still-running clib
     // task), this owns the operation's CancellationTokenSource: on timeout — or when abortIf trips —
     // it calls op.Cancel(), which cancels every await inside the operation and fires its registered
-    // cleanups (movement hook off, the MoveTo OnDispose stops vnav). The operation genuinely unwinds,
+    // cleanups (the Navigate OnDispose stops vnav). The operation genuinely unwinds,
     // so it can never linger and fight the next move/teleport. Returns true if the op finished on its
     // own, false if it had to be cancelled (timeout, abort, or run cancellation).
     internal async Task<bool> RunCancellable(MoveOp op, int timeoutMs, string label, Func<bool>? abortIf = null)

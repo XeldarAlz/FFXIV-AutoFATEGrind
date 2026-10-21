@@ -11,20 +11,21 @@ using FFXIVClientStructs.FFXIV.Client.Game.Control;
 using FFXIVClientStructs.FFXIV.Client.Network;
 using System.Numerics;
 using System.Threading.Tasks;
+using AutoTask = clib.Services.AutoTask;
 using PlayerHelpers = ECommons.GameHelpers.Player;
 
 namespace AutoFateGrind.Core.Tasks;
 
 internal readonly record struct FlightReplanPolicy(int GroundTravelGraceMs, float MinDistanceMeters, int MaxReplans);
 
-// A single clib movement/teleport operation run as its OWN AutoTask, so it owns its own
+// A single movement/teleport operation run as its OWN AutoTask, so it owns its own
 // CancellationTokenSource. The parent grind loop can therefore Cancel() exactly one operation
-// without tearing down the whole run — clib's Cancel() fires the task's registered cleanups
-// (OverrideMovement off, the MoveTo OnDispose(Svc.Navmesh.Stop)) and cancels every await, so the
-// operation unwinds instead of leaking. clib's MoveTo/TeleportTo expose no per-call cancellation of
-// their own, which is why abandoning them (the old ObserveLeak path) left zombie flows that kept
-// re-issuing teleports and stopping the next FATE's navigation.
-internal sealed class MoveOp(System.Func<MoveOp, Task> body) : TaskBase
+// without tearing down the whole run: Cancel() fires the task's registered cleanups (the Navigate
+// OnDispose that stops vnav) and cancels every await, so the operation unwinds instead of leaking.
+// Abandoning a move instead (the old ObserveLeak path) left zombie flows that kept re-issuing
+// teleports and stopping the next FATE's navigation. It builds on the plain AutoTask rather than the
+// library's TaskBase, whose every instance installs two native movement hooks whose memory is never reused.
+internal sealed partial class MoveOp(System.Func<MoveOp, Task> body) : AutoTask
 {
     // clib's task runner awaits Execute with SuppressThrowing, so a clib ErrorIf (e.g. "Failed to start
     // pathfinding") would otherwise vanish and look like a clean completion. Capture it so the caller can
@@ -42,22 +43,22 @@ internal sealed class MoveOp(System.Func<MoveOp, Task> body) : TaskBase
     // allowAethernet on the first ride (issue #75). AFG plans any hop itself (RideAethernet), so the walk never does.
     public async Task Move(uint territoryId, Vector3 dest, MovementConfig config, System.Func<bool>? stopCondition)
     {
-        await TeleportTo(territoryId, dest);
+        await TeleportToTerritory(territoryId, dest, allowSameZoneTeleport: false);
         await MountPreferred(dest, config);
-        await MoveTo(dest, config, allowTeleportIfFaster: false, stopCondition, null, allowAethernet: false);
+        await Navigate(dest, config, stopCondition);
     }
 
     public async Task MoveInZone(Vector3 dest, MovementConfig config, System.Func<bool>? stopCondition)
     {
         await MountPreferred(dest, config);
-        await MoveTo(dest, config, allowTeleportIfFaster: false, stopCondition, null, allowAethernet: false);
+        await Navigate(dest, config, stopCondition);
     }
 
     private const int PreferredMountWaitMs = 5_000;
     private const int PreferredMountRetryMs = 500;
 
-    // clib's MoveTo only summons Flying Mount Roulette while unmounted, so riding the chosen mount first keeps
-    // it; if the summon never lands the roulette still runs. Mirrors clib's own skip radius so a move it
+    // Navigate only summons Flying Mount Roulette while unmounted, so riding the chosen mount first keeps
+    // it; if the summon never lands the roulette still runs. Mirrors Navigate's own skip radius so a move it
     // would not make never mounts.
     private async Task MountPreferred(Vector3 dest, MovementConfig config)
     {
@@ -111,7 +112,7 @@ internal sealed class MoveOp(System.Func<MoveOp, Task> body) : TaskBase
             bool? canFlyWhenPlanned = null;
             bool ShouldStop()
             {
-                // clib has already chosen the route by its first stop callback. If flight was ready
+                // Navigate has already chosen the route by its first stop callback. If flight was ready
                 // then, a grounded take-off is not evidence that it chose a ground route.
                 canFlyWhenPlanned ??= Control.CanFly;
                 callerStopped |= CancelToken.IsCancellationRequested || stopCondition?.Invoke() == true;
@@ -153,7 +154,7 @@ internal sealed class MoveOp(System.Func<MoveOp, Task> body) : TaskBase
                 return true;
             }
 
-            // clib decides whether to mount. Replan only when flight became available after it
+            // Navigate decides whether to mount. Replan only when flight became available after it
             // planned a ground route and navigation stayed grounded past the grace period.
             await MoveInZone(dest, config, ShouldStop);
             if (callerStopped || !replanForFlight || CancelToken.IsCancellationRequested)
@@ -172,19 +173,18 @@ internal sealed class MoveOp(System.Func<MoveOp, Task> body) : TaskBase
         && Control.CanFly;
 
     public Task Teleport(uint territoryId, Vector3 dest, bool allowSameZoneTeleport)
-        => TeleportTo(territoryId, dest, allowSameZoneTeleport);
+        => TeleportToTerritory(territoryId, dest, allowSameZoneTeleport);
 
     public async Task RideAethernet(AethernetHop hop)
     {
         var shard = CityAethernet.FindShardObject(hop.Source.Id);
         ErrorIf(shard is null, $"Aethernet shard {hop.Source.Id} is not loaded");
 
-        await MoveTo(shard!.Position, MovementConfig.Default.WithTolerance(InteractRange.Aetheryte),
-            allowTeleportIfFaster: false, null, null, allowAethernet: false);
+        await Navigate(shard!.Position, MovementConfig.Default.WithTolerance(InteractRange.Aetheryte), null);
         await Dismount();
 
         var menu = hop.Source.IsAetheryte ? AfgConstants.AddonNames.SelectString : AfgConstants.AddonNames.TelepotTown;
-        await InteractWith(shard, () => NpcInteraction.AddonOpen(menu), skip: UiSkipOptions.Talk);
+        await InteractWith(shard, () => NpcInteraction.AddonOpen(menu), UiSkipOptions.Talk);
         PacketDispatcher.TeleportToAethernet(hop.Source.Id, hop.Destination.Id);
 
         await WaitUntilThenFalse(() => Svc.Condition[ConditionFlag.BetweenAreas], "AethernetHop");
@@ -192,7 +192,7 @@ internal sealed class MoveOp(System.Func<MoveOp, Task> body) : TaskBase
     }
 
     public Task Interact(IGameObject obj, System.Func<bool>? waitUntil, UiSkipOptions skip)
-        => InteractWith(obj, waitUntil, null, skip);
+        => InteractWith(obj, waitUntil, skip);
 
     public Task DismountNow() => Dismount();
 }
