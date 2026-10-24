@@ -372,6 +372,28 @@
       },
       "ecommons": {
         "type": "Project"
+      },
+      "glasswork": {
+        "type": "Project"
+      },
+      "glasswork.backend": {
+        "type": "Project",
+        "dependencies": {
+          "Glasswork": "[0.1.0-alpha.2, )",
+          "Glasswork.Glass": "[0.1.0-alpha.2, )"
+        }
+      },
+      "glasswork.dalamud": {
+        "type": "Project",
+        "dependencies": {
+          "Glasswork.Backend": "[0.1.0-alpha.2, )"
+        }
+      },
+      "glasswork.glass": {
+        "type": "Project",
+        "dependencies": {
+          "Glasswork": "[0.1.0-alpha.2, )"
+        }
       }
     }
   }

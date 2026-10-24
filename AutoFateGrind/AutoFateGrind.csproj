@@ -30,6 +30,12 @@
     <ProjectReference Include="..\ECommons\ECommons\ECommons.csproj">
       <Private>true</Private>
     </ProjectReference>
+    <ProjectReference Include="..\external\glasswork\src\Glasswork.Dalamud\Glasswork.Dalamud.csproj" />
+    <!-- Glasswork compiles against the TerraFX that Dalamud ships; the plugin resolves Dalamud's copy at runtime, so it never lands in the output. -->
+    <Reference Include="TerraFX.Interop.Windows">
+      <HintPath>$(DalamudLibPath)TerraFX.Interop.Windows.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup>

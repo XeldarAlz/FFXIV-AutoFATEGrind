@@ -1,3 +1,6 @@
 [submodule "ECommons"]
 	path = ECommons
 	url = https://github.com/NightmareXIV/ECommons.git
+[submodule "external/glasswork"]
+	path = external/glasswork
+	url = https://github.com/XeldarAlz/FFXIV-Glasswork.git
