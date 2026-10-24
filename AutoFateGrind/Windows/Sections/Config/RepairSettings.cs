@@ -1,14 +1,17 @@
 using AutoFateGrind.Core.Game.Ops;
 using AutoFateGrind.Core.Localization;
-using AutoFateGrind.Windows.Components;
 using Dalamud.Bindings.ImGui;
-using Dalamud.Interface.Utility.Raii;
 using ECommons.DalamudServices;
+using Glasswork.Backend;
 
 namespace AutoFateGrind.Windows.Sections.Config;
 
 internal static class RepairSettings
 {
+    private const int ThresholdMin = 5;
+    private const int ThresholdMax = 80;
+    private const string PercentFormat = "%d%%";
+
     private static readonly RepairMode[] repairModes =
         [RepairMode.SelfThenNpc, RepairMode.SelfOnly, RepairMode.NpcOnly];
 
@@ -22,8 +25,7 @@ internal static class RepairSettings
     public static void Draw(Configuration cfg)
     {
         DrawTriggerGroup(cfg);
-        using var source = Motion.PushSection("##rp_source", cfg.AutoRepair);
-        if (source is null)
+        if (!cfg.AutoRepair)
         {
             return;
         }
@@ -33,55 +35,64 @@ internal static class RepairSettings
 
     private static void DrawTriggerGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin(Loc.T(L.Settings.RepairTrigger));
+        if (Gw.BeginSection(Loc.T(L.Settings.RepairTrigger)))
+        {
+            DrawTriggerRows(cfg);
+        }
 
-        SettingsRow.Draw(Loc.T(L.Settings.AutoRepair),
-            Loc.T(L.Settings.AutoRepairHelp),
-            SettingsControls.ToggleWidth,
-            () => SettingsControls.DrawToggle(cfg, () => cfg.AutoRepair, v => cfg.AutoRepair = v, "##rp_on"),
-            SettingsRow.ToggleHeight);
+        Gw.EndSection();
+    }
 
-        using var body = Motion.PushSwitch("##rp_body", cfg.AutoRepair);
+    private static void DrawTriggerRows(Configuration cfg)
+    {
+        var autoRepair = cfg.AutoRepair;
+        if (SettingsControls.ToggleRow(L.Settings.AutoRepair, L.Settings.AutoRepairHelp, ref autoRepair))
+        {
+            cfg.AutoRepair = autoRepair;
+            cfg.SaveDebounced();
+        }
+
         if (!cfg.AutoRepair)
         {
-            SettingsRow.Note(Loc.T(L.Settings.AutoRepairOff));
+            SettingsControls.Note(Loc.T(L.Settings.AutoRepairOff));
             return;
         }
 
-        SettingsRow.Draw(Loc.T(L.Settings.RepairThreshold),
-            Loc.T(L.Settings.RepairThresholdHelp),
-            SettingsControls.RowSliderWidth,
-            () => SettingsControls.DrawIntSlider(cfg, "##rp_threshold",
-                () => cfg.AutoRepairThresholdPct, v => cfg.AutoRepairThresholdPct = Math.Clamp(v, 5, 80),
-                5, 80, "%d%%"));
+        var threshold = cfg.AutoRepairThresholdPct;
+        if (SettingsControls.SliderRow(L.Settings.RepairThreshold, L.Settings.RepairThresholdHelp, ref threshold, ThresholdMin, ThresholdMax, PercentFormat))
+        {
+            cfg.AutoRepairThresholdPct = threshold;
+            cfg.SaveDebounced();
+        }
     }
 
     private static void DrawSourceGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin(Loc.T(L.Settings.RepairSource));
+        if (Gw.BeginSection(Loc.T(L.Settings.RepairSource)))
+        {
+            DrawSourceRows(cfg);
+        }
 
+        Gw.EndSection();
+    }
+
+    private static void DrawSourceRows(Configuration cfg)
+    {
         var selected = Math.Max(0, Array.IndexOf(repairModes, cfg.RepairMode));
-        SettingsRow.Draw(Loc.T(L.Settings.RepairSource),
-            Loc.T(L.Settings.RepairSourceHelp),
-            SettingsControls.RowComboWidth,
-            () => SettingsControls.Choices.DrawCombo("##rp_mode", repairModeChoices, selected, choice =>
-            {
-                cfg.RepairMode = repairModes[choice];
-                cfg.SaveDebounced();
-            }));
-        SettingsRow.Caption(Loc.T(repairModeChoices[selected].Detail));
+        if (SettingsControls.Choices.DrawRow(L.Settings.RepairSource, L.Settings.RepairSourceHelp, repairModeChoices, ref selected))
+        {
+            cfg.RepairMode = repairModes[selected];
+            cfg.SaveDebounced();
+        }
 
-        using var npc = Motion.PushSection("##rp_npc", cfg.RepairMode != RepairMode.SelfOnly);
-        if (npc is null)
+        if (cfg.RepairMode == RepairMode.SelfOnly)
         {
             return;
         }
 
-        SettingsRow.DrawBlock(Loc.T(L.Settings.CustomNpc),
-            Loc.T(L.Settings.CustomNpcHelp),
-            () => DrawCustomRepairNpc(cfg));
-
-        SettingsRow.Note(Loc.T(L.Settings.NpcNote));
+        SettingsControls.TitleRow(L.Settings.CustomNpc, L.Settings.CustomNpcHelp);
+        DrawCustomRepairNpc(cfg);
+        SettingsControls.Note(Loc.T(L.Settings.NpcNote));
     }
 
     private static void DrawCustomRepairNpc(Configuration cfg)
@@ -89,37 +100,43 @@ internal static class RepairSettings
         var npc = cfg.PreferredRepairNpc;
         if (npc is not null)
         {
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentMint))
-                ImGui.TextWrapped(Loc.T(L.Settings.NpcSet, npc.Name, npc.TerritoryId));
+            SettingsControls.Note(Loc.T(L.Settings.NpcSet, npc.Name, npc.TerritoryId), Frame.Look.Success);
         }
         else
         {
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
-                ImGui.TextWrapped(Loc.T(L.Settings.NpcNone));
+            SettingsControls.Note(Loc.T(L.Settings.NpcNone));
         }
 
-        if (ImGui.Button($"{Loc.T(L.Settings.SetFromTarget)}##rp_set"))
+        if (Gw.Button(Loc.T(L.Settings.SetFromTarget), ButtonStyle.Prominent, ButtonSize.Small))
         {
-            var captured = RepairOps.CaptureCurrentTargetAsRepairNpc();
-            if (captured is null)
-                Svc.Chat.PrintError(Loc.T(L.Settings.NoTargetChat));
-            else
-            {
-                cfg.PreferredRepairNpc = captured;
-                GameTextGlyphs.Add(captured.Name);
-                cfg.SaveDebounced();
-                Svc.Chat.Print(Loc.T(L.Settings.NpcSetChat, captured.Name, captured.TerritoryId));
-            }
+            CaptureTarget(cfg);
         }
 
-        if (npc is not null)
+        if (npc is null)
         {
-            ImGui.SameLine();
-            if (ImGui.Button($"{Loc.T(L.Common.Clear)}##rp_clear"))
-            {
-                cfg.PreferredRepairNpc = null;
-                cfg.SaveDebounced();
-            }
+            return;
         }
+
+        ImGui.SameLine();
+        if (Gw.Button(Loc.T(L.Common.Clear), ButtonStyle.Destructive, ButtonSize.Small))
+        {
+            cfg.PreferredRepairNpc = null;
+            cfg.SaveDebounced();
+        }
+    }
+
+    private static void CaptureTarget(Configuration cfg)
+    {
+        var captured = RepairOps.CaptureCurrentTargetAsRepairNpc();
+        if (captured is null)
+        {
+            Svc.Chat.PrintError(Loc.T(L.Settings.NoTargetChat));
+            return;
+        }
+
+        cfg.PreferredRepairNpc = captured;
+        GameTextGlyphs.Add(captured.Name);
+        cfg.SaveDebounced();
+        Svc.Chat.Print(Loc.T(L.Settings.NpcSetChat, captured.Name, captured.TerritoryId));
     }
 }

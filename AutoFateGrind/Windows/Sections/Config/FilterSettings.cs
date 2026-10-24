@@ -4,225 +4,24 @@ using AutoFateGrind.Core.Localization;
 using AutoFateGrind.Windows.Components;
 using clib.Utils;
 using Dalamud.Bindings.ImGui;
-using Dalamud.Interface;
-using Dalamud.Interface.Utility;
-using Dalamud.Interface.Utility.Raii;
 using FFXIVClientStructs.FFXIV.Client.Enums;
+using Glasswork.Backend;
 
 namespace AutoFateGrind.Windows.Sections.Config;
 
 internal static class FilterSettings
 {
+    private const int MinTimeMinSec = 30;
+    private const int MinTimeMaxSec = 600;
+    private const int MaxProgressMin = 50;
+    private const int MaxProgressMax = 99;
     private const int MaxDurationMinSec = 60;
     private const int MaxDurationMaxSec = 1800;
+    private const int MinLevel = 1;
     private const int MaxLevel = 100;
-
-    public static void Draw(Configuration cfg)
-    {
-        DrawEligibilityGroup(cfg);
-        DrawSkipTypesGroup(cfg);
-        DrawPriorityGroup(cfg);
-        DrawBlacklistGroup(cfg);
-    }
-
-    private static void DrawEligibilityGroup(Configuration cfg)
-    {
-        using var group = SettingsGroup.Begin(Loc.T(L.Settings.FiltersEligibility));
-
-        SettingsRow.Draw(Loc.T(L.Settings.MinTime),
-            Loc.T(L.Settings.MinTimeHelp),
-            SettingsControls.RowSliderWidth,
-            () => SettingsControls.DrawIntSlider(cfg, "##filt_mintime",
-                () => cfg.MinTimeRemainingSec, v => cfg.MinTimeRemainingSec = v, 30, 600, Loc.T(L.Settings.MinTimeFormat)));
-
-        SettingsRow.Draw(Loc.T(L.Settings.MaxProgress),
-            Loc.T(L.Settings.MaxProgressHelp),
-            SettingsControls.RowSliderWidth,
-            () => SettingsControls.DrawIntSlider(cfg, "##filt_maxprog",
-                () => cfg.MaxProgressPct, v => cfg.MaxProgressPct = v, 50, 99, "%d%%"));
-
-        SettingsRow.Draw(Loc.T(L.Settings.MaxDuration),
-            Loc.T(L.Settings.MaxDurationHelp),
-            SettingsControls.ToggleWidth,
-            () => SettingsControls.DrawToggle(cfg, () => cfg.MaxDurationFilterEnabled, v => cfg.MaxDurationFilterEnabled = v, "##filt_dur_on"),
-            SettingsRow.ToggleHeight);
-
-        using (Motion.PushSwitch("##filt_dur_body", cfg.MaxDurationFilterEnabled))
-        {
-            if (cfg.MaxDurationFilterEnabled)
-            {
-                SettingsRow.Draw(Loc.T(L.Settings.MaxDurationLimit),
-                    Loc.T(L.Settings.MaxDurationLimitHelp),
-                    SettingsControls.RowSliderWidth,
-                    () => SettingsControls.DrawIntSlider(cfg, "##filt_dur",
-                        () => cfg.MaxFateDurationSec, v => cfg.MaxFateDurationSec = v, MaxDurationMinSec, MaxDurationMaxSec, Loc.T(L.Settings.MinTimeFormat)));
-            }
-            else
-            {
-                SettingsRow.Note(Loc.T(L.Settings.MaxDurationOff));
-            }
-        }
-
-        SettingsRow.Draw(Loc.T(L.Settings.LevelWindow),
-            Loc.T(L.Settings.LevelWindowHelp),
-            SettingsControls.ToggleWidth,
-            () => SettingsControls.DrawToggle(cfg, () => cfg.LevelWindowEnabled, v => cfg.LevelWindowEnabled = v, "##filt_win_on"),
-            SettingsRow.ToggleHeight);
-
-        using (Motion.PushSwitch("##filt_win_body", cfg.LevelWindowEnabled))
-        {
-            if (cfg.LevelWindowEnabled)
-            {
-                SettingsRow.Draw(Loc.T(L.Settings.LevelLowest),
-                    Loc.T(L.Settings.LevelLowestHelp),
-                    SettingsControls.RowSliderWidth,
-                    () => SettingsControls.DrawIntSlider(cfg, "##filt_win_min",
-                        () => cfg.MinFateLevel, v => { cfg.MinFateLevel = v; if (cfg.MaxFateLevel < v) cfg.MaxFateLevel = v; }, 1, MaxLevel, Loc.T(L.Settings.LevelFormat)));
-
-                SettingsRow.Draw(Loc.T(L.Settings.LevelHighest),
-                    Loc.T(L.Settings.LevelHighestHelp),
-                    SettingsControls.RowSliderWidth,
-                    () => SettingsControls.DrawIntSlider(cfg, "##filt_win_max",
-                        () => cfg.MaxFateLevel, v => { cfg.MaxFateLevel = v; if (cfg.MinFateLevel > v) cfg.MinFateLevel = v; }, 1, MaxLevel, Loc.T(L.Settings.LevelFormat)));
-            }
-            else
-            {
-                SettingsRow.Note(Loc.T(L.Settings.LevelWindowOff));
-            }
-        }
-
-        SettingsRow.Draw(Loc.T(L.Settings.LevelRange),
-            Loc.T(L.Settings.LevelRangeHelp),
-            SettingsControls.ToggleWidth,
-            () => SettingsControls.DrawToggle(cfg, () => cfg.LevelRangeFilterEnabled, v => cfg.LevelRangeFilterEnabled = v, "##filt_lvl_on"),
-            SettingsRow.ToggleHeight);
-
-        using var body = Motion.PushSwitch("##filt_lvl_body", cfg.LevelRangeFilterEnabled);
-        if (!cfg.LevelRangeFilterEnabled)
-        {
-            SettingsRow.Note(Loc.T(L.Settings.LevelRangeOff));
-            return;
-        }
-
-        SettingsRow.Draw(Loc.T(L.Settings.LevelBelow),
-            Loc.T(L.Settings.LevelBelowHelp),
-            SettingsControls.RowSliderWidth,
-            () => SettingsControls.DrawIntSlider(cfg, "##filt_lvl_below",
-                () => cfg.MaxLevelBelow, v => cfg.MaxLevelBelow = v, 0, 100, Loc.T(L.Settings.LevelFormat)));
-
-        SettingsRow.Draw(Loc.T(L.Settings.LevelAbove),
-            Loc.T(L.Settings.LevelAboveHelp),
-            SettingsControls.RowSliderWidth,
-            () => SettingsControls.DrawIntSlider(cfg, "##filt_lvl_above",
-                () => cfg.MaxLevelAbove, v => cfg.MaxLevelAbove = v, 0, 100, Loc.T(L.Settings.LevelFormat)));
-    }
-
-    private static void DrawSkipTypesGroup(Configuration cfg)
-    {
-        using var group = SettingsGroup.Begin(Loc.T(L.Settings.FiltersTypes));
-
-        SettingsRow.DrawBlock(Loc.T(L.Settings.SkipTypes),
-            Loc.T(L.Settings.SkipTypesHelp),
-            () => DrawFateRuleSkipList(cfg));
-    }
-
-    private static void DrawPriorityGroup(Configuration cfg)
-    {
-        using var group = SettingsGroup.Begin(Loc.T(L.Settings.FiltersPriority));
-
-        SettingsRow.DrawBlock(Loc.T(L.Settings.FatePriority),
-            Loc.T(L.Settings.FatePriorityHelp),
-            () => DrawSortOrderList(cfg));
-    }
-
     private const int AutoBlacklistDeathsMin = 1;
     private const int AutoBlacklistDeathsMax = 10;
-
-    private static void DrawBlacklistGroup(Configuration cfg)
-    {
-        using var group = SettingsGroup.Begin(Loc.T(L.Settings.FiltersBlacklist));
-
-        SettingsRow.Draw(Loc.T(L.Settings.AutoBlacklistDeaths),
-            Loc.T(L.Settings.AutoBlacklistDeathsHelp),
-            SettingsControls.ToggleWidth,
-            () => SettingsControls.DrawToggle(cfg, () => cfg.AutoBlacklistOnDeaths, v => cfg.AutoBlacklistOnDeaths = v, "##bl_deaths_on"),
-            SettingsRow.ToggleHeight);
-
-        using (Motion.PushSwitch("##bl_deaths_body", cfg.AutoBlacklistOnDeaths))
-        {
-            if (cfg.AutoBlacklistOnDeaths)
-            {
-                SettingsRow.Draw(Loc.T(L.Settings.DeathsBeforeBlacklist),
-                    Loc.T(L.Settings.DeathsBeforeBlacklistHelp),
-                    SettingsControls.RowSliderWidth,
-                    () => SettingsControls.DrawIntSlider(cfg, "##bl_deaths",
-                        () => cfg.AutoBlacklistDeathCount, v => cfg.AutoBlacklistDeathCount = v,
-                        AutoBlacklistDeathsMin, AutoBlacklistDeathsMax, Loc.T(L.Settings.DeathsFormat)));
-            }
-            else
-            {
-                SettingsRow.Note(Loc.T(L.Settings.AutoBlacklistDeathsOff));
-            }
-        }
-
-        SettingsRow.DrawBlock(Loc.T(L.Settings.AddByName),
-            Loc.T(L.Settings.AddByNameHelp),
-            () => DrawBlacklistPicker(cfg));
-
-        SettingsRow.DrawBlock(Loc.T(L.Settings.Blacklisted),
-            Loc.T(L.Settings.BlacklistedHelp),
-            () => DrawBlacklistList(cfg));
-    }
-
-    private static int blacklistAddSelection;
-
-    private static void DrawBlacklistPicker(Configuration cfg)
-    {
-        var catalog = FateCatalog.All;
-        if (catalog.Length == 0)
-        {
-            SettingsRow.Note(Loc.T(L.Settings.NoFatesInData), Styling.AccentRose);
-            return;
-        }
-
-        blacklistAddSelection = Math.Clamp(blacklistAddSelection, 0, catalog.Length - 1);
-        var labels = FateCatalog.Labels;
-        SettingsControls.DrawSearchableCombo("##bl_pick", labels, ref blacklistAddSelection, 380f);
-
-        ImGui.SameLine();
-        using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentMint))
-            if (ImGui.SmallButton($"{Loc.T(L.Common.Add)}##bl_add"))
-                FateBlacklist.Add(cfg, FateType.Normal, catalog[blacklistAddSelection].FateIds);
-    }
-
-    private static void DrawBlacklistList(Configuration cfg)
-    {
-        var groups = FateBlacklist.All(cfg);
-        if (groups.Count == 0)
-        {
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
-                ImGui.TextUnformatted(Loc.T(L.Settings.NoBlacklisted));
-            return;
-        }
-
-        BlacklistedFateGroup? removeGroup = null;
-        var buttonSize = ImGui.GetFrameHeight();
-
-        for (var index = 0; index < groups.Count; index++)
-        {
-            var entryGroup = groups[index];
-            ImGui.AlignTextToFramePadding();
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextStrong))
-                ImGui.TextUnformatted(entryGroup.Name);
-
-            ImGui.SameLine(SettingsGroup.InnerRightLocalX() - buttonSize);
-            if (IconButton.Draw(FontAwesomeIcon.Times, $"##bl_rm_{entryGroup.Name}", buttonSize, Styling.AccentRose, Loc.T(L.Settings.RemoveFromBlacklist)))
-                removeGroup = entryGroup;
-        }
-
-        if (removeGroup is { } groupToRemove)
-            FateBlacklist.Remove(cfg, groupToRemove);
-    }
+    private const string PercentFormat = "%d%%";
 
     private static readonly (FateSortCriterion Criterion, LocString Label)[] sortCriterionLabels =
     [
@@ -236,75 +35,6 @@ internal static class FilterSettings
         (FateSortCriterion.Name,                L.Settings.SortName),
     ];
 
-    private static string LabelFor(FateSortCriterion criterion)
-    {
-        for (var index = 0; index < sortCriterionLabels.Length; index++)
-        {
-            if (sortCriterionLabels[index].Criterion == criterion) return Loc.T(sortCriterionLabels[index].Label);
-        }
-
-        return criterion.ToString();
-    }
-
-    private static int sortAddSelection;
-
-    private static void DrawSortOrderList(Configuration cfg)
-    {
-        if (cfg.FateSortOrder.Count == 0)
-            cfg.FateSortOrder = FateScanner.DefaultSortOrder.Select(e => new FateSortEntry { Criterion = e.Criterion, Descending = e.Descending }).ToList();
-
-        int? moveUp = null, moveDown = null, remove = null;
-        var btnSize = ImGui.GetFrameHeight();
-        var spacingX = 4f * ImGuiHelpers.GlobalScale;
-
-        for (var i = 0; i < cfg.FateSortOrder.Count; i++)
-        {
-            var entry = cfg.FateSortOrder[i];
-            ImGui.AlignTextToFramePadding();
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
-                ImGui.TextUnformatted($"{i + 1}.");
-            ImGui.SameLine();
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextStrong))
-                ImGui.TextUnformatted(LabelFor(entry.Criterion));
-
-            var rowRightWidth = btnSize * 4 + spacingX * 3;
-            ImGui.SameLine(SettingsGroup.InnerRightLocalX() - rowRightWidth);
-
-            var dirIcon = entry.Descending ? FontAwesomeIcon.SortAmountDown : FontAwesomeIcon.SortAmountUp;
-            if (IconButton.Draw(dirIcon, $"##sort_dir_{i}", btnSize, tooltip: entry.Descending ? Loc.T(L.Common.Descending) : Loc.T(L.Common.Ascending)))
-            { entry.Descending = !entry.Descending; cfg.SaveDebounced(); }
-            ImGui.SameLine(0, spacingX);
-            if (IconButton.Draw(FontAwesomeIcon.ArrowUp, $"##sort_up_{i}", btnSize, tooltip: Loc.T(L.Common.MoveUp), enabled: i > 0)) moveUp = i;
-            ImGui.SameLine(0, spacingX);
-            if (IconButton.Draw(FontAwesomeIcon.ArrowDown, $"##sort_dn_{i}", btnSize, tooltip: Loc.T(L.Common.MoveDown), enabled: i < cfg.FateSortOrder.Count - 1)) moveDown = i;
-            ImGui.SameLine(0, spacingX);
-            if (IconButton.Draw(FontAwesomeIcon.Times, $"##sort_rm_{i}", btnSize, Styling.AccentRose, Loc.T(L.Common.Remove), enabled: cfg.FateSortOrder.Count > 1)) remove = i;
-        }
-
-        if (ListReorder.Apply(cfg.FateSortOrder, cfg.FateSortOrder.Count, moveUp, moveDown, remove))
-            cfg.SaveDebounced();
-
-        var missing = sortCriterionLabels.Where(l => cfg.FateSortOrder.All(e => e.Criterion != l.Criterion)).ToArray();
-        if (missing.Length > 0)
-        {
-            ImGui.Spacing();
-            var labels = missing.Select(m => Loc.T(m.Label)).ToArray();
-            sortAddSelection = Math.Clamp(sortAddSelection, 0, labels.Length - 1);
-            SettingsControls.DrawPlainCombo("##sort_add_pick", ref sortAddSelection, labels, 260f);
-            ImGui.SameLine();
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentMint))
-                if (ImGui.SmallButton($"{Loc.T(L.Common.Add)}##sort_add"))
-                { cfg.FateSortOrder.Add(new FateSortEntry { Criterion = missing[sortAddSelection].Criterion, Descending = true }); cfg.SaveDebounced(); }
-        }
-
-        ImGui.Spacing();
-        if (ImGui.SmallButton($"{Loc.T(L.Settings.ResetRecommended)}##sort_reset"))
-        {
-            cfg.FateSortOrder = FateScanner.DefaultSortOrder.Select(e => new FateSortEntry { Criterion = e.Criterion, Descending = e.Descending }).ToList();
-            cfg.SaveDebounced();
-        }
-    }
-
     private static readonly (PublicEvent.FateRule Rule, LocString Label, LocString Helper)[] fateRuleRows =
     [
         (PublicEvent.FateRule.Normal,          L.Settings.RuleNormal,  L.Settings.RuleNormalHelp),
@@ -317,6 +47,148 @@ internal static class FilterSettings
         (PublicEvent.FateRule.Fete,            L.Settings.RuleFete,    L.Settings.RuleFeteHelp),
     ];
 
+    private static readonly FateSortCriterion[] missingCriteria = new FateSortCriterion[sortCriterionLabels.Length];
+    private static readonly string[] missingLabels = new string[sortCriterionLabels.Length];
+    private static readonly SearchablePicker blacklistPicker = new(true);
+
+    private static int blacklistAddSelection;
+    private static int sortAddSelection;
+
+    public static void Draw(Configuration cfg)
+    {
+        DrawEligibilityGroup(cfg);
+        DrawSkipTypesGroup(cfg);
+        DrawPriorityGroup(cfg);
+        DrawBlacklistGroup(cfg);
+    }
+
+    private static void DrawEligibilityGroup(Configuration cfg)
+    {
+        if (Gw.BeginSection(Loc.T(L.Settings.FiltersEligibility)))
+        {
+            DrawEligibilityRows(cfg);
+        }
+
+        Gw.EndSection();
+    }
+
+    private static void DrawEligibilityRows(Configuration cfg)
+    {
+        var minTime = cfg.MinTimeRemainingSec;
+        if (SettingsControls.SliderRow(L.Settings.MinTime, L.Settings.MinTimeHelp, ref minTime, MinTimeMinSec, MinTimeMaxSec, Loc.T(L.Settings.MinTimeFormat)))
+        {
+            cfg.MinTimeRemainingSec = minTime;
+            cfg.SaveDebounced();
+        }
+
+        var maxProgress = cfg.MaxProgressPct;
+        if (SettingsControls.SliderRow(L.Settings.MaxProgress, L.Settings.MaxProgressHelp, ref maxProgress, MaxProgressMin, MaxProgressMax, PercentFormat))
+        {
+            cfg.MaxProgressPct = maxProgress;
+            cfg.SaveDebounced();
+        }
+
+        DrawMaxDurationRows(cfg);
+        DrawLevelWindowRows(cfg);
+        DrawLevelRangeRows(cfg);
+    }
+
+    private static void DrawMaxDurationRows(Configuration cfg)
+    {
+        var enabled = cfg.MaxDurationFilterEnabled;
+        if (SettingsControls.ToggleRow(L.Settings.MaxDuration, L.Settings.MaxDurationHelp, ref enabled))
+        {
+            cfg.MaxDurationFilterEnabled = enabled;
+            cfg.SaveDebounced();
+        }
+
+        if (!cfg.MaxDurationFilterEnabled)
+        {
+            SettingsControls.Note(Loc.T(L.Settings.MaxDurationOff));
+            return;
+        }
+
+        var limit = cfg.MaxFateDurationSec;
+        if (SettingsControls.SliderRow(L.Settings.MaxDurationLimit, L.Settings.MaxDurationLimitHelp, ref limit, MaxDurationMinSec, MaxDurationMaxSec, Loc.T(L.Settings.MinTimeFormat)))
+        {
+            cfg.MaxFateDurationSec = limit;
+            cfg.SaveDebounced();
+        }
+    }
+
+    private static void DrawLevelWindowRows(Configuration cfg)
+    {
+        var enabled = cfg.LevelWindowEnabled;
+        if (SettingsControls.ToggleRow(L.Settings.LevelWindow, L.Settings.LevelWindowHelp, ref enabled))
+        {
+            cfg.LevelWindowEnabled = enabled;
+            cfg.SaveDebounced();
+        }
+
+        if (!cfg.LevelWindowEnabled)
+        {
+            SettingsControls.Note(Loc.T(L.Settings.LevelWindowOff));
+            return;
+        }
+
+        var lowest = cfg.MinFateLevel;
+        if (SettingsControls.SliderRow(L.Settings.LevelLowest, L.Settings.LevelLowestHelp, ref lowest, MinLevel, MaxLevel, Loc.T(L.Settings.LevelFormat)))
+        {
+            cfg.MinFateLevel = lowest;
+            cfg.MaxFateLevel = Math.Max(cfg.MaxFateLevel, lowest);
+            cfg.SaveDebounced();
+        }
+
+        var highest = cfg.MaxFateLevel;
+        if (SettingsControls.SliderRow(L.Settings.LevelHighest, L.Settings.LevelHighestHelp, ref highest, MinLevel, MaxLevel, Loc.T(L.Settings.LevelFormat)))
+        {
+            cfg.MaxFateLevel = highest;
+            cfg.MinFateLevel = Math.Min(cfg.MinFateLevel, highest);
+            cfg.SaveDebounced();
+        }
+    }
+
+    private static void DrawLevelRangeRows(Configuration cfg)
+    {
+        var enabled = cfg.LevelRangeFilterEnabled;
+        if (SettingsControls.ToggleRow(L.Settings.LevelRange, L.Settings.LevelRangeHelp, ref enabled))
+        {
+            cfg.LevelRangeFilterEnabled = enabled;
+            cfg.SaveDebounced();
+        }
+
+        if (!cfg.LevelRangeFilterEnabled)
+        {
+            SettingsControls.Note(Loc.T(L.Settings.LevelRangeOff));
+            return;
+        }
+
+        var below = cfg.MaxLevelBelow;
+        if (SettingsControls.SliderRow(L.Settings.LevelBelow, L.Settings.LevelBelowHelp, ref below, 0, MaxLevel, Loc.T(L.Settings.LevelFormat)))
+        {
+            cfg.MaxLevelBelow = below;
+            cfg.SaveDebounced();
+        }
+
+        var above = cfg.MaxLevelAbove;
+        if (SettingsControls.SliderRow(L.Settings.LevelAbove, L.Settings.LevelAboveHelp, ref above, 0, MaxLevel, Loc.T(L.Settings.LevelFormat)))
+        {
+            cfg.MaxLevelAbove = above;
+            cfg.SaveDebounced();
+        }
+    }
+
+    private static void DrawSkipTypesGroup(Configuration cfg)
+    {
+        if (Gw.BeginSection(Loc.T(L.Settings.FiltersTypes)))
+        {
+            SettingsControls.TitleRow(L.Settings.SkipTypes, L.Settings.SkipTypesHelp);
+            DrawFateRuleSkipList(cfg);
+        }
+
+        Gw.EndSection();
+    }
+
     private static void DrawFateRuleSkipList(Configuration cfg)
     {
         for (var index = 0; index < fateRuleRows.Length; index++)
@@ -324,30 +196,245 @@ internal static class FilterSettings
             var (rule, label, helper) = fateRuleRows[index];
             var key = (int)rule;
             var skipped = cfg.SkippedFateRules.Contains(key);
-            var id = $"##filt_rule_{key}";
-            if (ToggleSwitch.Draw(id, ref skipped))
+            Gw.BeginRow(Loc.T(label), Loc.T(helper));
+            if (Gw.Toggle(ref skipped, "##value"u8))
             {
-                if (skipped) cfg.SkippedFateRules.Add(key);
-                else         cfg.SkippedFateRules.Remove(key);
+                if (skipped)
+                {
+                    cfg.SkippedFateRules.Add(key);
+                }
+                else
+                {
+                    cfg.SkippedFateRules.Remove(key);
+                }
+
                 cfg.SaveDebounced();
             }
-            ImGui.SameLine();
-            ImGui.AlignTextToFramePadding();
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextStrong))
-                ImGui.TextUnformatted(Loc.T(label));
-            ImGui.SameLine();
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
-                ImGui.TextUnformatted(Loc.T(helper));
 
-            if (rule == PublicEvent.FateRule.Collect && !skipped
-                && ExternalPlugins.IsInstalledButDisabled(ExternalPlugin.TextAdvance))
+            Gw.EndRow();
+
+            if (rule == PublicEvent.FateRule.Collect && !skipped && ExternalPlugins.IsInstalledButDisabled(ExternalPlugin.TextAdvance))
             {
-                var pad = ImGui.GetFrameHeight() + 8f * ImGuiHelpers.GlobalScale;
-                ImGui.Indent(pad);
-                using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentAmber))
-                    ImGui.TextWrapped(Loc.T(L.Settings.CollectTextAdvanceNote));
-                ImGui.Unindent(pad);
+                SettingsControls.Note(Loc.T(L.Settings.CollectTextAdvanceNote), Frame.Look.Warning);
             }
+        }
+    }
+
+    private static void DrawPriorityGroup(Configuration cfg)
+    {
+        if (Gw.BeginSection(Loc.T(L.Settings.FiltersPriority)))
+        {
+            SettingsControls.TitleRow(L.Settings.FatePriority, L.Settings.FatePriorityHelp);
+            DrawSortOrderList(cfg);
+        }
+
+        Gw.EndSection();
+    }
+
+    private static void DrawSortOrderList(Configuration cfg)
+    {
+        if (cfg.FateSortOrder.Count == 0)
+        {
+            cfg.FateSortOrder = DefaultSortOrder();
+        }
+
+        int? moveUp = null, moveDown = null, remove = null;
+        var count = cfg.FateSortOrder.Count;
+        for (var index = 0; index < count; index++)
+        {
+            ImGui.PushID(index);
+            switch (DrawSortOrderRow(cfg, cfg.FateSortOrder[index], index, count))
+            {
+                case SettingsControls.ListAction.MoveUp: moveUp = index; break;
+                case SettingsControls.ListAction.MoveDown: moveDown = index; break;
+                case SettingsControls.ListAction.Remove: remove = index; break;
+            }
+
+            ImGui.PopID();
+        }
+
+        if (ListReorder.Apply(cfg.FateSortOrder, count, moveUp, moveDown, remove))
+        {
+            cfg.SaveDebounced();
+        }
+
+        DrawSortAddRow(cfg);
+        if (Gw.Button(Loc.T(L.Settings.ResetRecommended), ButtonStyle.Destructive, ButtonSize.Small))
+        {
+            cfg.FateSortOrder = DefaultSortOrder();
+            cfg.SaveDebounced();
+        }
+    }
+
+    private static SettingsControls.ListAction DrawSortOrderRow(Configuration cfg, FateSortEntry entry, int index, int count)
+    {
+        Gw.BeginRow($"{index + 1}. {LabelFor(entry.Criterion)}");
+        var directionGlyph = entry.Descending ? SettingsControls.SortDescendingGlyph : SettingsControls.SortAscendingGlyph;
+        var directionTooltip = entry.Descending ? Loc.T(L.Common.Descending) : Loc.T(L.Common.Ascending);
+        if (Gw.IconButton(directionGlyph, ButtonStyle.Plain, ButtonSize.Small, directionTooltip))
+        {
+            entry.Descending = !entry.Descending;
+            cfg.SaveDebounced();
+        }
+
+        ImGui.SameLine();
+        var action = SettingsControls.ReorderButtons(index > 0, index < count - 1, count > 1);
+        Gw.EndRow();
+        return action;
+    }
+
+    private static void DrawSortAddRow(Configuration cfg)
+    {
+        var missing = CollectMissingCriteria(cfg);
+        if (missing == 0)
+        {
+            return;
+        }
+
+        sortAddSelection = Math.Clamp(sortAddSelection, 0, missing - 1);
+        SettingsControls.ComboBox(ref sortAddSelection, missingLabels.AsSpan(0, missing), SettingsControls.RowComboWidth);
+        ImGui.SameLine();
+        if (Gw.Button(Loc.T(L.Common.Add), ButtonStyle.Prominent, ButtonSize.Small))
+        {
+            cfg.FateSortOrder.Add(new FateSortEntry { Criterion = missingCriteria[sortAddSelection], Descending = true });
+            cfg.SaveDebounced();
+        }
+    }
+
+    private static int CollectMissingCriteria(Configuration cfg)
+    {
+        var count = 0;
+        for (var index = 0; index < sortCriterionLabels.Length; index++)
+        {
+            var criterion = sortCriterionLabels[index].Criterion;
+            if (IsOrdered(cfg, criterion))
+            {
+                continue;
+            }
+
+            missingCriteria[count] = criterion;
+            missingLabels[count] = Loc.T(sortCriterionLabels[index].Label);
+            count++;
+        }
+
+        return count;
+    }
+
+    private static bool IsOrdered(Configuration cfg, FateSortCriterion criterion)
+    {
+        for (var index = 0; index < cfg.FateSortOrder.Count; index++)
+        {
+            if (cfg.FateSortOrder[index].Criterion == criterion)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string LabelFor(FateSortCriterion criterion)
+    {
+        for (var index = 0; index < sortCriterionLabels.Length; index++)
+        {
+            if (sortCriterionLabels[index].Criterion == criterion)
+            {
+                return Loc.T(sortCriterionLabels[index].Label);
+            }
+        }
+
+        return criterion.ToString();
+    }
+
+    private static List<FateSortEntry> DefaultSortOrder()
+        => FateScanner.DefaultSortOrder.Select(entry => new FateSortEntry { Criterion = entry.Criterion, Descending = entry.Descending }).ToList();
+
+    private static void DrawBlacklistGroup(Configuration cfg)
+    {
+        if (Gw.BeginSection(Loc.T(L.Settings.FiltersBlacklist)))
+        {
+            DrawAutoBlacklistRows(cfg);
+            DrawBlacklistPicker(cfg);
+            SettingsControls.TitleRow(L.Settings.Blacklisted, L.Settings.BlacklistedHelp);
+            DrawBlacklistList(cfg);
+        }
+
+        Gw.EndSection();
+    }
+
+    private static void DrawAutoBlacklistRows(Configuration cfg)
+    {
+        var enabled = cfg.AutoBlacklistOnDeaths;
+        if (SettingsControls.ToggleRow(L.Settings.AutoBlacklistDeaths, L.Settings.AutoBlacklistDeathsHelp, ref enabled))
+        {
+            cfg.AutoBlacklistOnDeaths = enabled;
+            cfg.SaveDebounced();
+        }
+
+        if (!cfg.AutoBlacklistOnDeaths)
+        {
+            SettingsControls.Note(Loc.T(L.Settings.AutoBlacklistDeathsOff));
+            return;
+        }
+
+        var deaths = cfg.AutoBlacklistDeathCount;
+        if (SettingsControls.SliderRow(L.Settings.DeathsBeforeBlacklist, L.Settings.DeathsBeforeBlacklistHelp, ref deaths,
+                AutoBlacklistDeathsMin, AutoBlacklistDeathsMax, Loc.T(L.Settings.DeathsFormat)))
+        {
+            cfg.AutoBlacklistDeathCount = deaths;
+            cfg.SaveDebounced();
+        }
+    }
+
+    private static void DrawBlacklistPicker(Configuration cfg)
+    {
+        var catalog = FateCatalog.All;
+        if (catalog.Length == 0)
+        {
+            SettingsControls.TitleRow(L.Settings.AddByName, L.Settings.AddByNameHelp);
+            SettingsControls.Note(Loc.T(L.Settings.NoFatesInData), Frame.Look.Destructive);
+            return;
+        }
+
+        blacklistAddSelection = Math.Clamp(blacklistAddSelection, 0, catalog.Length - 1);
+        blacklistPicker.Draw(L.Settings.AddByName, L.Settings.AddByNameHelp, FateCatalog.Labels, ref blacklistAddSelection);
+        ImGui.SameLine();
+        ImGui.BeginDisabled(!blacklistPicker.HasMatches);
+        if (Gw.Button(Loc.T(L.Common.Add), ButtonStyle.Prominent, ButtonSize.Small))
+        {
+            FateBlacklist.Add(cfg, FateType.Normal, catalog[blacklistAddSelection].FateIds);
+        }
+
+        ImGui.EndDisabled();
+    }
+
+    private static void DrawBlacklistList(Configuration cfg)
+    {
+        var groups = FateBlacklist.All(cfg);
+        if (groups.Count == 0)
+        {
+            SettingsControls.Note(Loc.T(L.Settings.NoBlacklisted));
+            return;
+        }
+
+        BlacklistedFateGroup? removeGroup = null;
+        for (var index = 0; index < groups.Count; index++)
+        {
+            var group = groups[index];
+            ImGui.PushID(index);
+            Gw.BeginRow(group.Name);
+            if (SettingsControls.RemoveButton(true, Loc.T(L.Settings.RemoveFromBlacklist)))
+            {
+                removeGroup = group;
+            }
+
+            Gw.EndRow();
+            ImGui.PopID();
+        }
+
+        if (removeGroup is { } groupToRemove)
+        {
+            FateBlacklist.Remove(cfg, groupToRemove);
         }
     }
 }

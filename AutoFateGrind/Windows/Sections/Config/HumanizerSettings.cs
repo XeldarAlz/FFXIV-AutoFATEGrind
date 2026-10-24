@@ -2,17 +2,24 @@ using AutoFateGrind.Core.Game.Ops;
 using AutoFateGrind.Core.Ipc;
 using AutoFateGrind.Core.Localization;
 using AutoFateGrind.Core.Zones;
-using AutoFateGrind.Windows.Components;
 using Dalamud.Bindings.ImGui;
-using Dalamud.Interface;
-using Dalamud.Interface.Utility.Raii;
 using ECommons.DalamudServices;
+using Glasswork;
+using Glasswork.Backend;
 
 namespace AutoFateGrind.Windows.Sections.Config;
 
 internal static class HumanizerSettings
 {
     private const long ModuleCheckIntervalMs = 5_000;
+    private const int ReactionMaxSec = 30;
+    private const int FatesBetweenMin = 1;
+    private const int FatesBetweenMax = 100;
+    private const int BreakMinutesMin = 1;
+    private const int BreakMinutesMax = 60;
+    private const int PauseMaxSec = 60;
+    private const int WanderMetersMin = 5;
+    private const int WanderMetersMax = 200;
 
     private static readonly HumanizerBreakActivity[] breakActivities =
         [HumanizerBreakActivity.Wander, HumanizerBreakActivity.IdleAtSpot];
@@ -23,6 +30,9 @@ internal static class HumanizerSettings
         new(L.Settings.BreakActivityIdleName, L.Settings.BreakActivityIdleDetail),
     ];
 
+    private static readonly string[] delayLabels = new string[3];
+    private static readonly string[] roomLabels = new string[4];
+
     private static string? moduleCheckPreset;
     private static long moduleCheckTick;
     private static bool moduleMissing;
@@ -32,8 +42,7 @@ internal static class HumanizerSettings
         DrawPacingGroup(cfg);
         DrawCombatMovementGroup(cfg);
         DrawBreaksGroup(cfg);
-        using var more = Motion.PushSection("##hum_more", cfg.HumanizerEnabled);
-        if (more is null)
+        if (!cfg.HumanizerEnabled)
         {
             return;
         }
@@ -56,81 +65,116 @@ internal static class HumanizerSettings
 
     private static void DrawPacingGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin(Loc.T(L.Settings.Pacing));
+        if (Gw.BeginSection(Loc.T(L.Settings.Pacing)))
+        {
+            DrawPacingRows(cfg);
+        }
 
-        SettingsRow.Draw(Loc.T(L.Settings.PacingEnable),
-            Loc.T(L.Settings.PacingEnableHelp),
-            SettingsControls.ToggleWidth,
-            () => SettingsControls.DrawToggle(cfg, () => cfg.PacingEnabled, v => cfg.PacingEnabled = v, "##pace_on"),
-            SettingsRow.ToggleHeight);
+        Gw.EndSection();
+    }
 
-        using var body = Motion.PushSwitch("##pace_body", cfg.PacingEnabled);
+    private static void DrawPacingRows(Configuration cfg)
+    {
+        var pacing = cfg.PacingEnabled;
+        if (SettingsControls.ToggleRow(L.Settings.PacingEnable, L.Settings.PacingEnableHelp, ref pacing))
+        {
+            cfg.PacingEnabled = pacing;
+            cfg.SaveDebounced();
+        }
+
         if (!cfg.PacingEnabled)
         {
-            SettingsRow.Note(Loc.T(L.Settings.PacingOff));
+            SettingsControls.Note(Loc.T(L.Settings.PacingOff));
             return;
         }
 
-        SettingsRow.Draw(Loc.T(L.Settings.ReactionDelay),
-            Loc.T(L.Settings.ReactionDelayHelp),
-            SettingsControls.RangeInlineWidth(),
-            () => SettingsControls.DrawRangeInline(cfg, "##pace_reaction_min", "##pace_reaction_max",
-                () => cfg.PacingReactionMinSec, v => cfg.PacingReactionMinSec = v,
-                () => cfg.PacingReactionMaxSec, v => cfg.PacingReactionMaxSec = v, 30, 0, Loc.T(L.Settings.SecondsFormat)));
+        var reactionMin = cfg.PacingReactionMinSec;
+        var reactionMax = cfg.PacingReactionMaxSec;
+        if (SettingsControls.RangeRow(L.Settings.ReactionDelay, L.Settings.ReactionDelayHelp, ref reactionMin, ref reactionMax, 0, ReactionMaxSec, Loc.T(L.Settings.SecondsFormat)))
+        {
+            cfg.PacingReactionMinSec = reactionMin;
+            cfg.PacingReactionMaxSec = reactionMax;
+            cfg.SaveDebounced();
+        }
 
-        SettingsRow.Draw(Loc.T(L.Settings.PickVariety),
-            Loc.T(L.Settings.PickVarietyHelp),
-            SettingsControls.ToggleWidth,
-            () => SettingsControls.DrawToggle(cfg, () => cfg.PacingPickVariety, v => cfg.PacingPickVariety = v, "##pace_variety"),
-            SettingsRow.ToggleHeight);
+        var pickVariety = cfg.PacingPickVariety;
+        if (SettingsControls.ToggleRow(L.Settings.PickVariety, L.Settings.PickVarietyHelp, ref pickVariety))
+        {
+            cfg.PacingPickVariety = pickVariety;
+            cfg.SaveDebounced();
+        }
     }
 
     private static void DrawCombatMovementGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin(Loc.T(L.Settings.CombatMovement));
+        if (Gw.BeginSection(Loc.T(L.Settings.CombatMovement)))
+        {
+            DrawCombatMovementRows(cfg);
+        }
 
-        SettingsRow.Draw(Loc.T(L.Settings.CombatMovementEnable),
-            Loc.T(L.Settings.CombatMovementEnableHelp),
-            SettingsControls.ToggleWidth,
-            () => SettingsControls.DrawToggle(cfg, () => cfg.CombatMovementEnabled, v => cfg.CombatMovementEnabled = v, "##combat_move_on"),
-            SettingsRow.ToggleHeight);
+        Gw.EndSection();
+    }
 
-        using var body = Motion.PushSwitch("##combat_move_body", cfg.CombatMovementEnabled);
+    private static void DrawCombatMovementRows(Configuration cfg)
+    {
+        var enabled = cfg.CombatMovementEnabled;
+        if (SettingsControls.ToggleRow(L.Settings.CombatMovementEnable, L.Settings.CombatMovementEnableHelp, ref enabled))
+        {
+            cfg.CombatMovementEnabled = enabled;
+            cfg.SaveDebounced();
+        }
+
         if (!cfg.CombatMovementEnabled)
         {
-            SettingsRow.Note(Loc.T(L.Settings.CombatMovementOff));
+            SettingsControls.Note(Loc.T(L.Settings.CombatMovementOff));
             return;
         }
 
-        var none = Loc.T(L.Settings.MovementLevelNone);
-        string[] delayLabels = [none, Loc.T(L.Settings.DelayShort), Loc.T(L.Settings.DelayLong)];
-        string[] roomLabels = [none, Loc.T(L.Settings.RoomSmall), Loc.T(L.Settings.RoomMedium), Loc.T(L.Settings.RoomLarge)];
+        ResolveMovementLabels();
 
-        SettingsRow.Draw(Loc.T(L.Settings.DodgeDelay),
-            Loc.T(L.Settings.DodgeDelayHelp),
-            SettingsControls.ComboRangeWidth(),
-            () => SettingsControls.DrawComboRange(cfg, "##combat_dodge_min", "##combat_dodge_max", delayLabels,
-                () => cfg.CombatDodgeDelayMin, v => cfg.CombatDodgeDelayMin = v,
-                () => cfg.CombatDodgeDelayMax, v => cfg.CombatDodgeDelayMax = v));
+        var dodgeMin = cfg.CombatDodgeDelayMin;
+        var dodgeMax = cfg.CombatDodgeDelayMax;
+        if (SettingsControls.ComboRangeRow(L.Settings.DodgeDelay, L.Settings.DodgeDelayHelp, ref dodgeMin, ref dodgeMax, delayLabels))
+        {
+            cfg.CombatDodgeDelayMin = dodgeMin;
+            cfg.CombatDodgeDelayMax = dodgeMax;
+            cfg.SaveDebounced();
+        }
 
-        SettingsRow.Draw(Loc.T(L.Settings.MoveDelay),
-            Loc.T(L.Settings.MoveDelayHelp),
-            SettingsControls.ComboRangeWidth(),
-            () => SettingsControls.DrawComboRange(cfg, "##combat_move_min", "##combat_move_max", delayLabels,
-                () => cfg.CombatMoveDelayMin, v => cfg.CombatMoveDelayMin = v,
-                () => cfg.CombatMoveDelayMax, v => cfg.CombatMoveDelayMax = v));
+        var moveMin = cfg.CombatMoveDelayMin;
+        var moveMax = cfg.CombatMoveDelayMax;
+        if (SettingsControls.ComboRangeRow(L.Settings.MoveDelay, L.Settings.MoveDelayHelp, ref moveMin, ref moveMax, delayLabels))
+        {
+            cfg.CombatMoveDelayMin = moveMin;
+            cfg.CombatMoveDelayMax = moveMax;
+            cfg.SaveDebounced();
+        }
 
-        SettingsRow.Draw(Loc.T(L.Settings.DangerRoom),
-            Loc.T(L.Settings.DangerRoomHelp),
-            SettingsControls.ComboRangeWidth(),
-            () => SettingsControls.DrawComboRange(cfg, "##combat_room_min", "##combat_room_max", roomLabels,
-                () => cfg.CombatCushionMin, v => cfg.CombatCushionMin = v,
-                () => cfg.CombatCushionMax, v => cfg.CombatCushionMax = v));
+        var cushionMin = cfg.CombatCushionMin;
+        var cushionMax = cfg.CombatCushionMax;
+        if (SettingsControls.ComboRangeRow(L.Settings.DangerRoom, L.Settings.DangerRoomHelp, ref cushionMin, ref cushionMax, roomLabels))
+        {
+            cfg.CombatCushionMin = cushionMin;
+            cfg.CombatCushionMax = cushionMax;
+            cfg.SaveDebounced();
+        }
 
         if (PresetLacksMovementModule(cfg.CombatPresetName))
         {
-            SettingsRow.Note(Loc.T(L.Settings.CombatMovementNoModule, cfg.CombatPresetName), Styling.AccentAmber);
+            SettingsControls.Note(Loc.T(L.Settings.CombatMovementNoModule, cfg.CombatPresetName), Frame.Look.Warning);
         }
+    }
+
+    private static void ResolveMovementLabels()
+    {
+        var none = Loc.T(L.Settings.MovementLevelNone);
+        delayLabels[0] = none;
+        delayLabels[1] = Loc.T(L.Settings.DelayShort);
+        delayLabels[2] = Loc.T(L.Settings.DelayLong);
+        roomLabels[0] = none;
+        roomLabels[1] = Loc.T(L.Settings.RoomSmall);
+        roomLabels[2] = Loc.T(L.Settings.RoomMedium);
+        roomLabels[3] = Loc.T(L.Settings.RoomLarge);
     }
 
     // Fetching the preset serializes it on BossMod's side, so the check is only refreshed every few seconds.
@@ -149,54 +193,62 @@ internal static class HumanizerSettings
 
     private static void DrawBreaksGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin(Loc.T(L.Settings.HumanizerBreaks));
+        if (Gw.BeginSection(Loc.T(L.Settings.HumanizerBreaks)))
+        {
+            DrawBreaksRows(cfg);
+        }
 
-        SettingsRow.Draw(Loc.T(L.Settings.HumanizerEnable),
-            Loc.T(L.Settings.HumanizerEnableHelp),
-            SettingsControls.ToggleWidth,
-            () => SettingsControls.DrawToggle(cfg, () => cfg.HumanizerEnabled, v => cfg.HumanizerEnabled = v, "##hum_on"),
-            SettingsRow.ToggleHeight);
+        Gw.EndSection();
+    }
 
-        using var body = Motion.PushSwitch("##hum_body", cfg.HumanizerEnabled);
+    private static void DrawBreaksRows(Configuration cfg)
+    {
+        var enabled = cfg.HumanizerEnabled;
+        if (SettingsControls.ToggleRow(L.Settings.HumanizerEnable, L.Settings.HumanizerEnableHelp, ref enabled))
+        {
+            cfg.HumanizerEnabled = enabled;
+            cfg.SaveDebounced();
+        }
+
         if (!cfg.HumanizerEnabled)
         {
-            SettingsRow.Note(Loc.T(L.Settings.HumanizerOff));
+            SettingsControls.Note(Loc.T(L.Settings.HumanizerOff));
             return;
         }
 
-        SettingsRow.Draw(Loc.T(L.Settings.FatesBetween),
-            Loc.T(L.Settings.FatesBetweenHelp),
-            SettingsControls.RowSliderWidth,
-            () => SettingsControls.DrawIntSlider(cfg, "##hum_fates",
-                () => cfg.HumanizerFatesBeforeBreak, v => cfg.HumanizerFatesBeforeBreak = Math.Clamp(v, 1, 100),
-                1, 100, Loc.T(L.Settings.FatesFormat)));
+        var fatesBetween = cfg.HumanizerFatesBeforeBreak;
+        if (SettingsControls.SliderRow(L.Settings.FatesBetween, L.Settings.FatesBetweenHelp, ref fatesBetween, FatesBetweenMin, FatesBetweenMax, Loc.T(L.Settings.FatesFormat)))
+        {
+            cfg.HumanizerFatesBeforeBreak = fatesBetween;
+            cfg.SaveDebounced();
+        }
 
-        SettingsRow.Draw(Loc.T(L.Settings.BreakLength),
-            Loc.T(L.Settings.BreakLengthHelp),
-            SettingsControls.RangeInlineWidth(),
-            () => SettingsControls.DrawRangeInline(cfg, "##hum_min", "##hum_max",
-                () => cfg.HumanizerBreakMinMinutes, v => cfg.HumanizerBreakMinMinutes = v,
-                () => cfg.HumanizerBreakMaxMinutes, v => cfg.HumanizerBreakMaxMinutes = v, 60, 1, Loc.T(L.Settings.MinutesFormat)));
+        var breakMin = cfg.HumanizerBreakMinMinutes;
+        var breakMax = cfg.HumanizerBreakMaxMinutes;
+        if (SettingsControls.RangeRow(L.Settings.BreakLength, L.Settings.BreakLengthHelp, ref breakMin, ref breakMax, BreakMinutesMin, BreakMinutesMax, Loc.T(L.Settings.MinutesFormat)))
+        {
+            cfg.HumanizerBreakMinMinutes = breakMin;
+            cfg.HumanizerBreakMaxMinutes = breakMax;
+            cfg.SaveDebounced();
+        }
 
         var activity = Math.Max(0, Array.IndexOf(breakActivities, cfg.HumanizerBreakActivity));
-        SettingsRow.Draw(Loc.T(L.Settings.BreakActivity),
-            Loc.T(L.Settings.BreakActivityHelp),
-            SettingsControls.RowComboWidth,
-            () => SettingsControls.Choices.DrawCombo("##hum_activity", breakActivityChoices, activity, choice =>
-            {
-                cfg.HumanizerBreakActivity = breakActivities[choice];
-                cfg.SaveDebounced();
-            }));
-        SettingsRow.Caption(Loc.T(breakActivityChoices[activity].Detail));
+        if (SettingsControls.Choices.DrawRow(L.Settings.BreakActivity, L.Settings.BreakActivityHelp, breakActivityChoices, ref activity))
+        {
+            cfg.HumanizerBreakActivity = breakActivities[activity];
+            cfg.SaveDebounced();
+        }
     }
 
     private static void DrawIdleSpotsGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin(Loc.T(L.Settings.IdleSpots));
+        if (Gw.BeginSection(Loc.T(L.Settings.IdleSpots)))
+        {
+            SettingsControls.TitleRow(L.Settings.SavedSpots, L.Settings.SavedSpotsHelp);
+            DrawIdleSpotList(cfg);
+        }
 
-        SettingsRow.DrawBlock(Loc.T(L.Settings.SavedSpots),
-            Loc.T(L.Settings.SavedSpotsHelp),
-            () => DrawIdleSpotList(cfg));
+        Gw.EndSection();
     }
 
     private static void DrawIdleSpotList(Configuration cfg)
@@ -204,35 +256,23 @@ internal static class HumanizerSettings
         var spots = cfg.HumanizerIdleSpots;
         if (spots.Count == 0)
         {
-            SettingsRow.Note(Loc.T(L.Settings.NoSpots));
+            SettingsControls.Note(Loc.T(L.Settings.NoSpots));
         }
 
         var removeIndex = -1;
-        var buttonSize = ImGui.GetFrameHeight();
         for (var spotIndex = 0; spotIndex < spots.Count; spotIndex++)
         {
             var spot = spots[spotIndex];
-            using var id = ImRaii.PushId(spotIndex);
-            ImGui.AlignTextToFramePadding();
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextStrong))
-            {
-                ImGui.TextUnformatted(spot.Name.Length > 0 ? spot.Name : TerritoryNames.Of(spot.TerritoryId));
-            }
-
-            if (spot.Name.Length > 0)
-            {
-                ImGui.SameLine();
-                using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
-                {
-                    ImGui.TextUnformatted(TerritoryNames.Of(spot.TerritoryId));
-                }
-            }
-
-            ImGui.SameLine(SettingsGroup.InnerRightLocalX() - buttonSize);
-            if (IconButton.Draw(FontAwesomeIcon.Times, "##hum_spot_rm", buttonSize, Styling.AccentRose, Loc.T(L.Common.Remove)))
+            var territory = TerritoryNames.Of(spot.TerritoryId);
+            ImGui.PushID(spotIndex);
+            Gw.BeginRow(spot.Name.Length > 0 ? spot.Name : territory, spot.Name.Length > 0 ? territory : string.Empty);
+            if (SettingsControls.RemoveButton())
             {
                 removeIndex = spotIndex;
             }
+
+            Gw.EndRow();
+            ImGui.PopID();
         }
 
         if (removeIndex >= 0)
@@ -241,14 +281,13 @@ internal static class HumanizerSettings
             cfg.SaveDebounced();
         }
 
-        using (ImRaii.Disabled(Svc.Objects.LocalPlayer is null))
-        using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentMint))
+        ImGui.BeginDisabled(Svc.Objects.LocalPlayer is null);
+        if (Gw.Button(Loc.T(L.Settings.SaveSpot), ButtonStyle.Prominent, ButtonSize.Small))
         {
-            if (ImGui.Button($"{Loc.T(L.Settings.SaveSpot)}##hum_spot_save"))
-            {
-                SaveCurrentSpot(cfg);
-            }
+            SaveCurrentSpot(cfg);
         }
+
+        ImGui.EndDisabled();
     }
 
     private static void SaveCurrentSpot(Configuration cfg)
@@ -272,60 +311,102 @@ internal static class HumanizerSettings
 
     private static void DrawWanderingGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin(Loc.T(L.Settings.HumanizerWandering));
+        if (Gw.BeginSection(Loc.T(L.Settings.HumanizerWandering)))
+        {
+            DrawWanderingRows(cfg);
+        }
 
-        SettingsRow.Draw(Loc.T(L.Settings.PauseBetween),
-            Loc.T(L.Settings.PauseBetweenHelp),
-            SettingsControls.RangeInlineWidth(),
-            () => SettingsControls.DrawRangeInline(cfg, "##hum_pause_min", "##hum_pause_max",
-                () => cfg.HumanizerPauseMinSec, v => cfg.HumanizerPauseMinSec = v,
-                () => cfg.HumanizerPauseMaxSec, v => cfg.HumanizerPauseMaxSec = v, 60, 0, Loc.T(L.Settings.SecondsFormat)));
+        Gw.EndSection();
+    }
 
-        SettingsRow.Draw(Loc.T(L.Settings.WalkDistance),
-            Loc.T(L.Settings.WalkDistanceHelp),
-            SettingsControls.RangeInlineWidth(),
-            () => SettingsControls.DrawRangeInline(cfg, "##hum_wander_min", "##hum_wander_max",
-                () => cfg.HumanizerWanderMinMeters, v => cfg.HumanizerWanderMinMeters = v,
-                () => cfg.HumanizerWanderMaxMeters, v => cfg.HumanizerWanderMaxMeters = v, 200, 5, Loc.T(L.Settings.MetersFormat)));
+    private static void DrawWanderingRows(Configuration cfg)
+    {
+        var pauseMin = cfg.HumanizerPauseMinSec;
+        var pauseMax = cfg.HumanizerPauseMaxSec;
+        if (SettingsControls.RangeRow(L.Settings.PauseBetween, L.Settings.PauseBetweenHelp, ref pauseMin, ref pauseMax, 0, PauseMaxSec, Loc.T(L.Settings.SecondsFormat)))
+        {
+            cfg.HumanizerPauseMinSec = pauseMin;
+            cfg.HumanizerPauseMaxSec = pauseMax;
+            cfg.SaveDebounced();
+        }
+
+        var wanderMin = cfg.HumanizerWanderMinMeters;
+        var wanderMax = cfg.HumanizerWanderMaxMeters;
+        if (SettingsControls.RangeRow(L.Settings.WalkDistance, L.Settings.WalkDistanceHelp, ref wanderMin, ref wanderMax, WanderMetersMin, WanderMetersMax, Loc.T(L.Settings.MetersFormat)))
+        {
+            cfg.HumanizerWanderMinMeters = wanderMin;
+            cfg.HumanizerWanderMaxMeters = wanderMax;
+            cfg.SaveDebounced();
+        }
     }
 
     private static void DrawCitiesGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin(Loc.T(L.Settings.HumanizerCities));
+        if (Gw.BeginSection(Loc.T(L.Settings.HumanizerCities)))
+        {
+            SettingsControls.TitleRow(L.Settings.AllowedCities, L.Settings.AllowedCitiesHelp);
+            DrawHumanizerCityList(cfg);
+        }
 
-        SettingsRow.DrawBlock(Loc.T(L.Settings.AllowedCities),
-            Loc.T(L.Settings.AllowedCitiesHelp),
-            () => DrawHumanizerCityList(cfg));
+        Gw.EndSection();
     }
 
     private static void DrawHumanizerCityList(Configuration cfg)
     {
-        var grouped = CityCatalog.All.GroupBy(c => c.Expansion).OrderByDescending(g => g.Key);
-        foreach (var group in grouped)
+        var cities = CityCatalog.All;
+        for (var kind = ExpansionKind.DT; kind >= ExpansionKind.ARR; kind--)
         {
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
-                ImGui.TextUnformatted(ExpansionLabels.Name(group.Key));
-
-            foreach (var city in group)
+            if (!HasCities(cities, kind))
             {
-                var selected = cfg.HumanizerCities.Contains(city.TerritoryId);
-                var id = $"##hum_city_{city.TerritoryId}";
-                if (ToggleSwitch.Draw(id, ref selected))
-                {
-                    if (selected) cfg.HumanizerCities.Add(city.TerritoryId);
-                    else          cfg.HumanizerCities.Remove(city.TerritoryId);
-                    cfg.SaveDebounced();
-                }
-                ImGui.SameLine();
-                ImGui.AlignTextToFramePadding();
-                using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextStrong))
-                    ImGui.TextUnformatted(city.Name);
+                continue;
             }
+
+            Gw.Text(ExpansionLabels.Name(kind), TextRole.Footnote, Frame.Look.SecondaryLabel);
+            for (var index = 0; index < cities.Length; index++)
+            {
+                var city = cities[index];
+                if (city.Expansion != kind)
+                {
+                    continue;
+                }
+
+                var selected = cfg.HumanizerCities.Contains(city.TerritoryId);
+                if (!Gw.Checkbox(ref selected, city.Name))
+                {
+                    continue;
+                }
+
+                if (selected)
+                {
+                    cfg.HumanizerCities.Add(city.TerritoryId);
+                }
+                else
+                {
+                    cfg.HumanizerCities.Remove(city.TerritoryId);
+                }
+
+                cfg.SaveDebounced();
+            }
+
             ImGui.Spacing();
         }
 
         if (cfg.HumanizerCities.Count == 0)
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentRose))
-                ImGui.TextWrapped(Loc.T(L.Settings.NoCities));
+        {
+            SettingsControls.Note(Loc.T(L.Settings.NoCities), Frame.Look.Destructive);
+        }
+    }
+
+    private static bool HasCities(CityInfo[] cities, ExpansionKind kind)
+    {
+        for (var index = 0; index < cities.Length; index++)
+        {
+            if (cities[index].Expansion == kind)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

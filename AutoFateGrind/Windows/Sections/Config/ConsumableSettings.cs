@@ -1,23 +1,27 @@
 using AutoFateGrind.Core.Game.Ops;
 using AutoFateGrind.Core.Localization;
-using AutoFateGrind.Windows.Components;
 using Dalamud.Bindings.ImGui;
-using Dalamud.Interface;
-using Dalamud.Interface.Utility;
-using Dalamud.Interface.Utility.Raii;
-using System.Numerics;
+using Glasswork.Backend;
 
 namespace AutoFateGrind.Windows.Sections.Config;
 
 internal static class ConsumableSettings
 {
+    private const int CatalogRefreshMs = 2000;
+    private const int RefreshMinutesMax = 29;
+
+    private static readonly SearchablePicker itemPicker = new(true);
+
+    private static ConsumableEntry[] available = [];
+    private static string[] availableLabels = [];
+    private static long availableBuiltAtMs;
+    private static int availableAddedCount = -1;
     private static int consumablePickerSelection;
 
     public static void Draw(Configuration cfg)
     {
         DrawConsumableGroup(cfg);
-        using var items = Motion.PushSection("##con_items", cfg.AutoConsume);
-        if (items is null)
+        if (!cfg.AutoConsume)
         {
             return;
         }
@@ -27,134 +31,178 @@ internal static class ConsumableSettings
 
     private static void DrawConsumableGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin(Loc.T(L.Settings.ConsumablesGroup));
+        if (Gw.BeginSection(Loc.T(L.Settings.ConsumablesGroup)))
+        {
+            DrawConsumableRows(cfg);
+        }
 
-        SettingsRow.Draw(Loc.T(L.Settings.AutoSummonChocobo),
-            Loc.T(L.Settings.AutoSummonChocoboHelp),
-            SettingsControls.ToggleWidth,
-            () => SettingsControls.DrawToggle(cfg, () => cfg.AutoSummonChocobo, v => cfg.AutoSummonChocobo = v, "##con_chocobo"),
-            SettingsRow.ToggleHeight);
+        Gw.EndSection();
+    }
 
-        SettingsRow.Draw(Loc.T(L.Settings.AutoConsume),
-            Loc.T(L.Settings.AutoConsumeHelp),
-            SettingsControls.ToggleWidth,
-            () => SettingsControls.DrawToggle(cfg, () => cfg.AutoConsume, v => cfg.AutoConsume = v, "##con_on"),
-            SettingsRow.ToggleHeight);
+    private static void DrawConsumableRows(Configuration cfg)
+    {
+        var summonChocobo = cfg.AutoSummonChocobo;
+        if (SettingsControls.ToggleRow(L.Settings.AutoSummonChocobo, L.Settings.AutoSummonChocoboHelp, ref summonChocobo))
+        {
+            cfg.AutoSummonChocobo = summonChocobo;
+            cfg.SaveDebounced();
+        }
 
-        using var body = Motion.PushSwitch("##con_body", cfg.AutoConsume);
+        var autoConsume = cfg.AutoConsume;
+        if (SettingsControls.ToggleRow(L.Settings.AutoConsume, L.Settings.AutoConsumeHelp, ref autoConsume))
+        {
+            cfg.AutoConsume = autoConsume;
+            cfg.SaveDebounced();
+        }
+
         if (!cfg.AutoConsume)
         {
-            SettingsRow.Note(Loc.T(L.Settings.AutoConsumeOff));
+            SettingsControls.Note(Loc.T(L.Settings.AutoConsumeOff));
             return;
         }
 
-        SettingsRow.Draw(Loc.T(L.Settings.RefreshUnder),
-            Loc.T(L.Settings.RefreshUnderHelp),
-            SettingsControls.RowSliderWidth,
-            () => SettingsControls.DrawIntSlider(cfg, "##con_min",
-                () => cfg.AutoConsumeMinMinutes, v => cfg.AutoConsumeMinMinutes = Math.Clamp(v, 0, 29),
-                0, 29, cfg.AutoConsumeMinMinutes == 0 ? Loc.T(L.Settings.RefreshWornOff) : Loc.T(L.Settings.RefreshFormat)));
+        Gw.BeginRow(Loc.T(L.Settings.RefreshUnder));
+        Gw.Tooltip(Loc.T(L.Settings.RefreshUnderHelp));
+        var minutes = cfg.AutoConsumeMinMinutes;
+        if (SettingsControls.Slider("##value"u8, ref minutes, 0, RefreshMinutesMax, Loc.T(L.Settings.RefreshFormat), SettingsControls.RowSliderWidth, Loc.T(L.Settings.RefreshWornOff)))
+        {
+            cfg.AutoConsumeMinMinutes = minutes;
+            cfg.SaveDebounced();
+        }
+
+        Gw.EndRow();
     }
 
     private static void DrawItemsGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin(Loc.T(L.Settings.ConsumablesItems));
+        if (Gw.BeginSection(Loc.T(L.Settings.ConsumablesItems)))
+        {
+            DrawAddConsumableRow(cfg);
+            SettingsControls.TitleRow(L.Settings.ActiveItems, L.Settings.ActiveItemsHelp);
+            DrawConsumableList(cfg);
+        }
 
-        SettingsRow.DrawBlock(Loc.T(L.Settings.AddItem),
-            Loc.T(L.Settings.AddItemHelp),
-            () => DrawAddConsumableRow(cfg));
-
-        SettingsRow.DrawBlock(Loc.T(L.Settings.ActiveItems),
-            Loc.T(L.Settings.ActiveItemsHelp),
-            () => DrawConsumableList(cfg));
+        Gw.EndSection();
     }
 
     private static void DrawAddConsumableRow(Configuration cfg)
     {
-        // Only items currently in the bag — you use one or two per session, so the full game list is
-        // noise. Runtime still skips a depleted entry (DrawConsumableList flags it red).
-        var catalog = FoodOps.Catalog.Where(FoodOps.IsAvailable).ToArray();
-        if (catalog.Length == 0)
+        RefreshAvailable(cfg);
+        if (available.Length == 0)
         {
-            SettingsRow.Note(Loc.T(L.Settings.NoneInBag));
+            SettingsControls.TitleRow(L.Settings.AddItem, L.Settings.AddItemHelp);
+            SettingsControls.Note(Loc.T(L.Settings.NoneInBag));
             return;
         }
 
-        var queued = cfg.AutoConsumeItems.Select(e => e.ItemId).ToHashSet();
-        var addedSuffix = "  " + Loc.T(L.Settings.Added);
-        var labels = catalog.Select(e =>
-        {
-            var kind = e.StatusId == FoodOps.WellFedStatusId ? Loc.T(L.Settings.KindFood) : Loc.T(L.Settings.KindMedicine);
-            var taken = queued.Contains(e.ItemId) ? addedSuffix : "";
-            return Loc.T(L.Settings.ItemLabel, e.Name, kind, taken);
-        }).ToArray();
-
-        consumablePickerSelection = Math.Clamp(consumablePickerSelection, 0, catalog.Length - 1);
-        SettingsControls.DrawSearchableCombo("##con_picker", labels, ref consumablePickerSelection, 340f);
-
-        var picked = catalog[consumablePickerSelection];
-        var duplicate = queued.Contains(picked.ItemId);
+        consumablePickerSelection = Math.Clamp(consumablePickerSelection, 0, available.Length - 1);
+        itemPicker.Draw(L.Settings.AddItem, L.Settings.AddItemHelp, availableLabels, ref consumablePickerSelection);
+        var picked = available[consumablePickerSelection];
+        var duplicate = IsAdded(cfg, picked.ItemId);
 
         ImGui.SameLine();
-        var addBtnSize = new Vector2(96f * ImGuiHelpers.GlobalScale, ImGui.GetFrameHeight());
-        using (ImRaii.Disabled(duplicate))
-        using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentMint))
-            if (ImGui.Button($"{Loc.T(L.Common.Add)}##con_add", addBtnSize))
+        ImGui.BeginDisabled(duplicate || !itemPicker.HasMatches);
+        if (Gw.Button(Loc.T(L.Common.Add), ButtonStyle.Prominent, ButtonSize.Small))
+        {
+            cfg.AutoConsumeItems.Add(new ConsumableEntry
             {
-                cfg.AutoConsumeItems.Add(new ConsumableEntry
-                {
-                    ItemId = picked.ItemId,
-                    Name = picked.Name,
-                    StatusId = picked.StatusId,
-                    CanBeHq = picked.CanBeHq,
-                });
-                cfg.SaveDebounced();
-            }
+                ItemId = picked.ItemId,
+                Name = picked.Name,
+                StatusId = picked.StatusId,
+                CanBeHq = picked.CanBeHq,
+            });
+            cfg.SaveDebounced();
+            availableBuiltAtMs = 0;
+        }
 
+        ImGui.EndDisabled();
         if (duplicate)
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
+        {
+            SettingsControls.InlineNote(Loc.T(L.Settings.AlreadyAdded));
+        }
+    }
+
+    // Only items in the bag are offered, and the labels carry whether each is already active, so the list follows
+    // the inventory on a timer and the active items on every change rather than every frame.
+    private static void RefreshAvailable(Configuration cfg)
+    {
+        var now = Environment.TickCount64;
+        if (availableBuiltAtMs > 0 && availableAddedCount == cfg.AutoConsumeItems.Count && now - availableBuiltAtMs < CatalogRefreshMs)
+        {
+            return;
+        }
+
+        availableBuiltAtMs = now;
+        availableAddedCount = cfg.AutoConsumeItems.Count;
+        var catalog = FoodOps.Catalog;
+        var items = new List<ConsumableEntry>(catalog.Count);
+        for (var index = 0; index < catalog.Count; index++)
+        {
+            if (FoodOps.IsAvailable(catalog[index]))
             {
-                ImGui.SameLine();
-                ImGui.AlignTextToFramePadding();
-                ImGui.TextUnformatted(Loc.T(L.Settings.AlreadyAdded));
+                items.Add(catalog[index]);
             }
+        }
+
+        var addedSuffix = string.Concat("  ", Loc.T(L.Settings.Added));
+        var labels = new string[items.Count];
+        for (var index = 0; index < items.Count; index++)
+        {
+            var entry = items[index];
+            var kind = entry.StatusId == FoodOps.WellFedStatusId ? Loc.T(L.Settings.KindFood) : Loc.T(L.Settings.KindMedicine);
+            var taken = IsAdded(cfg, entry.ItemId) ? addedSuffix : string.Empty;
+            labels[index] = Loc.T(L.Settings.ItemLabel, entry.Name, kind, taken);
+        }
+
+        available = items.ToArray();
+        availableLabels = labels;
+    }
+
+    private static bool IsAdded(Configuration cfg, uint itemId)
+    {
+        for (var index = 0; index < cfg.AutoConsumeItems.Count; index++)
+        {
+            if (cfg.AutoConsumeItems[index].ItemId == itemId)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static void DrawConsumableList(Configuration cfg)
     {
         if (cfg.AutoConsumeItems.Count == 0)
         {
-            SettingsRow.Note(Loc.T(L.Settings.NoItemsAdded));
+            SettingsControls.Note(Loc.T(L.Settings.NoItemsAdded));
             return;
         }
 
-        int? remove = null;
-        var btnSize = ImGui.GetFrameHeight();
-        for (var i = 0; i < cfg.AutoConsumeItems.Count; i++)
+        var remove = -1;
+        for (var index = 0; index < cfg.AutoConsumeItems.Count; index++)
         {
-            var e = cfg.AutoConsumeItems[i];
-            ImGui.AlignTextToFramePadding();
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
-                ImGui.TextUnformatted($"{i + 1}.");
-            ImGui.SameLine();
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextStrong))
-                ImGui.TextUnformatted(e.Name);
+            var entry = cfg.AutoConsumeItems[index];
+            var kind = entry.StatusId == FoodOps.WellFedStatusId ? Loc.T(L.Settings.WellFed) : Loc.T(L.Settings.Medicated);
+            var status = FoodOps.IsAvailable(entry) ? kind : Loc.T(L.Settings.NoneInBagShort, kind);
+            ImGui.PushID(index);
+            Gw.BeginRow($"{index + 1}. {entry.Name}", status);
+            if (SettingsControls.RemoveButton())
+            {
+                remove = index;
+            }
 
-            ImGui.SameLine();
-            var kind = e.StatusId == FoodOps.WellFedStatusId ? Loc.T(L.Settings.WellFed) : Loc.T(L.Settings.Medicated);
-            var inBag = FoodOps.IsAvailable(e);
-            using (ImRaii.PushColor(ImGuiCol.Text, inBag ? Styling.TextMuted : Styling.AccentRose))
-                ImGui.TextUnformatted("  " + (inBag ? kind : Loc.T(L.Settings.NoneInBagShort, kind)));
-
-            ImGui.SameLine(SettingsGroup.InnerRightLocalX() - btnSize);
-            if (IconButton.Draw(FontAwesomeIcon.Times, $"##con_rm_{i}", btnSize, Styling.AccentRose, Loc.T(L.Common.Remove)))
-                remove = i;
+            Gw.EndRow();
+            ImGui.PopID();
         }
 
-        if (remove is int r)
+        if (remove < 0)
         {
-            cfg.AutoConsumeItems.RemoveAt(r);
-            cfg.SaveDebounced();
+            return;
         }
+
+        cfg.AutoConsumeItems.RemoveAt(remove);
+        cfg.SaveDebounced();
+        availableBuiltAtMs = 0;
     }
 }

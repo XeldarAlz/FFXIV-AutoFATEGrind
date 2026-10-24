@@ -1,8 +1,6 @@
 using AutoFateGrind.Core.Game.Fates;
 using AutoFateGrind.Core.Localization;
-using AutoFateGrind.Windows.Components;
-using Dalamud.Bindings.ImGui;
-using Dalamud.Interface.Utility;
+using Glasswork.Backend;
 
 namespace AutoFateGrind.Windows.Sections.Config;
 
@@ -18,93 +16,100 @@ internal static class GeneralSettings
 
     private static void DrawLanguageGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin(Loc.T(L.Settings.Language));
+        if (Gw.BeginSection(Loc.T(L.Settings.Language)))
+        {
+            SettingsControls.LanguageRow(cfg);
+        }
 
-        SettingsRow.Draw(Loc.T(L.Settings.Language),
-            Loc.T(L.Settings.LanguageHelp),
-            SettingsControls.RowComboWidth,
-            () => SettingsControls.DrawLanguageCombo(cfg));
+        Gw.EndSection();
     }
 
     private static void DrawWindowGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin(Loc.T(L.Settings.GeneralWindow));
+        if (Gw.BeginSection(Loc.T(L.Settings.GeneralWindow)))
+        {
+            DrawWindowRows(cfg);
+        }
 
-        SettingsRow.Draw(Loc.T(L.Settings.OpenOnLogin),
-            Loc.T(L.Settings.OpenOnLoginHelp),
-            SettingsControls.ToggleWidth,
-            () => SettingsControls.DrawToggle(cfg, () => cfg.AutoShowOnLogin, v => cfg.AutoShowOnLogin = v, "##gen_autoshow"),
-            SettingsRow.ToggleHeight);
-
-        SettingsRow.Draw(Loc.T(L.Settings.DragAnywhere),
-            Loc.T(L.Settings.DragAnywhereHelp),
-            SettingsControls.ToggleWidth,
-            () => SettingsControls.DrawToggle(cfg, () => cfg.DragWindowFromAnywhere, v => cfg.DragWindowFromAnywhere = v, "##gen_draganywhere"),
-            SettingsRow.ToggleHeight);
-
-        SettingsRow.Draw(Loc.T(L.Settings.LivePopout),
-            Loc.T(L.Settings.LivePopoutHelp),
-            SettingsControls.ToggleWidth,
-            () => SettingsControls.DrawToggle(cfg, () => cfg.ShowLivePopout, v =>
-            {
-                cfg.ShowLivePopout = v;
-                Plugin.Instance.LiveFateWindow.IsOpen = v;
-            }, "##gen_popout"),
-            SettingsRow.ToggleHeight);
-
-        SettingsRow.Draw(Loc.T(L.Settings.NameFormat),
-            Loc.T(L.Settings.NameFormatHelp),
-            SettingsControls.RowComboWidth,
-            () => DrawNameFormat(cfg));
+        Gw.EndSection();
     }
 
-    private static void DrawNameFormat(Configuration cfg)
+    private static void DrawWindowRows(Configuration cfg)
     {
-        var text = cfg.FateNameFormat;
-        ImGui.SetNextItemWidth(SettingsControls.RowComboWidth * ImGuiHelpers.GlobalScale);
-        using (SettingsControls.PushFrameColors())
+        var openOnLogin = cfg.AutoShowOnLogin;
+        if (SettingsControls.ToggleRow(L.Settings.OpenOnLogin, L.Settings.OpenOnLoginHelp, ref openOnLogin))
         {
-            if (ImGui.InputText("##gen_namefmt", ref text, FateNameFormatter.MaxFormatLength))
-            {
-                cfg.FateNameFormat = text;
-                cfg.SaveDebounced();
-            }
+            cfg.AutoShowOnLogin = openOnLogin;
+            cfg.SaveDebounced();
+        }
+
+        var dragAnywhere = cfg.DragWindowFromAnywhere;
+        if (SettingsControls.ToggleRow(L.Settings.DragAnywhere, L.Settings.DragAnywhereHelp, ref dragAnywhere))
+        {
+            cfg.DragWindowFromAnywhere = dragAnywhere;
+            cfg.SaveDebounced();
+        }
+
+        var livePopout = cfg.ShowLivePopout;
+        if (SettingsControls.ToggleRow(L.Settings.LivePopout, L.Settings.LivePopoutHelp, ref livePopout))
+        {
+            cfg.ShowLivePopout = livePopout;
+            Plugin.Instance.LiveFateWindow.IsOpen = livePopout;
+            cfg.SaveDebounced();
+        }
+
+        var nameFormat = cfg.FateNameFormat;
+        if (SettingsControls.TextFieldRow(L.Settings.NameFormat, L.Settings.NameFormatHelp, ref nameFormat, FateNameFormatter.MaxFormatLength))
+        {
+            cfg.FateNameFormat = nameFormat;
+            cfg.SaveDebounced();
         }
     }
 
     private static void DrawRunGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin(Loc.T(L.Settings.GeneralRun));
-
-        SettingsRow.Draw(Loc.T(L.Settings.AutoPause),
-            Loc.T(L.Settings.AutoPauseHelp),
-            SettingsControls.ToggleWidth,
-            () => SettingsControls.DrawToggle(cfg, () => cfg.AutoPauseInContent, v => cfg.AutoPauseInContent = v, "##gen_autopause"),
-            SettingsRow.ToggleHeight);
-
-        SettingsRow.Draw(Loc.T(L.Settings.AutoResume),
-            Loc.T(L.Settings.AutoResumeHelp),
-            SettingsControls.ToggleWidth,
-            () => SettingsControls.DrawToggle(cfg, () => cfg.AutoResumeOnFault, v => cfg.AutoResumeOnFault = v, "##gen_autoresume"),
-            SettingsRow.ToggleHeight);
-
-        SettingsRow.Draw(Loc.T(L.Settings.StuckRescue),
-            Loc.T(L.Settings.StuckRescueHelp),
-            SettingsControls.ToggleWidth,
-            () => SettingsControls.DrawToggle(cfg, () => cfg.StuckRescueEnabled, v => cfg.StuckRescueEnabled = v, "##gen_stuckrescue"),
-            SettingsRow.ToggleHeight);
-
-        using (Motion.PushSwitch("##gen_stuckrescue_body", cfg.StuckRescueEnabled))
+        if (Gw.BeginSection(Loc.T(L.Settings.GeneralRun)))
         {
-            if (cfg.StuckRescueEnabled)
-            {
-                SettingsRow.Draw(Loc.T(L.Settings.StuckRescueAfter),
-                    Loc.T(L.Settings.StuckRescueAfterHelp),
-                    SettingsControls.RowSliderWidth,
-                    () => SettingsControls.DrawIntSlider(cfg, "##gen_stuckrescue_after",
-                        () => cfg.StuckRescueMinutes, v => cfg.StuckRescueMinutes = v,
-                        Configuration.StuckRescueMinMinutes, Configuration.StuckRescueMaxMinutes, Loc.T(L.Settings.MinutesFormat)));
-            }
+            DrawRunRows(cfg);
+        }
+
+        Gw.EndSection();
+    }
+
+    private static void DrawRunRows(Configuration cfg)
+    {
+        var autoPause = cfg.AutoPauseInContent;
+        if (SettingsControls.ToggleRow(L.Settings.AutoPause, L.Settings.AutoPauseHelp, ref autoPause))
+        {
+            cfg.AutoPauseInContent = autoPause;
+            cfg.SaveDebounced();
+        }
+
+        var autoResume = cfg.AutoResumeOnFault;
+        if (SettingsControls.ToggleRow(L.Settings.AutoResume, L.Settings.AutoResumeHelp, ref autoResume))
+        {
+            cfg.AutoResumeOnFault = autoResume;
+            cfg.SaveDebounced();
+        }
+
+        var stuckRescue = cfg.StuckRescueEnabled;
+        if (SettingsControls.ToggleRow(L.Settings.StuckRescue, L.Settings.StuckRescueHelp, ref stuckRescue))
+        {
+            cfg.StuckRescueEnabled = stuckRescue;
+            cfg.SaveDebounced();
+        }
+
+        if (!cfg.StuckRescueEnabled)
+        {
+            return;
+        }
+
+        var minutes = cfg.StuckRescueMinutes;
+        if (SettingsControls.SliderRow(L.Settings.StuckRescueAfter, L.Settings.StuckRescueAfterHelp, ref minutes,
+                Configuration.StuckRescueMinMinutes, Configuration.StuckRescueMaxMinutes, Loc.T(L.Settings.MinutesFormat)))
+        {
+            cfg.StuckRescueMinutes = minutes;
+            cfg.SaveDebounced();
         }
     }
 }

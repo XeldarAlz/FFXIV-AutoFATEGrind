@@ -2,15 +2,22 @@ using AutoFateGrind.Core.Localization;
 using AutoFateGrind.Core.Trading;
 using AutoFateGrind.Windows.Components;
 using Dalamud.Bindings.ImGui;
-using Dalamud.Interface;
-using Dalamud.Interface.Utility;
-using Dalamud.Interface.Utility.Raii;
-using System.Numerics;
+using Glasswork;
+using Glasswork.Backend;
 
 namespace AutoFateGrind.Windows.Sections.Config;
 
 internal static class GemstoneSettings
 {
+    private const int ThresholdMin = 100;
+    private const int SpendGemsMin = 50;
+    private const int BuyQuantityMin = 1;
+    private const int BuyQuantityMax = 99;
+    private const int ListRefreshMs = 1000;
+    private const int ReachRecheckMs = 2000;
+    private const int MaxStopAtCount = 999;
+    private const float StopSliderWidth = 150f;
+
     private static readonly GemstoneSpendMode[] spendModes =
         [GemstoneSpendMode.SpendAll, GemstoneSpendMode.SpendGems, GemstoneSpendMode.BuyQuantity];
 
@@ -27,11 +34,26 @@ internal static class GemstoneSettings
         new(L.Settings.AfterStopName, L.Settings.AfterStopDetail),
     ];
 
+    private static readonly HashSet<uint> noSkippedItems = [];
+    private static readonly SearchablePicker itemPicker = new(true);
+
+    private readonly record struct ListRow(uint ItemId, string Name, bool IsCollectible, string Status, string? Tooltip);
+
+    private static GemstoneTradeItem[]? sortedItems;
+    private static string[]? sortedLabels;
+    private static int pickerSelection;
+    private static ListRow[] listRows = [];
+    private static long listRowsTickMs;
+    private static string previewText = string.Empty;
+    private static bool previewBlocked;
+    private static uint reachNoteItemId;
+    private static long reachNoteTickMs;
+    private static string? reachNote;
+
     public static void Draw(Configuration cfg)
     {
         DrawTriggerGroup(cfg);
-        using var more = Motion.PushSection("##tr_more", cfg.TradeOnCap);
-        if (more is null)
+        if (!cfg.TradeOnCap)
         {
             return;
         }
@@ -43,82 +65,77 @@ internal static class GemstoneSettings
 
     private static void DrawTriggerGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin(Loc.T(L.Settings.GemsTrigger));
+        if (Gw.BeginSection(Loc.T(L.Settings.GemsTrigger)))
+        {
+            DrawTriggerRows(cfg);
+        }
 
-        SettingsRow.Draw(Loc.T(L.Settings.AutoTrade),
-            Loc.T(L.Settings.AutoTradeHelp),
-            SettingsControls.ToggleWidth,
-            () => SettingsControls.DrawToggle(cfg, () => cfg.TradeOnCap, v => cfg.TradeOnCap = v, "##tr_oncap"),
-            SettingsRow.ToggleHeight);
+        Gw.EndSection();
+    }
 
-        using var body = Motion.PushSwitch("##tr_body", cfg.TradeOnCap);
+    private static void DrawTriggerRows(Configuration cfg)
+    {
+        var tradeOnCap = cfg.TradeOnCap;
+        if (SettingsControls.ToggleRow(L.Settings.AutoTrade, L.Settings.AutoTradeHelp, ref tradeOnCap))
+        {
+            cfg.TradeOnCap = tradeOnCap;
+            cfg.SaveDebounced();
+        }
+
         if (!cfg.TradeOnCap)
         {
-            SettingsRow.Note(Loc.T(L.Settings.AutoTradeOff));
+            SettingsControls.Note(Loc.T(L.Settings.AutoTradeOff));
             return;
         }
 
-        SettingsRow.Draw(Loc.T(L.Settings.Threshold),
-            Loc.T(L.Settings.ThresholdHelp),
-            SettingsControls.RowSliderWidth,
-            () => SettingsControls.DrawIntSlider(cfg, "##tr_threshold",
-                () => cfg.TradeThreshold, v => cfg.TradeThreshold = Math.Clamp(v, 100, Core.AfgConstants.BicolorCap),
-                100, Core.AfgConstants.BicolorCap, Loc.T(L.Settings.GemsFormat)));
+        var threshold = cfg.TradeThreshold;
+        if (SettingsControls.SliderRow(L.Settings.Threshold, L.Settings.ThresholdHelp, ref threshold, ThresholdMin, Core.AfgConstants.BicolorCap, Loc.T(L.Settings.GemsFormat)))
+        {
+            cfg.TradeThreshold = threshold;
+            cfg.SaveDebounced();
+        }
     }
-
-    private static GemstoneTradeItem[]? sortedItems;
-    private static string[]? sortedLabels;
-    private static int pickerSelection;
 
     private static void DrawItemGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin(Loc.T(L.Settings.GemsItem));
+        if (Gw.BeginSection(Loc.T(L.Settings.GemsItem)))
+        {
+            DrawAddRow(cfg);
+            SettingsControls.TitleRow(L.Settings.ShoppingList, L.Settings.ShoppingListHelp);
+            DrawShoppingList(cfg);
+        }
 
-        SettingsRow.DrawBlock(Loc.T(L.Settings.AddTradeItem),
-            Loc.T(L.Settings.ItemToBuyHelp),
-            () => DrawAddRow(cfg));
-
-        SettingsRow.DrawBlock(Loc.T(L.Settings.ShoppingList),
-            Loc.T(L.Settings.ShoppingListHelp),
-            () => DrawShoppingList(cfg));
+        Gw.EndSection();
     }
 
     private static void DrawAddRow(Configuration cfg)
     {
         EnsureSortedCatalog();
-        if (sortedItems is null || sortedItems.Length == 0)
+        if (sortedItems is null || sortedLabels is null || sortedItems.Length == 0)
         {
-            SettingsRow.Note(Loc.T(L.Settings.NoShopItems), Styling.AccentRose);
+            SettingsControls.TitleRow(L.Settings.AddTradeItem, L.Settings.ItemToBuyHelp);
+            SettingsControls.Note(Loc.T(L.Settings.NoShopItems), Frame.Look.Destructive);
             return;
         }
 
         pickerSelection = Math.Clamp(pickerSelection, 0, sortedItems.Length - 1);
-        SettingsControls.DrawSearchableCombo("##tr_item", sortedLabels!, ref pickerSelection, 380f);
-
+        itemPicker.Draw(L.Settings.AddTradeItem, L.Settings.ItemToBuyHelp, sortedLabels, ref pickerSelection);
         var picked = sortedItems[pickerSelection];
         var listed = IsListed(cfg.TradeList, picked.ItemId);
 
         ImGui.SameLine();
-        var addButtonSize = new Vector2(96f * ImGuiHelpers.GlobalScale, ImGui.GetFrameHeight());
-        using (ImRaii.Disabled(listed))
-        using (ImRaii.PushColor(ImGuiCol.Text, Styling.AccentMint))
+        ImGui.BeginDisabled(listed || !itemPicker.HasMatches);
+        if (Gw.Button(Loc.T(L.Common.Add), ButtonStyle.Prominent, ButtonSize.Small))
         {
-            if (ImGui.Button($"{Loc.T(L.Common.Add)}##tr_add", addButtonSize))
-            {
-                cfg.TradeList.Add(new TradeListEntry { ItemId = picked.ItemId });
-                cfg.SaveDebounced();
-                listRowsTickMs = 0;
-            }
+            cfg.TradeList.Add(new TradeListEntry { ItemId = picked.ItemId });
+            cfg.SaveDebounced();
+            listRowsTickMs = 0;
         }
 
+        ImGui.EndDisabled();
         if (listed)
         {
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
-            {
-                ImGui.SameLine();
-                ImGui.AlignTextToFramePadding();
-                ImGui.TextUnformatted(Loc.T(L.Settings.AlreadyListed));
-            }
+            SettingsControls.InlineNote(Loc.T(L.Settings.AlreadyListed));
         }
 
         DrawTraderReach(picked);
@@ -137,79 +154,29 @@ internal static class GemstoneSettings
         return false;
     }
 
-    private readonly record struct ListRow(uint ItemId, string Name, Vector4 NameColor, bool IsCollectible, string Status, Vector4 StatusColor, string? Tooltip);
-
-    private const int ListRefreshMs = 1000;
-    private const int MaxStopAtCount = 999;
-    private const float RowControlWidth = 150f;
-
-    private static readonly HashSet<uint> noSkippedItems = [];
-    private static ListRow[] listRows = [];
-    private static long listRowsTickMs;
-    private static string previewText = "";
-    private static Vector4 previewColor;
-
     private static void DrawShoppingList(Configuration cfg)
     {
         if (cfg.TradeList.Count == 0)
         {
-            SettingsRow.Note(Loc.T(L.Settings.ShoppingListEmpty), Styling.AccentRose);
+            SettingsControls.Note(Loc.T(L.Settings.ShoppingListEmpty), Frame.Look.Destructive);
             return;
         }
 
         RefreshListRows(cfg);
 
         int? moveUp = null, moveDown = null, remove = null;
-        var scale = ImGuiHelpers.GlobalScale;
-        var buttonSize = ImGui.GetFrameHeight();
-        var spacingX = 4f * scale;
-        var controlWidth = RowControlWidth * scale;
-        var clusterWidth = controlWidth + spacingX * 2 + buttonSize * 3 + spacingX * 2;
-        var clusterX = SettingsGroup.InnerRightLocalX() - clusterWidth;
         var count = cfg.TradeList.Count;
-
         for (var entryIndex = 0; entryIndex < count; entryIndex++)
         {
-            var entry = cfg.TradeList[entryIndex];
-            var row = listRows[entryIndex];
-
-            ImGui.AlignTextToFramePadding();
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextDim))
+            ImGui.PushID(entryIndex);
+            switch (DrawShoppingRow(cfg, cfg.TradeList[entryIndex], listRows[entryIndex], entryIndex, count))
             {
-                ImGui.TextUnformatted($"{entryIndex + 1}.");
+                case SettingsControls.ListAction.MoveUp: moveUp = entryIndex; break;
+                case SettingsControls.ListAction.MoveDown: moveDown = entryIndex; break;
+                case SettingsControls.ListAction.Remove: remove = entryIndex; break;
             }
 
-            ImGui.SameLine();
-            var status = row.Status.Length == 0 ? "" : "  " + row.Status;
-            var nameWidth = clusterX - spacingX * 2 - ImGui.GetCursorPosX() - ImGui.CalcTextSize(status).X;
-            using (ImRaii.PushColor(ImGuiCol.Text, row.NameColor))
-            {
-                ImGui.TextUnformatted(TextDraw.Truncate(row.Name, Math.Max(0f, nameWidth)));
-            }
-
-            if (status.Length > 0)
-            {
-                ImGui.SameLine(0f, 0f);
-                using (ImRaii.PushColor(ImGuiCol.Text, row.StatusColor))
-                {
-                    ImGui.TextUnformatted(status);
-                }
-
-                if (row.Tooltip is not null && ImGui.IsItemHovered())
-                {
-                    Tooltip.Show(row.Tooltip);
-                }
-            }
-
-            ImGui.SameLine(clusterX);
-            DrawStopControl(cfg, entry, row, entryIndex, controlWidth);
-
-            ImGui.SameLine(clusterX + controlWidth + spacingX * 2);
-            if (IconButton.Draw(FontAwesomeIcon.ArrowUp, $"##tr_up_{entryIndex}", buttonSize, tooltip: Loc.T(L.Common.MoveUp), enabled: entryIndex > 0)) moveUp = entryIndex;
-            ImGui.SameLine(0f, spacingX);
-            if (IconButton.Draw(FontAwesomeIcon.ArrowDown, $"##tr_dn_{entryIndex}", buttonSize, tooltip: Loc.T(L.Common.MoveDown), enabled: entryIndex < count - 1)) moveDown = entryIndex;
-            ImGui.SameLine(0f, spacingX);
-            if (IconButton.Draw(FontAwesomeIcon.Times, $"##tr_rm_{entryIndex}", buttonSize, Styling.AccentRose, Loc.T(L.Common.Remove))) remove = entryIndex;
+            ImGui.PopID();
         }
 
         if (ListReorder.Apply(cfg.TradeList, count, moveUp, moveDown, remove))
@@ -219,29 +186,35 @@ internal static class GemstoneSettings
         }
     }
 
-    private static void DrawStopControl(Configuration cfg, TradeListEntry entry, ListRow row, int entryIndex, float width)
+    private static SettingsControls.ListAction DrawShoppingRow(Configuration cfg, TradeListEntry entry, ListRow row, int entryIndex, int count)
+    {
+        Gw.BeginRow(row.Name, row.Status);
+        if (row.Tooltip is not null)
+        {
+            Gw.Tooltip(row.Tooltip);
+        }
+
+        DrawStopControl(cfg, entry, row);
+        ImGui.SameLine();
+        var action = SettingsControls.ReorderButtons(entryIndex > 0, entryIndex < count - 1);
+        Gw.EndRow();
+        return action;
+    }
+
+    private static void DrawStopControl(Configuration cfg, TradeListEntry entry, ListRow row)
     {
         if (row.IsCollectible)
         {
-            using (ImRaii.PushColor(ImGuiCol.Text, Styling.TextMuted))
-            {
-                ImGui.TextUnformatted(Loc.T(L.Settings.BuyOnce));
-            }
-
+            SettingsControls.TextOnLine(Loc.T(L.Settings.BuyOnce), Frame.Look.MinHit * Frame.Scale, TextRole.Footnote);
             return;
         }
 
         var stopAt = entry.StopAtCount;
-        ImGui.SetNextItemWidth(width);
-        using (SettingsControls.PushFrameColors())
+        if (SettingsControls.Slider("##stop"u8, ref stopAt, 0, MaxStopAtCount, Loc.T(L.Settings.StopAtCount), StopSliderWidth, Loc.T(L.Settings.KeepBuying)))
         {
-            if (ImGui.SliderInt($"##tr_stop_{entryIndex}", ref stopAt, 0, MaxStopAtCount,
-                    stopAt == 0 ? Loc.T(L.Settings.KeepBuying) : Loc.T(L.Settings.StopAtCount)))
-            {
-                entry.StopAtCount = Math.Clamp(stopAt, 0, MaxStopAtCount);
-                cfg.SaveDebounced();
-                listRowsTickMs = 0;
-            }
+            entry.StopAtCount = stopAt;
+            cfg.SaveDebounced();
+            listRowsTickMs = 0;
         }
     }
 
@@ -264,7 +237,7 @@ internal static class GemstoneSettings
         }
 
         listRows = rows;
-        (previewText, previewColor) = BuildPreview(cfg);
+        (previewText, previewBlocked) = BuildPreview(cfg);
     }
 
     private static bool RowsMatch(List<TradeListEntry> entries)
@@ -285,31 +258,26 @@ internal static class GemstoneSettings
         var state = TradeList.StateOf(entry, out var item, out var held);
         if (item is null)
         {
-            return new ListRow(entry.ItemId, Loc.T(L.Settings.UnknownTradeItem, entry.ItemId), Styling.AccentRose, false, "", Styling.TextMuted, null);
+            return new ListRow(entry.ItemId, Loc.T(L.Settings.UnknownTradeItem, entry.ItemId), false, string.Empty, null);
         }
 
         var name = Loc.T(L.Settings.ItemCostLabel, item.ItemName, item.CostPerOne);
         if (skipped.Contains(item.ItemId))
         {
-            return new ListRow(item.ItemId, name, Styling.TextStrong, item.IsCollectible, Loc.T(L.Settings.StatusSkipped), Styling.AccentAmber, null);
+            return new ListRow(item.ItemId, name, item.IsCollectible, Loc.T(L.Settings.StatusSkipped), null);
         }
 
         return state switch
         {
-            TradeEntryState.Learned => new ListRow(item.ItemId, name, Styling.TextStrong, true, Loc.T(L.Settings.StatusLearned), Styling.AccentMint, null),
-            TradeEntryState.Held => new ListRow(item.ItemId, name, Styling.TextStrong, true, Loc.T(L.Settings.StatusHeld), Styling.AccentMint, null),
-            TradeEntryState.Stocked => new ListRow(item.ItemId, name, Styling.TextStrong, false, Loc.T(L.Settings.StatusHaveOf, held, entry.StopAtCount), Styling.AccentMint, null),
-            TradeEntryState.NoTrader => new ListRow(item.ItemId, name, Styling.TextStrong, item.IsCollectible, Loc.T(L.Settings.StatusNoTrader), Styling.AccentRose, BuildReachNote(item)),
-            _ when item.IsCollectible => new ListRow(item.ItemId, name, Styling.TextStrong, true, "", Styling.TextMuted, null),
-            _ when entry.StopAtCount > 0 => new ListRow(item.ItemId, name, Styling.TextStrong, false, Loc.T(L.Settings.StatusHaveOf, held, entry.StopAtCount), Styling.TextMuted, null),
-            _ => new ListRow(item.ItemId, name, Styling.TextStrong, false, Loc.T(L.Settings.StatusHave, held), Styling.TextMuted, null),
+            TradeEntryState.Learned => new ListRow(item.ItemId, name, true, Loc.T(L.Settings.StatusLearned), null),
+            TradeEntryState.Held => new ListRow(item.ItemId, name, true, Loc.T(L.Settings.StatusHeld), null),
+            TradeEntryState.Stocked => new ListRow(item.ItemId, name, false, Loc.T(L.Settings.StatusHaveOf, held, entry.StopAtCount), null),
+            TradeEntryState.NoTrader => new ListRow(item.ItemId, name, item.IsCollectible, Loc.T(L.Settings.StatusNoTrader), BuildReachNote(item)),
+            _ when item.IsCollectible => new ListRow(item.ItemId, name, true, string.Empty, null),
+            _ when entry.StopAtCount > 0 => new ListRow(item.ItemId, name, false, Loc.T(L.Settings.StatusHaveOf, held, entry.StopAtCount), null),
+            _ => new ListRow(item.ItemId, name, false, Loc.T(L.Settings.StatusHave, held), null),
         };
     }
-
-    private static uint reachNoteItemId;
-    private static long reachNoteTickMs;
-    private static string? reachNote;
-    private const int ReachRecheckMs = 2000;
 
     // The picker carries every Bicolor item in game data, including ones only sold in expansions the character has
     // not reached, and buying one used to fail mid-run at the teleport (issue #54). Resolving a seller walks shop
@@ -330,7 +298,7 @@ internal static class GemstoneSettings
             return;
         }
 
-        SettingsRow.Note(reachNote, Styling.AccentRose);
+        SettingsControls.Note(reachNote, Frame.Look.Destructive);
     }
 
     private static string? BuildReachNote(GemstoneTradeItem item)
@@ -355,7 +323,7 @@ internal static class GemstoneSettings
             return;
         }
 
-        sortedItems = [.. catalog.OrderBy(i => i.ItemName, StringComparer.OrdinalIgnoreCase)];
+        sortedItems = [.. catalog.OrderBy(item => item.ItemName, StringComparer.OrdinalIgnoreCase)];
         sortedLabels = new string[sortedItems.Length];
         for (var itemIndex = 0; itemIndex < sortedItems.Length; itemIndex++)
         {
@@ -366,63 +334,66 @@ internal static class GemstoneSettings
 
     private static void DrawSpendGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin(Loc.T(L.Settings.GemsSpend));
+        if (Gw.BeginSection(Loc.T(L.Settings.GemsSpend)))
+        {
+            DrawSpendRows(cfg);
+        }
 
+        Gw.EndSection();
+    }
+
+    private static void DrawSpendRows(Configuration cfg)
+    {
         var selected = Math.Max(0, Array.IndexOf(spendModes, cfg.SpendMode));
-        SettingsRow.Draw(Loc.T(L.Settings.SpendStrategy),
-            Loc.T(L.Settings.SpendStrategyHelp),
-            SettingsControls.RowComboWidth,
-            () => SettingsControls.Choices.DrawCombo("##tr_spend_mode", spendModeChoices, selected, choice =>
-            {
-                cfg.SpendMode = spendModes[choice];
-                cfg.SaveDebounced();
-                listRowsTickMs = 0;
-            }));
-        SettingsRow.Caption(Loc.T(spendModeChoices[selected].Detail));
+        if (SettingsControls.Choices.DrawRow(L.Settings.SpendStrategy, L.Settings.SpendStrategyHelp, spendModeChoices, ref selected))
+        {
+            cfg.SpendMode = spendModes[selected];
+            cfg.SaveDebounced();
+            listRowsTickMs = 0;
+        }
 
         if (cfg.SpendMode == GemstoneSpendMode.SpendGems)
         {
-            SettingsRow.Draw(Loc.T(L.Settings.SpendUpTo),
-                Loc.T(L.Settings.SpendUpToHelp),
-                SettingsControls.RowSliderWidth,
-                () => SettingsControls.DrawIntSlider(cfg, "##tr_spend_gems",
-                    () => cfg.SpendGemsAmount, v => cfg.SpendGemsAmount = Math.Clamp(v, 50, Core.AfgConstants.BicolorCap),
-                    50, Core.AfgConstants.BicolorCap, Loc.T(L.Settings.GemsFormat)));
+            var spendGems = cfg.SpendGemsAmount;
+            if (SettingsControls.SliderRow(L.Settings.SpendUpTo, L.Settings.SpendUpToHelp, ref spendGems, SpendGemsMin, Core.AfgConstants.BicolorCap, Loc.T(L.Settings.GemsFormat)))
+            {
+                cfg.SpendGemsAmount = spendGems;
+                cfg.SaveDebounced();
+            }
         }
         else if (cfg.SpendMode == GemstoneSpendMode.BuyQuantity)
         {
-            SettingsRow.Draw(Loc.T(L.Settings.BuyQuantity),
-                Loc.T(L.Settings.BuyQuantityHelp),
-                SettingsControls.RowSliderWidth,
-                () => SettingsControls.DrawIntSlider(cfg, "##tr_buy_qty",
-                    () => cfg.BuyQuantityAmount, v => cfg.BuyQuantityAmount = Math.Clamp(v, 1, 99),
-                    1, 99, Loc.T(L.Settings.BuyQuantityFormat)));
+            var quantity = cfg.BuyQuantityAmount;
+            if (SettingsControls.SliderRow(L.Settings.BuyQuantity, L.Settings.BuyQuantityHelp, ref quantity, BuyQuantityMin, BuyQuantityMax, Loc.T(L.Settings.BuyQuantityFormat)))
+            {
+                cfg.BuyQuantityAmount = quantity;
+                cfg.SaveDebounced();
+            }
         }
 
-        SettingsRow.Draw(Loc.T(L.Settings.Reserve),
-            Loc.T(L.Settings.ReserveHelp),
-            SettingsControls.RowSliderWidth,
-            () => SettingsControls.DrawIntSlider(cfg, "##tr_reserve",
-                () => cfg.KeepGemstonesReserve, v => cfg.KeepGemstonesReserve = Math.Clamp(v, 0, Core.AfgConstants.BicolorCap),
-                0, Core.AfgConstants.BicolorCap, Loc.T(L.Settings.GemsFormat)));
+        var reserve = cfg.KeepGemstonesReserve;
+        if (SettingsControls.SliderRow(L.Settings.Reserve, L.Settings.ReserveHelp, ref reserve, 0, Core.AfgConstants.BicolorCap, Loc.T(L.Settings.GemsFormat)))
+        {
+            cfg.KeepGemstonesReserve = reserve;
+            cfg.SaveDebounced();
+        }
 
         DrawSpendPreview(cfg);
     }
 
     private static void DrawAfterGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin(Loc.T(L.Settings.GemsAfter));
-
-        var selected = cfg.AfterTrade == AfterTradeAction.Stop ? 1 : 0;
-        SettingsRow.Draw(Loc.T(L.Settings.WhenDone),
-            Loc.T(L.Settings.WhenDoneHelp),
-            SettingsControls.RowComboWidth,
-            () => SettingsControls.Choices.DrawCombo("##tr_after", afterTradeChoices, selected, choice =>
+        if (Gw.BeginSection(Loc.T(L.Settings.GemsAfter)))
+        {
+            var selected = cfg.AfterTrade == AfterTradeAction.Stop ? 1 : 0;
+            if (SettingsControls.Choices.DrawRow(L.Settings.WhenDone, L.Settings.WhenDoneHelp, afterTradeChoices, ref selected))
             {
-                cfg.AfterTrade = choice == 1 ? AfterTradeAction.Stop : AfterTradeAction.Resume;
+                cfg.AfterTrade = selected == 1 ? AfterTradeAction.Stop : AfterTradeAction.Resume;
                 cfg.SaveDebounced();
-            }));
-        SettingsRow.Caption(Loc.T(afterTradeChoices[selected].Detail));
+            }
+        }
+
+        Gw.EndSection();
     }
 
     private static void DrawSpendPreview(Configuration cfg)
@@ -433,18 +404,18 @@ internal static class GemstoneSettings
         }
 
         RefreshListRows(cfg);
-        SettingsRow.Note(previewText, previewColor);
+        SettingsControls.Note(previewText, previewBlocked ? Frame.Look.Destructive : null);
     }
 
     // Replays the shop's budget split at the threshold wallet, trader by trader, so the note matches what the next
     // trade would buy.
-    private static (string Text, Vector4 Color) BuildPreview(Configuration cfg)
+    private static (string Text, bool Blocked) BuildPreview(Configuration cfg)
     {
         var plannedItemIds = new HashSet<uint>();
         var plan = TradeList.Plan(cfg.TradeThreshold, null, null, plannedItemIds);
         if (plan is null)
         {
-            return (Loc.T(L.Settings.PreviewNothing, cfg.TradeThreshold, cfg.KeepGemstonesReserve), Styling.AccentRose);
+            return (Loc.T(L.Settings.PreviewNothing, cfg.TradeThreshold, cfg.KeepGemstonesReserve), true);
         }
 
         var wallet = cfg.TradeThreshold;
@@ -472,6 +443,6 @@ internal static class GemstoneSettings
             plan = TradeList.Plan(wallet, plan.Trader.TerritoryId, plan.Trader.Expansion, plannedItemIds, spent);
         }
 
-        return (Loc.T(L.Settings.PreviewPlan, cfg.TradeThreshold, cfg.KeepGemstonesReserve, string.Join(", ", parts), spent), Styling.TextMuted);
+        return (Loc.T(L.Settings.PreviewPlan, cfg.TradeThreshold, cfg.KeepGemstonesReserve, string.Join(", ", parts), spent), false);
     }
 }

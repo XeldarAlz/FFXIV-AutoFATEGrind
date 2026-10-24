@@ -1,13 +1,12 @@
 using AutoFateGrind.Core.Game.Fates;
 using AutoFateGrind.Core.Game.Player;
 using AutoFateGrind.Core.Localization;
-using AutoFateGrind.Windows.Components;
+using Glasswork.Backend;
 
 namespace AutoFateGrind.Windows.Sections.Config;
 
 internal static class TravelSettings
 {
-    private const float MountComboWidth = 220f;
     private const int MountListRefreshMs = 2000;
     private const int SwapWaitMinSec = 0;
     private const int SwapWaitMaxSec = 300;
@@ -21,7 +20,9 @@ internal static class TravelSettings
     private const int PullMaxMobsMax = FateMobScanner.EnmityListCapacity;
     private const int PullHpMin = 10;
     private const int PullHpMax = 100;
+    private const string PercentFormat = "%d%%";
 
+    private static readonly SearchablePicker mountPicker = new(false);
     private static MountOption[] mountOptions = [];
     private static string[] mountLabels = [];
     private static long mountListBuiltAtMs;
@@ -35,51 +36,55 @@ internal static class TravelSettings
 
     private static void DrawMountGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin(Loc.T(L.Settings.TravelMount));
+        if (Gw.BeginSection(Loc.T(L.Settings.TravelMount)))
+        {
+            DrawMountRows(cfg);
+        }
 
-        DrawMountRow(cfg);
-
-        SettingsRow.Draw(Loc.T(L.Settings.MountWhileWaiting),
-            Loc.T(L.Settings.MountWhileWaitingHelp),
-            SettingsControls.ToggleWidth,
-            () => SettingsControls.DrawToggle(cfg, () => cfg.MountWhileWaitingForFates, v => cfg.MountWhileWaitingForFates = v, "##travel_mount_waiting"),
-            SettingsRow.ToggleHeight);
-
-        SettingsRow.Draw(Loc.T(L.Settings.EconomyTravel),
-            Loc.T(L.Settings.EconomyTravelHelp),
-            SettingsControls.ToggleWidth,
-            () => SettingsControls.DrawToggle(cfg, () => cfg.EconomyTravel, v => cfg.EconomyTravel = v, "##travel_economy"),
-            SettingsRow.ToggleHeight);
+        Gw.EndSection();
     }
 
-    private static void DrawMountRow(Configuration cfg)
+    private static void DrawMountRows(Configuration cfg)
     {
-        SettingsRow.Draw(Loc.T(L.Settings.Mount),
-            Loc.T(L.Settings.MountHelp),
-            MountComboWidth,
-            () =>
-            {
-                RefreshMountList();
-                var selected = 0;
-                for (var index = 0; index < mountOptions.Length; index++)
-                {
-                    if (mountOptions[index].Id == cfg.PreferredMountId)
-                    {
-                        selected = index + 1;
-                        break;
-                    }
-                }
+        DrawMountPicker(cfg);
 
-                if (SettingsControls.DrawSearchableCombo("##travel_mount", mountLabels, ref selected, MountComboWidth))
-                {
-                    cfg.PreferredMountId = selected == 0 ? MountOps.Roulette : mountOptions[selected - 1].Id;
-                    cfg.SaveDebounced();
-                }
-            });
+        var mountWhileWaiting = cfg.MountWhileWaitingForFates;
+        if (SettingsControls.ToggleRow(L.Settings.MountWhileWaiting, L.Settings.MountWhileWaitingHelp, ref mountWhileWaiting))
+        {
+            cfg.MountWhileWaitingForFates = mountWhileWaiting;
+            cfg.SaveDebounced();
+        }
+
+        var economyTravel = cfg.EconomyTravel;
+        if (SettingsControls.ToggleRow(L.Settings.EconomyTravel, L.Settings.EconomyTravelHelp, ref economyTravel))
+        {
+            cfg.EconomyTravel = economyTravel;
+            cfg.SaveDebounced();
+        }
+    }
+
+    private static void DrawMountPicker(Configuration cfg)
+    {
+        RefreshMountList();
+        var selected = 0;
+        for (var index = 0; index < mountOptions.Length; index++)
+        {
+            if (mountOptions[index].Id == cfg.PreferredMountId)
+            {
+                selected = index + 1;
+                break;
+            }
+        }
+
+        if (mountPicker.Draw(L.Settings.Mount, L.Settings.MountHelp, mountLabels, ref selected))
+        {
+            cfg.PreferredMountId = selected == 0 ? MountOps.Roulette : mountOptions[selected - 1].Id;
+            cfg.SaveDebounced();
+        }
 
         if (cfg.PreferredMountId != MountOps.Roulette && !MountOps.IsUsable(cfg.PreferredMountId))
         {
-            SettingsRow.Note(Loc.T(L.Settings.MountNotOwned, MountOps.NameOf(cfg.PreferredMountId)), Styling.AccentRose);
+            SettingsControls.Note(Loc.T(L.Settings.MountNotOwned, MountOps.NameOf(cfg.PreferredMountId)), Frame.Look.Destructive);
         }
     }
 
@@ -91,118 +96,133 @@ internal static class TravelSettings
         {
             return;
         }
+
         mountListBuiltAtMs = now;
         mountOptions = MountOps.OwnedMounts();
-        mountLabels = new string[mountOptions.Length + 1];
-        mountLabels[0] = Loc.T(L.Settings.MountRandom);
+        var labels = new string[mountOptions.Length + 1];
+        labels[0] = Loc.T(L.Settings.MountRandom);
         for (var index = 0; index < mountOptions.Length; index++)
         {
-            mountLabels[index + 1] = mountOptions[index].Name;
+            labels[index + 1] = mountOptions[index].Name;
         }
+
+        mountLabels = labels;
     }
 
     private static void DrawZoneSwapGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin(Loc.T(L.Settings.TravelZoneSwap));
-
-        SettingsRow.Draw(Loc.T(L.Settings.SwapZones),
-            Loc.T(L.Settings.SwapZonesHelp),
-            SettingsControls.ToggleWidth,
-            () => SettingsControls.DrawToggle(cfg, () => cfg.SwapZonesWhenEmpty, v => cfg.SwapZonesWhenEmpty = v, "##travel_swap"),
-            SettingsRow.ToggleHeight);
-
-        using (Motion.PushSwitch("##travel_swap_body", cfg.SwapZonesWhenEmpty))
+        if (Gw.BeginSection(Loc.T(L.Settings.TravelZoneSwap)))
         {
-            if (cfg.SwapZonesWhenEmpty)
-            {
-                SettingsRow.Draw(Loc.T(L.Settings.SwapWait),
-                    Loc.T(L.Settings.SwapWaitHelp),
-                    SettingsControls.RowSliderWidth,
-                    () => SettingsControls.DrawIntSlider(cfg, "##travel_swap_wait",
-                        () => cfg.SwapZoneWaitSec, v => cfg.SwapZoneWaitSec = v, SwapWaitMinSec, SwapWaitMaxSec, Loc.T(L.Settings.MinTimeFormat)));
-            }
+            DrawZoneSwapRows(cfg);
         }
+
+        Gw.EndSection();
     }
 
-    private static void DrawPullTuning(Configuration cfg)
+    private static void DrawZoneSwapRows(Configuration cfg)
     {
-        SettingsRow.Draw(Loc.T(L.Settings.PullReach),
-            Loc.T(L.Settings.PullReachHelp),
-            SettingsControls.RowSliderWidth,
-            () => SettingsControls.DrawIntSlider(cfg, "##travel_pull_reach",
-                () => cfg.PullReachMeters, v => cfg.PullReachMeters = v, PullReachMin, PullReachMax, Loc.T(L.Settings.MetersFormat)));
+        var swapZones = cfg.SwapZonesWhenEmpty;
+        if (SettingsControls.ToggleRow(L.Settings.SwapZones, L.Settings.SwapZonesHelp, ref swapZones))
+        {
+            cfg.SwapZonesWhenEmpty = swapZones;
+            cfg.SaveDebounced();
+        }
 
-        SettingsRow.Draw(Loc.T(L.Settings.PullMaxMobs),
-            Loc.T(L.Settings.PullMaxMobsHelp),
-            SettingsControls.RowSliderWidth,
-            () => SettingsControls.DrawIntSlider(cfg, "##travel_pull_max",
-                () => cfg.PullMaxMobs, v => cfg.PullMaxMobs = v, PullMaxMobsMin, PullMaxMobsMax, Loc.T(L.Settings.PullMaxMobsFormat)));
+        if (!cfg.SwapZonesWhenEmpty)
+        {
+            return;
+        }
 
-        SettingsRow.Draw(Loc.T(L.Settings.PullStopHp),
-            Loc.T(L.Settings.PullStopHpHelp),
-            SettingsControls.RowSliderWidth,
-            () => SettingsControls.DrawIntSlider(cfg, "##travel_pull_stop_hp",
-                () => cfg.PullStopHpPercent,
-                v =>
-                {
-                    cfg.PullStopHpPercent = v;
-                    cfg.PullResumeHpPercent = Math.Max(cfg.PullResumeHpPercent, v);
-                },
-                PullHpMin, PullHpMax, "%d%%"));
-
-        SettingsRow.Draw(Loc.T(L.Settings.PullResumeHp),
-            Loc.T(L.Settings.PullResumeHpHelp),
-            SettingsControls.RowSliderWidth,
-            () => SettingsControls.DrawIntSlider(cfg, "##travel_pull_resume_hp",
-                () => cfg.PullResumeHpPercent,
-                v =>
-                {
-                    cfg.PullResumeHpPercent = v;
-                    cfg.PullStopHpPercent = Math.Min(cfg.PullStopHpPercent, v);
-                },
-                PullHpMin, PullHpMax, "%d%%"));
+        var waitSeconds = cfg.SwapZoneWaitSec;
+        if (SettingsControls.SliderRow(L.Settings.SwapWait, L.Settings.SwapWaitHelp, ref waitSeconds, SwapWaitMinSec, SwapWaitMaxSec, Loc.T(L.Settings.MinTimeFormat)))
+        {
+            cfg.SwapZoneWaitSec = waitSeconds;
+            cfg.SaveDebounced();
+        }
     }
 
     private static void DrawFatePlayGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin(Loc.T(L.Settings.TravelFatePlay));
-
-        SettingsRow.Draw(Loc.T(L.Settings.KeepTwist),
-            Loc.T(L.Settings.KeepTwistHelp),
-            SettingsControls.ToggleWidth,
-            () => SettingsControls.DrawToggle(cfg, () => cfg.KeepTwistOfFate, v => cfg.KeepTwistOfFate = v, "##travel_keeptwist"),
-            SettingsRow.ToggleHeight);
-
-        SettingsRow.Draw(Loc.T(L.Settings.PullMany),
-            Loc.T(L.Settings.PullManyHelp),
-            SettingsControls.ToggleWidth,
-            () => SettingsControls.DrawToggle(cfg, () => cfg.PullAsManyAsPossible, v => cfg.PullAsManyAsPossible = v, "##travel_pull_many"),
-            SettingsRow.ToggleHeight);
-
-        using (Motion.PushSwitch("##travel_pull_many_body", cfg.PullAsManyAsPossible))
+        if (Gw.BeginSection(Loc.T(L.Settings.TravelFatePlay)))
         {
-            if (cfg.PullAsManyAsPossible)
-            {
-                DrawPullTuning(cfg);
-            }
+            DrawFatePlayRows(cfg);
         }
 
-        SettingsRow.Draw(Loc.T(L.Settings.CollectHandIn),
-            Loc.T(L.Settings.CollectHandInHelp),
-            SettingsControls.ToggleWidth,
-            () => SettingsControls.DrawToggle(cfg, () => cfg.CollectHandInEnabled, v => cfg.CollectHandInEnabled = v, "##travel_collect_handin"),
-            SettingsRow.ToggleHeight);
+        Gw.EndSection();
+    }
+
+    private static void DrawFatePlayRows(Configuration cfg)
+    {
+        var keepTwist = cfg.KeepTwistOfFate;
+        if (SettingsControls.ToggleRow(L.Settings.KeepTwist, L.Settings.KeepTwistHelp, ref keepTwist))
+        {
+            cfg.KeepTwistOfFate = keepTwist;
+            cfg.SaveDebounced();
+        }
+
+        var pullMany = cfg.PullAsManyAsPossible;
+        if (SettingsControls.ToggleRow(L.Settings.PullMany, L.Settings.PullManyHelp, ref pullMany))
+        {
+            cfg.PullAsManyAsPossible = pullMany;
+            cfg.SaveDebounced();
+        }
+
+        if (cfg.PullAsManyAsPossible)
+        {
+            DrawPullTuning(cfg);
+        }
+
+        var collectHandIn = cfg.CollectHandInEnabled;
+        if (SettingsControls.ToggleRow(L.Settings.CollectHandIn, L.Settings.CollectHandInHelp, ref collectHandIn))
+        {
+            cfg.CollectHandInEnabled = collectHandIn;
+            cfg.SaveDebounced();
+        }
 
         if (!cfg.CollectHandInEnabled)
         {
             return;
         }
 
-        SettingsRow.Draw(Loc.T(L.Settings.CollectHandInBatch),
-            Loc.T(L.Settings.CollectHandInBatchHelp),
-            SettingsControls.RowSliderWidth,
-            () => SettingsControls.DrawIntSlider(cfg, "##travel_collect_batch",
-                () => cfg.CollectHandInBatch, v => cfg.CollectHandInBatch = v,
-                CollectHandInBatchMin, CollectHandInBatchMax, Loc.T(L.Settings.CollectHandInBatchFormat)));
+        var batch = cfg.CollectHandInBatch;
+        if (SettingsControls.SliderRow(L.Settings.CollectHandInBatch, L.Settings.CollectHandInBatchHelp, ref batch,
+                CollectHandInBatchMin, CollectHandInBatchMax, Loc.T(L.Settings.CollectHandInBatchFormat)))
+        {
+            cfg.CollectHandInBatch = batch;
+            cfg.SaveDebounced();
+        }
+    }
+
+    private static void DrawPullTuning(Configuration cfg)
+    {
+        var reach = cfg.PullReachMeters;
+        if (SettingsControls.SliderRow(L.Settings.PullReach, L.Settings.PullReachHelp, ref reach, PullReachMin, PullReachMax, Loc.T(L.Settings.MetersFormat)))
+        {
+            cfg.PullReachMeters = reach;
+            cfg.SaveDebounced();
+        }
+
+        var maxMobs = cfg.PullMaxMobs;
+        if (SettingsControls.SliderRow(L.Settings.PullMaxMobs, L.Settings.PullMaxMobsHelp, ref maxMobs, PullMaxMobsMin, PullMaxMobsMax, Loc.T(L.Settings.PullMaxMobsFormat)))
+        {
+            cfg.PullMaxMobs = maxMobs;
+            cfg.SaveDebounced();
+        }
+
+        var stopHp = cfg.PullStopHpPercent;
+        if (SettingsControls.SliderRow(L.Settings.PullStopHp, L.Settings.PullStopHpHelp, ref stopHp, PullHpMin, PullHpMax, PercentFormat))
+        {
+            cfg.PullStopHpPercent = stopHp;
+            cfg.PullResumeHpPercent = Math.Max(cfg.PullResumeHpPercent, stopHp);
+            cfg.SaveDebounced();
+        }
+
+        var resumeHp = cfg.PullResumeHpPercent;
+        if (SettingsControls.SliderRow(L.Settings.PullResumeHp, L.Settings.PullResumeHpHelp, ref resumeHp, PullHpMin, PullHpMax, PercentFormat))
+        {
+            cfg.PullResumeHpPercent = resumeHp;
+            cfg.PullStopHpPercent = Math.Min(cfg.PullStopHpPercent, resumeHp);
+            cfg.SaveDebounced();
+        }
     }
 }

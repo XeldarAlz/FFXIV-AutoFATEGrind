@@ -1,12 +1,13 @@
 using AutoFateGrind.Core.Localization;
-using AutoFateGrind.Windows.Components;
-using Dalamud.Bindings.ImGui;
-using Dalamud.Interface.Utility;
+using Glasswork.Backend;
 
 namespace AutoFateGrind.Windows.Sections.Config;
 
 internal static class PartyInviteSettings
 {
+    private const int DeclineDelayMaxSec = 30;
+    private const int ReplyMaxLength = 480;
+
     private static readonly SettingsControls.Choices.Choice[] replyChannelChoices =
     [
         new(L.Settings.ChannelTellName, L.Settings.ChannelTellDetail),
@@ -17,8 +18,7 @@ internal static class PartyInviteSettings
     public static void Draw(Configuration cfg)
     {
         DrawDeclineGroup(cfg);
-        using var reply = Motion.PushSection("##pi_reply", cfg.DeclinePartyInvites);
-        if (reply is null)
+        if (!cfg.DeclinePartyInvites)
         {
             return;
         }
@@ -28,64 +28,75 @@ internal static class PartyInviteSettings
 
     private static void DrawDeclineGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin(Loc.T(L.Settings.InvitesDecline));
+        if (Gw.BeginSection(Loc.T(L.Settings.InvitesDecline)))
+        {
+            DrawDeclineRows(cfg);
+        }
 
-        SettingsRow.Draw(Loc.T(L.Settings.AutoDecline),
-            Loc.T(L.Settings.AutoDeclineHelp),
-            SettingsControls.ToggleWidth,
-            () => SettingsControls.DrawToggle(cfg, () => cfg.DeclinePartyInvites, v => cfg.DeclinePartyInvites = v, "##pi_on"),
-            SettingsRow.ToggleHeight);
+        Gw.EndSection();
+    }
 
-        using var body = Motion.PushSwitch("##pi_body", cfg.DeclinePartyInvites);
+    private static void DrawDeclineRows(Configuration cfg)
+    {
+        var decline = cfg.DeclinePartyInvites;
+        if (SettingsControls.ToggleRow(L.Settings.AutoDecline, L.Settings.AutoDeclineHelp, ref decline))
+        {
+            cfg.DeclinePartyInvites = decline;
+            cfg.SaveDebounced();
+        }
+
         if (!cfg.DeclinePartyInvites)
         {
-            SettingsRow.Note(Loc.T(L.Settings.AutoDeclineOff));
+            SettingsControls.Note(Loc.T(L.Settings.AutoDeclineOff));
             return;
         }
 
-        SettingsRow.Draw(Loc.T(L.Settings.DeclineDelay),
-            Loc.T(L.Settings.DeclineDelayHelp),
-            SettingsControls.RangeInlineWidth(),
-            () => SettingsControls.DrawRangeInline(cfg, "##pi_delay_min", "##pi_delay_max",
-                () => cfg.DeclineInviteDelayMinSec, v => cfg.DeclineInviteDelayMinSec = v,
-                () => cfg.DeclineInviteDelayMaxSec, v => cfg.DeclineInviteDelayMaxSec = v, 30, 0, Loc.T(L.Settings.SecondsFormat)));
+        var delayMin = cfg.DeclineInviteDelayMinSec;
+        var delayMax = cfg.DeclineInviteDelayMaxSec;
+        if (SettingsControls.RangeRow(L.Settings.DeclineDelay, L.Settings.DeclineDelayHelp, ref delayMin, ref delayMax, 0, DeclineDelayMaxSec, Loc.T(L.Settings.SecondsFormat)))
+        {
+            cfg.DeclineInviteDelayMinSec = delayMin;
+            cfg.DeclineInviteDelayMaxSec = delayMax;
+            cfg.SaveDebounced();
+        }
     }
 
     private static void DrawReplyGroup(Configuration cfg)
     {
-        using var group = SettingsGroup.Begin(Loc.T(L.Settings.InvitesReply));
+        if (Gw.BeginSection(Loc.T(L.Settings.InvitesReply)))
+        {
+            DrawReplyRows(cfg);
+        }
 
-        SettingsRow.Draw(Loc.T(L.Settings.SendReply),
-            Loc.T(L.Settings.SendReplyHelp),
-            SettingsControls.ToggleWidth,
-            () => SettingsControls.DrawToggle(cfg, () => cfg.DeclineInviteReply, v => cfg.DeclineInviteReply = v, "##pi_reply_on"),
-            SettingsRow.ToggleHeight);
+        Gw.EndSection();
+    }
 
-        using var channel = Motion.PushSection("##pi_channel", cfg.DeclineInviteReply);
-        if (channel is null)
+    private static void DrawReplyRows(Configuration cfg)
+    {
+        var sendReply = cfg.DeclineInviteReply;
+        if (SettingsControls.ToggleRow(L.Settings.SendReply, L.Settings.SendReplyHelp, ref sendReply))
+        {
+            cfg.DeclineInviteReply = sendReply;
+            cfg.SaveDebounced();
+        }
+
+        if (!cfg.DeclineInviteReply)
         {
             return;
         }
 
-        var selected = Math.Clamp((int)cfg.DeclineInviteReplyChannel, 0, replyChannelChoices.Length - 1);
-        SettingsRow.Draw(Loc.T(L.Settings.ReplyChannel),
-            Loc.T(L.Settings.ReplyChannelHelp),
-            SettingsControls.RowComboWidth,
-            () => SettingsControls.Choices.DrawCombo("##pi_channel", replyChannelChoices, selected, choice =>
-            {
-                cfg.DeclineInviteReplyChannel = (PartyInviteReplyChannel)choice;
-                cfg.SaveDebounced();
-            }));
-        SettingsRow.Caption(Loc.T(replyChannelChoices[selected].Detail));
+        var channel = Math.Clamp((int)cfg.DeclineInviteReplyChannel, 0, replyChannelChoices.Length - 1);
+        if (SettingsControls.Choices.DrawRow(L.Settings.ReplyChannel, L.Settings.ReplyChannelHelp, replyChannelChoices, ref channel))
+        {
+            cfg.DeclineInviteReplyChannel = (PartyInviteReplyChannel)channel;
+            cfg.SaveDebounced();
+        }
 
-        SettingsRow.DrawBlock(Loc.T(L.Settings.ReplyMessage),
-            Loc.T(L.Settings.ReplyMessageHelp),
-            () =>
-            {
-                var msg = cfg.DeclineInviteReplyMessage;
-                ImGui.SetNextItemWidth(360f * ImGuiHelpers.GlobalScale);
-                if (ImGui.InputTextWithHint("##pi_msg", Loc.T(L.Settings.ReplyMessageHint), ref msg, 480))
-                { cfg.DeclineInviteReplyMessage = msg; cfg.SaveDebounced(); }
-            });
+        var message = cfg.DeclineInviteReplyMessage;
+        if (SettingsControls.TextFieldRow(L.Settings.ReplyMessage, L.Settings.ReplyMessageHelp, ref message, ReplyMaxLength, Loc.T(L.Settings.ReplyMessageHint)))
+        {
+            cfg.DeclineInviteReplyMessage = message;
+            cfg.SaveDebounced();
+        }
     }
 }

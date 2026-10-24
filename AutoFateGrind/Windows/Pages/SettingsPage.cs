@@ -5,6 +5,8 @@ using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
+using Glasswork;
+using Glasswork.Backend;
 using System.Numerics;
 
 namespace AutoFateGrind.Windows.Pages;
@@ -56,15 +58,7 @@ internal sealed class SettingsPage
 
     private void DrawNav()
     {
-        var scale = ImGuiHelpers.GlobalScale;
-        var origin = ImGui.GetCursorScreenPos();
-        var title = Loc.T(L.Settings.Title);
-        using (Fonts.PushTitle())
-        {
-            TextDraw.At(title, new Vector2(origin.X + 6f * scale, origin.Y), Styling.TextStrong);
-            ImGui.Dummy(new Vector2(ImGui.GetContentRegionAvail().X, TextDraw.Measure(title).Y + 10f * scale));
-        }
-
+        Gw.Heading(Loc.T(L.Settings.Title));
         for (var index = 0; index < entries.Length; index++)
         {
             var entry = entries[index];
@@ -88,12 +82,9 @@ internal sealed class SettingsPage
         }
 
         var entry = entries[(int)activeTab];
-        var scale = ImGuiHelpers.GlobalScale;
-
-        using var reveal = Motion.PushSwitch("##afg_settings_tab", (int)activeTab);
-        using var group = ImRaii.Group();
-        ImGui.Dummy(new Vector2(0f, 2f * scale));
-        PageHeader.Draw(Loc.T(entry.Label), Loc.T(entry.Subtitle));
+        Gw.Heading(Loc.T(entry.Label));
+        Gw.TextWrapped(Loc.T(entry.Subtitle), TextRole.Subheadline, Frame.Look.SecondaryLabel);
+        Gw.Divider();
 
         switch (activeTab)
         {
