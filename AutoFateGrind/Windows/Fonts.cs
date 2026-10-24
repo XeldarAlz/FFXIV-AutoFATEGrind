@@ -5,6 +5,8 @@ using Dalamud.Interface;
 using Dalamud.Interface.ManagedFontAtlas;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
+using Glasswork;
+using Glasswork.Dalamud;
 using System.IO;
 
 namespace AutoFateGrind.Windows;
@@ -88,6 +90,19 @@ internal static class Fonts
     }
 
     public static void OnLanguageChanged() => Rebuild();
+
+    // The Glasswork widgets draw in the same face as the rest of the shell. Only the Medium weight ships, so every
+    // weight borrows it; without the file Glasswork keeps the game's own face.
+    public static void RegisterGlasswork(DalamudFontSource target, string pluginDirectory)
+    {
+        var path = Path.Combine(pluginDirectory, "Fonts", LatinFontFile);
+        if (!File.Exists(path))
+        {
+            return;
+        }
+
+        target.AddFontFile(FontWeight.Medium, path);
+    }
 
     public static void Dispose()
     {

@@ -14,6 +14,7 @@ using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using ECommons;
 using ECommons.DalamudServices;
+using Glasswork.Dalamud;
 using System.Globalization;
 using System.IO;
 using System.Threading.Tasks;
@@ -38,6 +39,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly DutyWatcher dutyWatcher;
 
     private readonly AppWindow appWindow;
+    private readonly GlassworkHost glasswork;
     private readonly CommandInfo primaryCommand;
     private readonly CommandInfo aliasCommand;
     internal LiveFateWindow LiveFateWindow { get; }
@@ -70,6 +72,8 @@ public sealed class Plugin : IDalamudPlugin
         InitializeLocalization();
         GameTextGlyphs.Collect(Configuration, History);
         Fonts.Initialize(PluginInterface.UiBuilder, PluginDirectory);
+        glasswork = new GlassworkHost(PluginInterface, Log) { Look = PluginLook.Create() };
+        Fonts.RegisterGlasswork(glasswork.Fonts, PluginDirectory);
         appWindow = new AppWindow(this);
         LiveFateWindow = new LiveFateWindow(this) { IsOpen = Configuration.ShowLivePopout };
 
@@ -81,7 +85,7 @@ public sealed class Plugin : IDalamudPlugin
         CommandManager.AddHandler(AfgConstants.PrimaryCommand, primaryCommand);
         CommandManager.AddHandler(AfgConstants.AliasCommand, aliasCommand);
 
-        PluginInterface.UiBuilder.Draw += WindowSystem.Draw;
+        PluginInterface.UiBuilder.Draw += DrawUi;
         PluginInterface.UiBuilder.OpenConfigUi += ToggleConfigUi;
         PluginInterface.UiBuilder.OpenMainUi += ToggleMainUi;
 
@@ -107,7 +111,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         TaskScheduler.UnobservedTaskException -= unobservedTaskHandler;
 
-        PluginInterface.UiBuilder.Draw -= WindowSystem.Draw;
+        PluginInterface.UiBuilder.Draw -= DrawUi;
         PluginInterface.UiBuilder.OpenConfigUi -= ToggleConfigUi;
         PluginInterface.UiBuilder.OpenMainUi -= ToggleMainUi;
         Svc.ClientState.Login -= OnLogin;
@@ -131,6 +135,14 @@ public sealed class Plugin : IDalamudPlugin
         Core.Game.SharedFates.SharedFateProgress.Shutdown();
         CLibMain.Dispose();
         ECommonsMain.Dispose();
+        glasswork.Dispose();
+    }
+
+    private void DrawUi()
+    {
+        glasswork.BeginFrame();
+        WindowSystem.Draw();
+        glasswork.EndFrame();
     }
 
     private void OnCommand(string command, string args)
